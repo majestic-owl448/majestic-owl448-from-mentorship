@@ -1,5 +1,4 @@
 import SuperTokens from "supertokens-node";
-import Passwordless from "supertokens-node/recipe/passwordless";
 import Session from "supertokens-node/recipe/session";
 import ThirdParty from "supertokens-node/recipe/thirdparty";
 import type { TypeInput } from "supertokens-node/types";
@@ -22,10 +21,6 @@ export function backendConfig(): TypeInput {
     },
     appInfo,
     recipeList: [
-      Passwordless.init({
-        contactMethod: "EMAIL",
-        flowType: "USER_INPUT_CODE_AND_MAGIC_LINK",
-      }),
       ThirdParty.init({
         signInAndUpFeature: {
           providers: [

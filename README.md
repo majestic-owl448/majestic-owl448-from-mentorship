@@ -23,8 +23,10 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 ## Authentication
 
 Auth is handled by [SuperTokens](https://supertokens.com) against a managed cloud core,
-using the Passwordless (email OTP + magic link) and ThirdParty (Google, Apple) recipes
-with the prebuilt React UI.
+using the ThirdParty recipe (Google, Apple) with the prebuilt React UI.
+
+Email-based login (Passwordless OTP / magic link) is intentionally not enabled — it
+needs an email delivery service configured first.
 
 Setup:
 
