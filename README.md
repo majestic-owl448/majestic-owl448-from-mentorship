@@ -20,6 +20,24 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Database
+
+[Prisma 7](https://www.prisma.io/docs) against a local SQLite file (`data.db`, gitignored),
+through the `better-sqlite3` driver adapter. The connection string lives in `DATABASE_URL`.
+
+```bash
+npx prisma migrate dev     # apply/create migrations
+npx prisma generate        # regenerate the client (also runs on install)
+npx prisma studio          # browse the data
+```
+
+The client is generated into `lib/generated/prisma` (gitignored) and re-exported as a
+singleton from `lib/db.ts`. Schema and migrations live in `prisma/`.
+
+SQLite is local-only: a Vercel deployment has an ephemeral, read-only filesystem, so
+moving off the file means switching the datasource provider to Postgres and pointing
+`DATABASE_URL` at a hosted database.
+
 ## Authentication
 
 Auth is handled by [SuperTokens](https://supertokens.com) against a managed cloud core,

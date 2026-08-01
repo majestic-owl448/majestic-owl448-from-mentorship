@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withSession } from "supertokens-node/nextjs";
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { ensureSuperTokensInit } from "@/app/config/backend";
 
 ensureSuperTokensInit();
@@ -29,13 +29,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const stmt = db.prepare("INSERT INTO users (name, email) VALUES (?, ?)");
-      const result = stmt.run(name, email);
+      const user = await prisma.user.create({ data: { name, email } });
 
       return NextResponse.json(
         {
           success: true,
-          id: result.lastInsertRowid,
+          id: user.id,
           message: "User added successfully",
         },
         { status: 201 }
@@ -64,8 +63,9 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-      const stmt = db.prepare("SELECT * FROM users ORDER BY created_at DESC");
-      const users = stmt.all();
+      const users = await prisma.user.findMany({
+        orderBy: { createdAt: "desc" },
+      });
 
       return NextResponse.json(
         {

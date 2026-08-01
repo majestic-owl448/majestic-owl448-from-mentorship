@@ -41,5 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 # database
-data.db
-data.db-journal
+data.db*
+
+# prisma client is generated from prisma/schema.prisma
+/lib/generated
