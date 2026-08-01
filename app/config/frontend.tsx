@@ -1,7 +1,7 @@
 import Passwordless from "supertokens-auth-react/recipe/passwordless";
 import { PasswordlessPreBuiltUI } from "supertokens-auth-react/recipe/passwordless/prebuiltui";
 import Session from "supertokens-auth-react/recipe/session";
-import ThirdParty, { Github, Google } from "supertokens-auth-react/recipe/thirdparty";
+import ThirdParty, { Apple, Google } from "supertokens-auth-react/recipe/thirdparty";
 import { ThirdPartyPreBuiltUI } from "supertokens-auth-react/recipe/thirdparty/prebuiltui";
 import type { SuperTokensConfig } from "supertokens-auth-react/lib/build/types";
 import type { useRouter } from "next/navigation";
@@ -23,7 +23,7 @@ export function frontendConfig(): SuperTokensConfig {
       Passwordless.init({ contactMethod: "EMAIL" }),
       ThirdParty.init({
         signInAndUpFeature: {
-          providers: [Google.init(), Github.init()],
+          providers: [Google.init(), Apple.init()],
         },
       }),
       Session.init(),

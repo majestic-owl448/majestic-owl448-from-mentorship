@@ -42,11 +42,17 @@ export function backendConfig(): TypeInput {
             },
             {
               config: {
-                thirdPartyId: "github",
+                thirdPartyId: "apple",
                 clients: [
                   {
-                    clientId: requireEnv("GITHUB_CLIENT_ID"),
-                    clientSecret: requireEnv("GITHUB_CLIENT_SECRET"),
+                    clientId: requireEnv("APPLE_CLIENT_ID"),
+                    additionalConfig: {
+                      keyId: requireEnv("APPLE_KEY_ID"),
+                      teamId: requireEnv("APPLE_TEAM_ID"),
+                      // Stored on one line in .env, so turn the escapes back
+                      // into the real newlines a PEM key needs.
+                      privateKey: requireEnv("APPLE_PRIVATE_KEY").replace(/\\n/g, "\n"),
+                    },
                   },
                 ],
               },
