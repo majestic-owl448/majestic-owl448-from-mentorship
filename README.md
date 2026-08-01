@@ -20,6 +20,42 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Authentication
+
+Auth is handled by [SuperTokens](https://supertokens.com) against a managed cloud core,
+using the Passwordless (email OTP + magic link) and ThirdParty (Google, GitHub) recipes
+with the prebuilt React UI.
+
+Setup:
+
+```bash
+cp sample.env .env
+```
+
+Fill in `SUPERTOKENS_CONNECTION_URI` and `SUPERTOKENS_API_KEY` from your app on the
+[SuperTokens dashboard](https://supertokens.com/dashboard), plus the OAuth client
+credentials for each social provider.
+
+Layout:
+
+| Path | Purpose |
+| --- | --- |
+| `app/config/appInfo.ts` | Domains and base paths shared by frontend and backend |
+| `app/config/backend.ts` | Recipe list, core connection, `ensureSuperTokensInit()` |
+| `app/config/frontend.tsx` | Client recipe list, prebuilt UI list, Next router wiring |
+| `app/api/auth/[[...path]]/route.ts` | All auth APIs |
+| `app/auth/[[...path]]/page.tsx` | Prebuilt sign-in/sign-up UI |
+| `app/components/supertokensProvider.tsx` | Client-side `SuperTokens.init` + wrapper |
+| `app/components/sessionAuthForNextJS.tsx` | SSR-safe `SessionAuth` guard |
+| `app/dashboard/page.tsx` | Example protected page |
+
+Route handlers are protected with `withSession` from `supertokens-node/nextjs` — see
+`app/api/data/route.ts`, which returns 401 without a valid session.
+
+The social credentials in `sample.env` are SuperTokens' public demo OAuth apps. Replace
+them with your own before deploying anywhere real, and update `NEXT_PUBLIC_API_DOMAIN`
+and `NEXT_PUBLIC_WEBSITE_DOMAIN` to the deployed origin.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
