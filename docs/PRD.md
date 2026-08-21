@@ -29,8 +29,9 @@ The first release must let a user:
 10. Use country-specific named or coded face values.
 11. Propose shared named/code values, scheduled changes, and fixed currency conversions.
 12. See an upcoming named/code value during the 10 calendar days before it takes effect.
-13. Download a JSON copy of their user-owned and user-linked data.
-14. Delete their account and all user-owned data without deleting contributions that have become shared resources.
+13. Explicitly link more than one Google or Apple login to one application account and remove a login when another remains.
+14. Download a JSON copy of their user-owned and user-linked data.
+15. Delete their account and all user-owned data without deleting contributions that have become shared resources.
 
 ## Out of scope
 
@@ -62,6 +63,7 @@ An annulled stamp is a stamp that was already cancelled. It remains owned and vi
 | Fixed conversion | Established conversion between currencies, such as a retired currency and its replacement. |
 | Proposal | User-submitted addition or change awaiting moderator action. |
 | Shared contribution | An approved or merged definition, schedule value, conversion, or future postage-rate change that is no longer owned by its proposer. |
+| Login method | One Google or Apple identity linked to a SuperTokens primary user and application profile. |
 
 ## Roles
 
@@ -261,19 +263,27 @@ Moderator tools must support a queue, proposal detail, approve, reject, and merg
 ## Authentication and data isolation
 
 - Google and Apple login continue through SuperTokens.
-- The database profile is keyed by the SuperTokens user ID.
+- The database profile is keyed by the stable SuperTokens primary user ID.
 - All inventory reads and writes derive the owner ID from the server-side session.
 - A client cannot select or override the owner ID.
 - Requests for another user's inventory record return `404`.
 - Moderator endpoints require a server-verified moderator role.
 - Pending proposals are filtered by proposer ID outside moderator views.
 
+## Linked social logins
+
+A signed-in user can list the Google and Apple login methods attached to their application account. Linking another login starts only from authenticated settings and requires completing that provider's OAuth flow. A normal sign-up or sign-in with a matching email does not automatically link accounts.
+
+The new provider identity must not already belong to another primary user. A failed or cancelled provider flow leaves the current account unchanged. Successful linking retains the existing SuperTokens primary user ID, profile, country settings, inventory, proposals, roles, and sessions.
+
+A login method can be removed only when at least two methods are linked. Before removal, the user must authenticate through a different linked method. Removing the selected method must leave at least one usable login, revoke existing sessions, and issue a new session only through the method used for confirmation. Removing a login disconnects it from the application account; it does not delete the user's Google or Apple account.
+
 ## User data export
 
 An authenticated user can download one JSON file containing the data associated with their account. The export contains:
 
 - Export schema version and generation time.
-- SuperTokens user ID, email, and linked login-provider identifiers available to the application.
+- SuperTokens primary user ID, email, and every linked login method available to the application.
 - Application profile and country settings.
 - Stamp inventory entries with stored face values, quantities, and status fields.
 - Pending, rejected, approved, and merged proposals submitted by the user.
@@ -293,7 +303,7 @@ An authenticated user can request permanent account deletion from settings. The 
 
 Deletion removes user-owned data:
 
-- SuperTokens identity and sessions.
+- SuperTokens primary identity, every linked login identity, and sessions.
 - Application profile and country settings.
 - Stamp inventory entries.
 - Pending and rejected proposals.
@@ -316,6 +326,7 @@ The authenticated inventory page contains:
 - Unit postage value and total postage value.
 - Overall inventory postage total.
 - Edit and remove actions.
+- Linked-login management.
 - JSON data-download action.
 - Account-deletion action with confirmation.
 
@@ -377,8 +388,10 @@ The inventory release is complete when:
 19. Inventory totals use exact decimal calculations and the active country's display currency.
 20. Lint, automated tests, production build, database migrations, and an authenticated browser flow pass.
 21. Changing a country setting's display currency never reinterprets a stored manual amount as a different currency.
-22. A user can download valid JSON containing all user-owned records and all non-secret records linked to their account, including shared contributions and moderation history.
-23. Account deletion removes authentication and user-owned records while approved or merged shared contributions remain without a contributor identity.
+22. A user can explicitly link multiple Google or Apple logins without duplicating the application profile or inventory.
+23. A user can remove a login only after authenticating with another linked login, and at least one login always remains.
+24. A user can download valid JSON containing all user-owned records and all non-secret records linked to their account, including linked logins, shared contributions, and moderation history.
+25. Account deletion removes every linked authentication identity and all user-owned records while approved or merged shared contributions remain without a contributor identity.
 
 ## Product decision still required
 

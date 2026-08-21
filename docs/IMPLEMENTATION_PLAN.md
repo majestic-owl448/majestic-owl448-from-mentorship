@@ -68,7 +68,7 @@ Add:
 
 ```text
 UserProfile
-  id                       String primary key, SuperTokens user ID
+  id                       String primary key, SuperTokens primary user ID
   email                    String nullable
   role                     USER or MODERATOR
   activeCountrySettingId   String nullable until initial settings are saved
@@ -90,7 +90,7 @@ unique(userId, countryCode)
 
 Work:
 
-1. Replace the unrelated numeric Prisma user with a profile keyed by the SuperTokens user ID.
+1. Replace the unrelated numeric Prisma user with a profile keyed by the SuperTokens primary user ID.
 2. Create or update the profile from authenticated server-side code.
 3. Add the minimum settings flow for country, display currency, and timezone. Block inventory routes until the first country setting exists.
 4. Offer the browser's IANA timezone as the system-derived default and allow a custom timezone per country setting.
@@ -110,7 +110,41 @@ Tests:
 - The active setting belongs to the authenticated user.
 - Invalid country, currency, and IANA timezone values are rejected.
 
-## Phase 4: Add reference and scheduling tables
+## Phase 4: Manage linked social logins
+
+Suggested commit:
+
+```text
+feat(auth): manage linked social logins
+```
+
+Use SuperTokens manual account linking. Keep automatic same-email linking disabled.
+
+Settings operations:
+
+```text
+GET    /api/settings/logins
+POST   /api/settings/logins/:provider/link
+DELETE /api/settings/logins/:recipeUserId
+```
+
+The link operation starts from an authenticated session and binds the new provider OAuth state to that session. After provider authentication succeeds, make the existing user primary when needed and link the new recipe user to that primary ID. Reject a provider identity that already belongs to another primary user.
+
+The removal operation requires at least two linked methods and recent authentication through a different linked method. Unlink and remove the selected recipe identity, revoke existing sessions, and create the replacement session through the confirming method. The application profile continues to use the same primary user ID.
+
+Tests:
+
+- Link a Google identity to an account created with Apple and retain one profile and inventory owner ID.
+- Do not link two accounts merely because their emails match.
+- Leave the account unchanged after a cancelled or failed provider flow.
+- Reject an identity already linked to another primary user.
+- Reject removal of the only login method.
+- Reject removal when confirmation used the method being removed.
+- Remove one method after authentication through another linked method.
+- Revoke old sessions and preserve access through the remaining method.
+- Prevent one user from listing, linking, or removing another user's login methods.
+
+## Phase 5: Add reference and scheduling tables
 
 Suggested commit:
 
@@ -183,7 +217,7 @@ Tests:
 - Approved data visibility.
 - Pending data visibility only to its proposer.
 
-## Phase 5: Implement the valuation service
+## Phase 6: Implement the valuation service
 
 Suggested commit:
 
@@ -226,7 +260,7 @@ Tests must cover:
 - Active-country switching without inventory rewrites.
 - Zero and fractional monetary values without floating-point artifacts.
 
-## Phase 6: Add moderation workflows
+## Phase 7: Add moderation workflows
 
 Suggested commits:
 
@@ -277,7 +311,7 @@ Moderator interface:
 
 Tests must exercise authorization, duplicate handling, transaction rollback, and pending-data visibility after every decision type.
 
-## Phase 7: Add stamp inventory persistence and APIs
+## Phase 8: Add stamp inventory persistence and APIs
 
 Suggested commit:
 
@@ -351,7 +385,7 @@ Tests:
 - Return zero with `OUTSIDE_ACTIVE_COUNTRY` for stamps from other countries.
 - Recalculate values when the user switches active country without rewriting inventory entries.
 
-## Phase 8: Build proposal interfaces
+## Phase 9: Build proposal interfaces
 
 Suggested commits:
 
@@ -370,7 +404,7 @@ Named/code selector:
 
 Proposal forms must explain that pending data is private to the proposer until approved.
 
-## Phase 9: Build the inventory interface
+## Phase 10: Build the inventory interface
 
 Suggested commits:
 
@@ -408,7 +442,7 @@ Inventory list:
 
 The interface must use `annulled`; it must not label cancelled stamps as `used`.
 
-## Phase 10: Add JSON user data export
+## Phase 11: Add JSON user data export
 
 Suggested commit:
 
@@ -420,7 +454,7 @@ Add an authenticated `GET /api/account/export` endpoint that returns one JSON at
 
 The export service gathers:
 
-- SuperTokens account metadata exposed to the application, excluding tokens and provider secrets.
+- SuperTokens primary-user metadata and every linked login method exposed to the application, excluding tokens and provider secrets.
 - Profile, country settings, inventory, and private valuation records.
 - Every proposal submitted by the user, regardless of status.
 - Shared definitions, schedule values, conversions, and later postage-rate records that retain a contributor link to the user.
@@ -442,7 +476,7 @@ Tests:
 - Exclude sessions, tokens, secrets, password material, and another user's private account fields.
 - Prevent one user from exporting another user's private data.
 
-## Phase 11: Add account deletion
+## Phase 12: Add account deletion
 
 Suggested commit:
 
@@ -458,7 +492,7 @@ Workflow:
 2. Revoke sessions and block further application access for that profile.
 3. In a database transaction, delete inventory, country settings, pending and rejected proposals, and other private user-owned values.
 4. Preserve approved and merged shared records while setting proposer and other direct user references to null.
-5. Delete the SuperTokens user.
+5. Delete every linked SuperTokens recipe user and the primary user.
 6. Retry any failed external step without recreating deleted private data.
 7. Remove the profile and deletion job after every required deletion succeeds.
 
@@ -473,7 +507,7 @@ Tests:
 - Reject account access while deletion is incomplete.
 - Retry an interrupted SuperTokens deletion without duplicating work or failing on already-removed records.
 
-## Phase 12: Verification and deployment
+## Phase 13: Verification and deployment
 
 Suggested commits:
 
@@ -488,6 +522,7 @@ Automated verification:
 - API tests for authentication, ownership, validation, and moderation.
 - Component tests for conditional face-value fields and quantity controls.
 - Browser tests covering sign-in, required first-run settings, active-country switching, proposal submission, stamp creation, editing, and deletion.
+- Browser tests covering explicit login linking, removal through a different linked login, and last-login protection.
 - Browser tests covering a JSON data export with private, shared, and moderation records.
 - Browser tests covering account-deletion confirmation and rejection of the deleted session.
 - Two-account tests proving inventory and pending-proposal isolation.
@@ -513,6 +548,6 @@ Release verification:
 
 ## Recommended delivery order
 
-Phases 1 through 5 establish a clean base and valuation engine. Phase 6 adds moderation before users depend on shared data. Phases 7 through 9 deliver the inventory workflow. Phase 10 adds data export after every user-linked record type exists. Phase 11 adds account deletion after export is available. Phase 12 verifies the complete authenticated flow and prepares deployment.
+Phases 1 through 6 establish profiles, login management, shared data, and the valuation engine. Phase 7 adds moderation before users depend on shared data. Phases 8 through 10 deliver the inventory workflow. Phase 11 adds data export after every user-linked record type exists. Phase 12 adds account deletion after export is available. Phase 13 verifies the complete authenticated flow and prepares deployment.
 
 Do not add postage-combination logic, a planned-mailing-date selector, a postage-rate catalog, or collection valuation while implementing these phases. Those features require separate product requirements.

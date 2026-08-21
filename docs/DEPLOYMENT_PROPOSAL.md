@@ -26,7 +26,7 @@ This is the shortest path from the current repository to a persistent deployment
 
 Migrate Prisma from SQLite to PostgreSQL before deployment. Do not treat a persistent SQLite volume as the production destination: it ties writes to one machine and makes replication, failover, and horizontal application scaling harder.
 
-Keep SuperTokens managed Cloud for the first release. It is already integrated and costs $0 for fewer than 5,000 monthly active users under its current core-feature pricing. Replacing it with direct Google and Apple OAuth would remove an auth vendor, but it would also make this project responsible for sessions, cookies, token validation, account linking, revocation, and the user-auth data model. That is a poor trade for the inventory release.
+Keep SuperTokens managed Cloud for the first release only if the account-linking budget is accepted. Core features cost $0 below 5,000 monthly active users, but manual account linking is a paid feature with a $100 monthly minimum. Replacing it with direct Google and Apple OAuth would make this project responsible for sessions, cookies, token validation, explicit linking, unlinking, revocation, and the user-auth data model. The auth choice must be confirmed before implementing linked-login settings.
 
 The strongest alternative is Vercel Pro with Neon Postgres. Choose it if native Next.js deployment and preview ergonomics matter more than keeping the app and database under one provider. The expected paid floor is $20 per month for Vercel Pro; Neon can begin on its free tier and become usage-based.
 
@@ -87,23 +87,23 @@ OAuth and SuperTokens are not equivalent layers. Google or Apple OAuth identifie
 
 ### SuperTokens managed Cloud
 
-For core features, the current price is $0.02 per monthly active user, with no charge below 5,000 MAU.
+For core features, the current price is $0.02 per monthly active user, with no charge below 5,000 MAU. Manual account linking costs another $0.005/MAU with a $100 monthly minimum. The feature is required for multiple social logins in this PRD.
 
-| Monthly active users | Core-feature estimate |
+| Monthly active users | Core features plus account linking |
 | ---: | ---: |
-| 1,000 | $0/month |
-| 4,999 | $0/month |
-| 5,000 | $100/month |
-| 10,000 | $200/month |
-| 50,000 | $1,000/month |
+| 1,000 | $100/month minimum |
+| 4,999 | $100/month minimum |
+| 5,000 | $125/month |
+| 10,000 | $250/month |
+| 50,000 | $1,250/month before any volume discount |
 
-The threshold creates a sharp jump at 5,000 MAU under the wording on the current pricing page. Confirm the invoice behavior with SuperTokens before approaching that point. Optional features have separate charges and, in some cases, minimums. For example, managed MFA is listed at $0.01/MAU with a $100 monthly minimum, and dashboard access includes three users before charging for more.
+The $100 account-linking minimum applies below 5,000 MAU. At 5,000 MAU, the page's example adds core and linking rates: `($0.02 + $0.005) * 5,000 = $125`. Confirm the invoice and any volume discount with SuperTokens before purchase. Other features have separate charges. Managed MFA is listed at $0.01/MAU with a $100 monthly minimum, and dashboard access includes three users before charging for more.
 
 Advantages for this project:
 
 - The integration already exists.
 - There is no auth hosting or auth database to operate.
-- The likely first-release user count remains inside the free allowance.
+- Manual linking is already supported by the selected SDK and keeps the primary user ID stable.
 - A later move to self-hosted SuperTokens can preserve the same application-facing SDK model.
 
 ### Self-hosted SuperTokens
@@ -113,9 +113,9 @@ The open-source core features have no per-MAU software fee. The project instead 
 - An always-available SuperTokens Core service.
 - PostgreSQL 13 or newer.
 - Monitoring, upgrades, backups, failover, and incident response.
-- Licences for any paid SuperTokens features selected later.
+- A paid licence for manual account linking.
 
-On Railway, Render, or Fly.io, the Core can run as an additional container and can use the same PostgreSQL server with isolated tables, schema, or database. The apparent software saving only becomes useful when the managed Cloud MAU bill materially exceeds the extra infrastructure and maintenance cost.
+On Railway, Render, or Fly.io, the Core can run as an additional container and can use the same PostgreSQL server with isolated tables, schema, or database. Self-hosting removes the managed core hosting charge, but account linking remains a paid feature. Confirm its self-hosted licence quote before comparing totals.
 
 ### Direct Google and Apple OAuth
 
@@ -125,18 +125,18 @@ The direct-OAuth cash floor is therefore the Apple membership plus the applicati
 
 - Implement and secure authorization-code callbacks and state/nonce validation.
 - Create application sessions and rotate or revoke them safely.
-- Decide how Google and Apple identities link to one inventory profile.
+- Implement explicit linking, alternate-login confirmation, last-login protection, and unlinking without changing the inventory owner ID.
 - Handle provider email and profile differences.
 - Build auth-user administration and deletion flows.
 - Maintain security fixes as provider and framework behavior changes.
 
-Direct OAuth becomes attractive if auth requirements remain permanently simple, the team is prepared to own security-sensitive session code, and SuperTokens' paid MAU tier becomes a meaningful cost. It should not be undertaken merely to avoid a current $0 bill.
+Direct OAuth becomes attractive if the team is prepared to own security-sensitive session and account-linking code and wants to avoid the $100 SuperTokens add-on minimum.
 
 ### Managed OAuth alternative
 
 Google Cloud Identity Platform is useful as a price reference for managed authentication rather than raw OAuth. At the research date, social and email-based providers included the first 50,000 MAU, then cost $0.0055/MAU from 50,000 through 99,999 with lower unit rates at larger tiers. Migrating to it would still be an authentication rewrite and would make Apple configuration and the Apple developer membership necessary.
 
-Official sources: [SuperTokens pricing](https://supertokens.com/pricing), [SuperTokens self-hosting](https://supertokens.com/docs/deployment/self-host-supertokens), [SuperTokens architecture](https://supertokens.com/docs/references/how-supertokens-works), [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect), [Google OAuth production readiness](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview), [Apple Developer Program](https://developer.apple.com/programs/whats-included/), and [Google Cloud Identity Platform pricing](https://cloud.google.com/identity-platform/pricing).
+Official sources: [SuperTokens pricing](https://supertokens.com/pricing), [SuperTokens manual account linking](https://supertokens.com/docs/post-authentication/account-linking/manual-account-linking), [SuperTokens account-linking concepts](https://supertokens.com/docs/post-authentication/account-linking/important-concepts), [SuperTokens self-hosting](https://supertokens.com/docs/deployment/self-host-supertokens), [SuperTokens architecture](https://supertokens.com/docs/references/how-supertokens-works), [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect), [Google OAuth production readiness](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview), [Apple Developer Program](https://developer.apple.com/programs/whats-included/), and [Google Cloud Identity Platform pricing](https://cloud.google.com/identity-platform/pricing).
 
 ## Cost scenarios
 
@@ -144,11 +144,11 @@ These are planning examples, not quotes. They exclude domain registration, taxes
 
 | Scenario | Application and database | Authentication | Expected floor |
 | --- | --- | --- | --- |
-| Development demo | Railway Free if the combined services remain inside its small limits and $1 credit; otherwise Hobby | SuperTokens Cloud below 5,000 MAU | $0 to $5/month |
-| First paid release, recommended | Railway Hobby with Next.js and Postgres; usage above $5 is charged at resource rates | SuperTokens Cloud below 5,000 MAU | $5/month, then actual Railway usage |
-| Native Next.js alternative | Vercel Pro plus Neon Free | SuperTokens Cloud below 5,000 MAU | $20/month |
-| Predictable fixed-size alternative | DigitalOcean 512 MB app plus production managed PostgreSQL | SuperTokens Cloud below 5,000 MAU | About $20/month |
-| Managed auth crosses 5,000 MAU | Any of the above | SuperTokens core pricing becomes about $100/month at 5,000 MAU | Hosting floor plus about $100/month auth |
+| Development or preview with account linking | Railway Free if the combined services remain inside its limits; otherwise Hobby | SuperTokens Cloud account linking minimum | $100 to $105/month |
+| First paid release, recommended | Railway Hobby with Next.js and Postgres; usage above $5 is charged at resource rates | SuperTokens Cloud account linking minimum below 5,000 MAU | $105/month, then actual Railway usage |
+| Native Next.js alternative | Vercel Pro plus Neon Free | SuperTokens Cloud account linking minimum below 5,000 MAU | $120/month |
+| Predictable fixed-size alternative | DigitalOcean 512 MB app plus production managed PostgreSQL | SuperTokens Cloud account linking minimum below 5,000 MAU | About $120/month |
+| Managed auth at 5,000 MAU | Any of the above | SuperTokens core plus account linking is about $125/month | Hosting floor plus about $125/month auth |
 
 The inventory workload is likely to be database-light: small records, modest write frequency, and simple aggregates. Early cost is more likely to be set by minimum service sizes and always-on memory than by database storage. The first meaningful scaling work should therefore be measuring memory, database connections, query latency, and monthly active users before increasing plan sizes.
 
@@ -158,7 +158,7 @@ The inventory workload is likely to be database-light: small records, modest wri
 
 1. Complete the persistent-storage implementation issue and migrate Prisma to PostgreSQL.
 2. Add production migration, health-check, and environment documentation.
-3. Keep SuperTokens managed Cloud.
+3. Approve the SuperTokens account-linking add-on budget or select another authentication design.
 4. Confirm Google and Apple production credentials and callback URLs.
 
 ### Stage 2: preview environment
@@ -185,7 +185,7 @@ Review the hosting choice when any of these occurs:
 - Preview deployments become a core workflow, making Vercel plus Neon more valuable.
 - The application needs multiple instances or regions.
 - Database recovery, availability, or compliance requirements exceed the selected plan.
-- SuperTokens approaches 5,000 MAU, when managed Cloud, self-hosting, and another managed auth service should receive a fresh cost and migration comparison.
+- Before enabling paid account linking and again as SuperTokens approaches 5,000 MAU, compare managed Cloud, self-hosting, and another managed auth service.
 
 ## Decision to defer
 
