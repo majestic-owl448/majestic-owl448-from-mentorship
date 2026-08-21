@@ -56,33 +56,48 @@ Exit condition: local development, isolated tests, and the production target eac
 
 ## Phase 3: Connect authentication to application profiles
 
-Suggested commit:
+Suggested commits:
 
 ```text
 feat(auth): persist user profiles and roles
+feat(settings): require initial country settings
+feat(settings): support multiple country settings
 ```
 
 Add:
 
 ```text
 UserProfile
-  id                 String primary key, SuperTokens user ID
-  email              String nullable
-  homeCurrencyCode   String
-  timeZone           String
-  role               USER or MODERATOR
+  id                       String primary key, SuperTokens user ID
+  email                    String nullable
+  role                     USER or MODERATOR
+  activeCountrySettingId   String nullable until initial settings are saved
   createdAt
   updatedAt
+
+UserCountrySetting
+  id
+  userId
+  countryCode
+  displayCurrencyCode
+  timeZone
+  timeZoneMode             SYSTEM or CUSTOM
+  createdAt
+  updatedAt
+
+unique(userId, countryCode)
 ```
 
 Work:
 
 1. Replace the unrelated numeric Prisma user with a profile keyed by the SuperTokens user ID.
 2. Create or update the profile from authenticated server-side code.
-3. Add home-currency and timezone settings.
-4. Add a server-side moderator-role guard.
-5. Remove the generic `/api/data` route.
-6. Keep `/api/me` limited to authenticated profile information.
+3. Add the minimum settings flow for country, display currency, and timezone. Block inventory routes until the first country setting exists.
+4. Offer the browser's IANA timezone as the system-derived default and allow a custom timezone per country setting.
+5. Let the user add country settings and select one active setting.
+6. Add a server-side moderator-role guard.
+7. Remove the generic `/api/data` route.
+8. Keep `/api/me` limited to authenticated profile information.
 
 Tests:
 
@@ -90,6 +105,10 @@ Tests:
 - A profile is associated with the session user ID.
 - A supplied client user ID is ignored or rejected.
 - A normal user cannot call moderator endpoints.
+- The first country setting becomes active.
+- Country settings are isolated by user and unique by user plus country.
+- The active setting belongs to the authenticated user.
+- Invalid country, currency, and IANA timezone values are rejected.
 
 ## Phase 4: Add reference and scheduling tables
 
@@ -177,20 +196,21 @@ Create server-only functions rather than calculating money in React components:
 ```text
 resolveNamedValue(namedFaceValueId, userId, localDate)
 resolveConversion(fromCurrency, toCurrency, userId, localDate)
-calculateStampValue(stamp, resolvedValue)
+calculateStampValue(stamp, activeCountrySetting, resolvedValue)
 findUpcomingValue(namedFaceValueId, userId, localDate)
 ```
 
 Resolution rules:
 
-1. Include approved entries and pending entries belonging to the current user.
-2. Select the latest entry whose effective date is absent or no later than the user's local date.
-3. Prefer the user's eligible pending proposal when it conflicts with the approved value for the same effective date.
-4. Find the next eligible future entry for advance notice.
-5. Display the next entry when it is no more than 10 calendar days away.
-6. Use the current value for totals until the effective date arrives.
+1. Return zero with `OUTSIDE_ACTIVE_COUNTRY` when the stamp country differs from the active country.
+2. Include approved entries and pending entries belonging to the current user.
+3. Select the latest entry whose effective date is absent or no later than the active country setting's local date.
+4. Prefer the user's eligible pending proposal when it conflicts with the approved value for the same effective date.
+5. Find the next eligible future entry for advance notice.
+6. Display the next entry when it is no more than 10 calendar days away.
+7. Use the current value for totals until the effective date arrives.
 
-The service accepts an explicit local date for deterministic tests. The inventory route supplies today's date in the user's saved timezone. There is no date selector in the user interface.
+The service accepts an explicit active country setting and local date for deterministic tests. The inventory route supplies today's date in that setting's saved timezone. There is no date selector in the user interface.
 
 Use a decimal library or the database client's decimal type for every calculation. Convert to strings at the API boundary and format only at the presentation layer.
 
@@ -202,6 +222,8 @@ Tests must cover:
 - Pending and approved precedence.
 - Future values before, during, and after the notice window.
 - Date changes at timezone boundaries.
+- Country mismatch even when both countries use the same currency.
+- Active-country switching without inventory rewrites.
 - Zero and fractional monetary values without floating-point artifacts.
 
 ## Phase 6: Add moderation workflows
@@ -268,6 +290,7 @@ Add:
 StampInventoryEntry
   id
   userId
+  countryCode
   name
   yearOfIssue nullable
   faceValueType       MONETARY, NAMED, or NONE
@@ -294,6 +317,9 @@ PATCH  /api/stamps/:id
 DELETE /api/stamps/:id
 GET    /api/settings
 PATCH  /api/settings
+POST   /api/settings/countries
+PATCH  /api/settings/countries/:id
+POST   /api/settings/countries/:id/activate
 ```
 
 Every stamp query includes the session user ID. Updates and deletions for records outside that ownership boundary return `404`.
@@ -301,6 +327,7 @@ Every stamp query includes the session user ID. Updates and deletions for record
 The list response includes:
 
 - Raw inventory fields.
+- Active country and active display currency.
 - Resolved current unit value.
 - Usable quantity.
 - Total postage value.
@@ -318,23 +345,18 @@ Tests:
 - Edit quantity and remove an entry.
 - Prevent cross-user read, update, and deletion.
 - Recalculate after conversion and schedule changes.
-- Preserve the currency of a manual value when the home currency changes.
+- Preserve the currency of a manual value when a country setting's display currency changes.
+- Require a country on every stamp and require named/code references to match it.
+- Return zero with `OUTSIDE_ACTIVE_COUNTRY` for stamps from other countries.
+- Recalculate values when the user switches active country without rewriting inventory entries.
 
-## Phase 8: Build profile and proposal interfaces
+## Phase 8: Build proposal interfaces
 
 Suggested commits:
 
 ```text
-feat(settings): add currency and timezone controls
 feat(valuation): add named value and conversion proposals
 ```
-
-Settings interface:
-
-- Home currency selector.
-- IANA timezone selector, with the browser timezone offered as the initial suggestion.
-- Existing personal pending proposals.
-- Approved fixed conversions used by the inventory.
 
 Named/code selector:
 
@@ -358,18 +380,20 @@ feat(stamps): add inventory list controls
 
 Add-stamp flow:
 
-1. Enter a stamp name.
-2. Optionally enter the year of issue.
-3. Select monetary, named/code, or no face value.
-4. Enter the fields for that type.
-5. Enter quantity owned and quantity annulled.
-6. Set expired when applicable.
-7. Preview the resolved unit and total postage value.
-8. Save the entry.
+1. Select the stamp country, defaulting to the active country.
+2. Enter a stamp name.
+3. Optionally enter the year of issue.
+4. Select monetary, named/code, or no face value.
+5. Enter the fields for that type.
+6. Enter quantity owned and quantity annulled.
+7. Set expired when applicable.
+8. Preview the resolved unit and total postage value.
+9. Save the entry.
 
 Inventory list:
 
 - Name and optional year.
+- Stamp country.
 - Face value.
 - Owned, annulled, and usable quantities.
 - Expired indicator.
@@ -378,7 +402,8 @@ Inventory list:
 - Upcoming value and effective date within the notice window.
 - Edit quantity and status controls.
 - Remove action with confirmation.
-- Overall total in the home currency.
+- Overall total in the active country's display currency.
+- A zero-value explanation for entries outside the active country.
 
 The interface must use `annulled`; it must not label cancelled stamps as `used`.
 
@@ -396,7 +421,7 @@ Automated verification:
 - Unit tests for normalization, date resolution, and decimal calculations.
 - API tests for authentication, ownership, validation, and moderation.
 - Component tests for conditional face-value fields and quantity controls.
-- Browser tests covering sign-in, settings, proposal submission, stamp creation, editing, and deletion.
+- Browser tests covering sign-in, required first-run settings, active-country switching, proposal submission, stamp creation, editing, and deletion.
 - Two-account tests proving inventory and pending-proposal isolation.
 - Migration test from an empty database.
 

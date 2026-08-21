@@ -13,19 +13,19 @@ The numbers are local references for planning. Replace them with GitHub issue nu
 | 1 | Reliable local checks | None |
 | 2 | Persistent application database | 1 |
 | 3 | Authenticated application profile | 2 |
-| 4 | Home-currency setting | 3 |
-| 5 | Timezone setting | 3 |
+| 4 | Required first country setting | 3 |
+| 5 | Multiple country settings and active selection | 4 |
 | 6 | Approved fixed currency conversion | 4 |
 | 7 | Approved named/code face value | 4 |
-| 8 | Future named/code value resolution | 5, 7 |
+| 8 | Future named/code value resolution | 4, 7 |
 | 9 | Add and view a monetary-face-value stamp | 3, 4, 6 |
 | 10 | Add and view a named/code-face-value stamp | 3, 4, 7 |
 | 11 | Add and view a manual-value stamp | 3, 4 |
-| 12 | Inventory postage totals | 9, 10, 11 |
+| 12 | Active-country inventory postage totals | 5, 9, 10, 11 |
 | 13 | Owned and annulled quantity editing | 12 |
 | 14 | Expired stamp handling | 12 |
 | 15 | Inventory entry removal | 12 |
-| 16 | Pending named/code proposal use | 5, 8, 10 |
+| 16 | Pending named/code proposal use | 4, 8, 10 |
 | 17 | Pending fixed-conversion proposal use | 6, 9 |
 | 18 | Moderator proposal queue | 3, 16, 17 |
 | 19 | Proposal approval | 8, 12, 18 |
@@ -113,48 +113,57 @@ This decision does not block proposal submission, the moderator queue, approval,
 - An unauthenticated request returns `401`.
 - A request for another user's private record returns `404`.
 
-### Issue 4: Let a user select their home currency
+### Issue 4: Require the first country setting
 
 **Prerequisites:** Issue 3
 
-**Feature:** A user can select and retain the currency used for inventory postage totals.
+**Feature:** A newly authenticated user saves the minimum settings required for inventory valuation: country, display currency, and timezone.
 
 **Scope:**
 
-- Add `homeCurrencyCode` to the profile.
-- Add an authenticated settings API and currency selector.
-- Format displayed amounts with the selected currency.
+- Add `UserCountrySetting` with country, display currency, IANA timezone, and `SYSTEM` or `CUSTOM` timezone mode.
+- Add the authenticated first-run settings form and API.
+- Offer the browser's IANA timezone as the system-derived initial value.
+- Make the first country setting active and block inventory routes until it exists.
 
 **Acceptance tests:**
 
-- A valid currency selection persists across sign-out and sign-in.
+- A valid country, currency, and timezone selection persists across sign-out and sign-in.
+- The first setting becomes active without a second request.
+- Inventory routes reject or redirect a user whose required settings are incomplete.
+- The system option saves the IANA timezone reported by the browser.
+- A custom valid IANA timezone can replace the system-derived value.
 - An invalid or unsupported currency code receives a field error.
+- An invalid country code or timezone receives a field error.
 - One user's selection does not alter another user's profile.
-- Changing the setting does not reinterpret the currency attached to a stored manual amount.
 
-### Issue 5: Let a user select their timezone
+### Issue 5: Manage multiple country settings and select the active country
 
-**Prerequisites:** Issue 3
+**Prerequisites:** Issue 4
 
-**Feature:** A user can select the timezone used to decide when scheduled values take effect.
+**Feature:** A user can save settings for more than one country and choose which country controls current postage valuation.
 
 **Scope:**
 
-- Add an IANA timezone identifier to the profile.
-- Offer the browser timezone as an initial suggestion.
-- Add the timezone control to authenticated settings.
+- Add, list, and edit user-owned country settings.
+- Enforce one setting per user and country.
+- Give each country its own display currency and system-derived or custom timezone.
+- Add an active-country selector.
 
 **Acceptance tests:**
 
-- A valid IANA timezone persists across sessions.
-- An invalid timezone receives a field error.
-- The saved timezone, rather than the server timezone, supplies the user's local date.
+- A second country can be added without changing the first setting.
+- Duplicate country settings for one user are rejected.
+- Editing one country's currency or timezone does not alter another country.
+- The active selection persists across sessions.
+- A user cannot activate another user's country setting.
+- The active setting's saved timezone, rather than the server timezone, supplies the local date.
 
 ### Issue 6: Resolve an approved fixed currency conversion
 
 **Prerequisites:** Issue 4
 
-**Feature:** A monetary face value in another currency can be expressed in the user's home currency through an approved fixed conversion.
+**Feature:** A monetary face value in another currency can be expressed in the active country's display currency through an approved fixed conversion.
 
 **Scope:**
 
@@ -165,7 +174,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 **Acceptance tests:**
 
-- A face amount in the home currency is returned unchanged.
+- A face amount in the active country's display currency is returned unchanged.
 - A face amount in another currency is multiplied by the approved rate.
 - Decimal multiplication does not introduce binary floating-point artifacts.
 - A missing conversion returns a typed unresolved result rather than silently using `1`.
@@ -194,9 +203,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 ### Issue 8: Resolve future named/code value changes by local date
 
-**Prerequisites:** Issues 5 and 7
+**Prerequisites:** Issues 4 and 7
 
-**Feature:** A named/code schedule switches to a future amount on its effective date in the current user's timezone.
+**Feature:** A named/code schedule switches to a future amount on its effective date in the active country setting's timezone.
 
 **Scope:**
 
@@ -207,7 +216,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 **Acceptance tests:**
 
-- `B Zona 1` resolves to `1.35 EUR` through September 30, 2028 in the user's timezone.
+- `B Zona 1` resolves to `1.35 EUR` through September 30, 2028 in the active Italy setting's timezone.
 - It resolves to `1.40 EUR` from October 1, 2028 in that timezone.
 - At the same instant, users on opposite sides of the date boundary can resolve different current values.
 - The future amount is reported as upcoming no more than 10 calendar days before its date.
@@ -222,12 +231,13 @@ This decision does not block proposal submission, the moderator queue, approval,
 **Scope:**
 
 - Add the inventory model and authenticated create/list endpoints.
-- Support stamp name, optional year, monetary amount, face currency, owned quantity, annulled quantity, and expired flag.
+- Support stamp country, name, optional year, monetary amount, face currency, owned quantity, annulled quantity, and expired flag.
 - Connect monetary valuation to the fixed-conversion resolver.
 
 **Acceptance tests:**
 
-- A user can add and retrieve a stamp in their home currency.
+- A user can add and retrieve a stamp in the active country's display currency.
+- Country is required even when the monetary face currency is shared by several countries.
 - A user can add and retrieve a stamp using an approved conversion.
 - Year of issue can be absent.
 - Invalid decimals and non-positive owned quantities receive field errors.
@@ -243,6 +253,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 - Add named/code search by country and text.
 - Store a reference to `NamedFaceValue` on the inventory entry.
+- Store the named definition's country on the inventory entry and reject a country mismatch.
 - Use the referenced schedule for valuation.
 
 **Acceptance tests:**
@@ -261,6 +272,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 **Scope:**
 
 - Support face-value type `NONE`.
+- Require the stamp country.
 - Store a manual postage amount and its currency.
 - Permit zero for stamps with no postal value.
 
@@ -269,20 +281,21 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A stamp without a face value can be saved with a manual amount and currency.
 - A manual value of zero is accepted.
 - A negative value is rejected.
-- Changing the home currency preserves the entered currency instead of relabeling the amount.
+- Changing the country setting's display currency preserves the entered currency instead of relabeling the amount.
 - An unresolved manual currency is reported separately from a zero value.
 
-### Issue 12: Show per-stamp and inventory postage totals
+### Issue 12: Show postage totals for the active country
 
-**Prerequisites:** Issues 9, 10, and 11
+**Prerequisites:** Issues 5, 9, 10, and 11
 
-**Feature:** A user can see each stamp's current unit value, line total, and the inventory total in their home currency.
+**Feature:** A user can see every owned stamp while postage values and totals are calculated for the active country.
 
 **Scope:**
 
 - Add the inventory page and value explanation returned by the server.
 - Calculate line totals from quantity and unit value.
-- Sum only entries resolvable in the home currency.
+- Resolve active-country entries into that country's display currency.
+- Return zero with `OUTSIDE_ACTIVE_COUNTRY` for every other country's entries.
 - Identify unresolved entries without treating them as zero.
 
 **Acceptance tests:**
@@ -291,6 +304,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Line totals use exact decimal multiplication.
 - The inventory total equals the sum of resolvable line totals.
 - An unresolved entry is labelled and excluded from the total.
+- A stamp outside the active country remains visible with unit and line values of zero.
+- Two countries that share the same display currency remain separate for postal valuation.
+- Switching the active country recalculates both countries' rows and the inventory total without changing stored stamps.
 - Two users see independent lists and totals.
 
 ### Issue 13: Edit owned and annulled quantities
@@ -355,7 +371,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 ### Issue 16: Submit and use a pending named/code proposal
 
-**Prerequisites:** Issues 5, 8, and 10
+**Prerequisites:** Issues 4, 8, and 10
 
 **Feature:** A user can propose a missing named/code definition or value and use the eligible pending value in their own inventory.
 
@@ -500,7 +516,7 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - The notice appears inside the window with current amount, upcoming amount, and date.
 - An eligible pending future value appears only to its proposer.
 - Totals continue using the current amount before the date.
-- The notice disappears and totals use the new amount on the effective date in the user's timezone.
+- The notice disappears and totals use the new amount on the effective date in the active country setting's timezone.
 
 ### Issue 23: Run project checks in continuous integration
 
@@ -537,12 +553,13 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 
 **Acceptance tests:**
 
-- A normal user can sign in, configure settings, add each stamp type, edit quantities, expire a stamp, and remove an entry.
+- A normal user can sign in, complete the required first settings, add a second country, switch the active country, add each stamp type, edit quantities, expire a stamp, and remove an entry.
 - Data remains after a new deployment.
 - A second user cannot access the first user's inventory or pending proposals.
 - A moderator can approve, merge, and reject proposals.
 - Approved data recalculates linked inventory entries.
-- A scheduled value follows each test account's saved timezone.
+- Stamps outside the active country remain visible and have postage value zero.
+- A scheduled value follows the active country setting's saved timezone.
 - Backup and restore instructions recover a test inventory in a non-production environment.
 
 ## Suggested GitHub metadata

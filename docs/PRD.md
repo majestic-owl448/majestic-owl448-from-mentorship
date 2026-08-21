@@ -9,7 +9,7 @@
 
 ## Product summary
 
-The application lets an authenticated user record the stamps they own and calculate their current postage value in a selected currency. A stamp can have a monetary face value, a country-specific name or code, or no face value. The user records how many copies they own, how many are annulled, and whether the stamp has expired.
+The application lets an authenticated user record the stamps they own and calculate their current postage value for a selected country. Each saved country setting has a display currency and timezone. A stamp belongs to one country and can have a monetary face value, a country-specific name or code, or no face value. The user records how many copies they own, how many are annulled, and whether the stamp has expired.
 
 Named and coded face values use shared, moderated data. Currency conversions that represent established fixed conversions can also become shared data. Users can propose additions and changes. A proposer can use their pending data immediately when its effective date has arrived; other users see it only after approval.
 
@@ -18,15 +18,17 @@ Named and coded face values use shared, moderated data. Currency conversions tha
 The first release must let a user:
 
 1. Sign in and access only their own inventory.
-2. Select a home currency and timezone.
-3. Add a stamp identified by a name, face value, and optional year of issue.
-4. Record the owned and annulled quantities for that stamp.
-5. Mark a stamp as expired.
-6. Edit quantities and remove an inventory entry.
-7. See current unit and total postage values in their home currency.
-8. Use country-specific named or coded face values.
-9. Propose shared named/code values, scheduled changes, and fixed currency conversions.
-10. See an upcoming named/code value during the 10 calendar days before it takes effect.
+2. Complete the minimum settings required to use the inventory: country, display currency, and timezone.
+3. Save more than one country setting and select which country is active.
+4. Add a stamp identified by a country, name, face value, and optional year of issue.
+5. Record the owned and annulled quantities for that stamp.
+6. Mark a stamp as expired.
+7. Edit quantities and remove an inventory entry.
+8. See current unit and total postage values in the active country's display currency.
+9. See stamps from other countries with postage value zero while they are not active.
+10. Use country-specific named or coded face values.
+11. Propose shared named/code values, scheduled changes, and fixed currency conversions.
+12. See an upcoming named/code value during the 10 calendar days before it takes effect.
 
 ## Out of scope
 
@@ -47,7 +49,9 @@ An annulled stamp is a stamp that was already cancelled. It remains owned and vi
 
 | Term | Meaning |
 | --- | --- |
-| Home currency | Currency used to display the user's postage values and inventory total. |
+| Country setting | User-owned configuration that pairs a country with its display currency and timezone. |
+| Active country | Country setting used for the current inventory valuation. Stamps from other countries have postage value zero. |
+| Display currency | Currency used to display postage values and the inventory total for one country setting. |
 | Face value | Monetary amount, country-specific name/code, or absent denomination shown on a stamp. |
 | Named face value | A denomination identified by country and a normalized name or code. |
 | Value schedule | Shared source of the current value and approved or proposed future changes. |
@@ -66,6 +70,19 @@ A user manages their profile and inventory, reads approved shared data, and subm
 
 A moderator reviews proposals, checks the submitted source, merges duplicates, and approves or rejects changes. Moderator actions are recorded with the actor and time.
 
+## Minimum user settings
+
+Before using the inventory, a newly authenticated user must save one country setting containing:
+
+- ISO 3166-1 alpha-2 country code.
+- ISO 4217 display-currency code.
+- Timezone mode: system or custom.
+- A valid IANA timezone identifier.
+
+The settings form offers the browser's system timezone as the initial value. A user can replace it with a custom timezone. The saved IANA identifier is used for server-side date calculations. If the user later adds another country, that country has its own display currency and timezone settings.
+
+One country setting is active at a time. The first setting becomes active automatically. The user can add another country, edit a country's display currency or timezone, and switch the active country. A user cannot access inventory valuation until at least one setting exists.
+
 ## Stamp identity and ownership
 
 An inventory entry represents copies of the same stamp identity owned by one user.
@@ -74,6 +91,7 @@ Required and optional fields:
 
 | Field | Requirement |
 | --- | --- |
+| Country | Required ISO 3166-1 alpha-2 country code. |
 | Name | Required user-facing identifier. |
 | Year of issue | Optional integer. |
 | Face value type | `MONETARY`, `NAMED`, or `NONE`. |
@@ -90,9 +108,11 @@ The application must preserve the face value when a stamp is annulled or expired
 
 ### Unit value
 
-The application resolves the unit postage value for a non-expired, non-annulled copy in this order:
+The application first compares the stamp country with the active country. If they differ, the unit postage value is zero with the reason `OUTSIDE_ACTIVE_COUNTRY`. The stamp remains owned and visible.
 
-1. A monetary face value in the user's home currency has the same postage value as its face amount.
+For a stamp in the active country, the application resolves the unit postage value for a non-expired, non-annulled copy in this order:
+
+1. A monetary face value in the active country's display currency has the same postage value as its face amount.
 2. A monetary face value in another currency uses the applicable fixed currency conversion.
 3. A named/code face value uses its applicable value schedule.
 4. A face value without an applicable conversion or named/code value requires a manual postage amount.
@@ -100,7 +120,7 @@ The application resolves the unit postage value for a non-expired, non-annulled 
 
 Money calculations must use decimal arithmetic. JavaScript floating-point numbers must not be used for stored values or multiplication.
 
-A manual postage amount retains the currency in which the user entered it. If the user changes their home currency, the application converts that amount when an applicable conversion exists. When no conversion exists, the entry remains stored but cannot contribute to the new home-currency total until the user supplies a conversion or replaces the manual amount.
+A manual postage amount retains the currency in which the user entered it. If the user changes that country's display currency, the application converts the amount when an applicable conversion exists. When no conversion exists, the entry remains stored but cannot contribute to the active-country total until the user supplies a conversion or replaces the manual amount.
 
 ### Quantity calculation
 
@@ -115,8 +135,9 @@ Rules:
 - Annulled copies remain included in quantity owned.
 - Every annulled copy has postage value zero.
 - Every copy of an expired stamp has postage value zero.
+- Every stamp outside the active country has postage value zero, including stamps from a country that uses the same currency.
 - Postage value can be zero but cannot be negative.
-- The inventory total is the sum of each entry's total postage value in the home currency.
+- The inventory total is the sum of each entry's total postage value in the active country's display currency.
 
 ## Named/code face values
 
@@ -155,7 +176,7 @@ The inventory release does not need a postage-rate catalog or postage-rate user 
 
 ## Current and future named/code values
 
-An effective date is stored as a calendar date, not a universal activation timestamp. Applicability is calculated from the user's IANA timezone.
+An effective date is stored as a calendar date, not a universal activation timestamp. Applicability is calculated from the active country setting's IANA timezone.
 
 At a single instant, a future value can be current for a user whose local date has advanced and still be upcoming for another user. For that reason, `CURRENT` and `SCHEDULED` are derived states rather than persistent global states.
 
@@ -185,7 +206,7 @@ The product discussion supplied this acceptance example; it is not a request to 
 - Approved future value: `1.40`.
 - Effective date: October 1, 2028.
 
-Through September 30, 2028 in the user's timezone, inventory calculations use `1.35 EUR`. From October 1, they use `1.40 EUR`. During the 10-day notice window, the interface shows both values and the effective date. A future postage-rate record for `B Zona 1` can reference the same schedule and change at the same time.
+Through September 30, 2028 in the active Italy setting's timezone, inventory calculations use `1.35 EUR`. From October 1, they use `1.40 EUR`. During the 10-day notice window, the interface shows both values and the effective date. A future postage-rate record for `B Zona 1` can reference the same schedule and change at the same time.
 
 ## Currency conversions
 
@@ -248,7 +269,8 @@ Moderator tools must support a queue, proposal detail, approve, reject, and merg
 
 The authenticated inventory page contains:
 
-- Home currency and timezone settings.
+- Active-country selector.
+- Country, display-currency, and timezone settings.
 - Add-stamp form.
 - Inventory list.
 - Quantity owned and annulled controls.
@@ -260,7 +282,7 @@ The authenticated inventory page contains:
 The face-value input changes with the selected type:
 
 - `MONETARY`: amount and currency.
-- `NAMED`: country and name/code search, with an option to propose a missing definition.
+- `NAMED`: name/code search within the stamp country, with an option to propose a missing definition.
 - `NONE`: manual postage value.
 
 If a required conversion is missing, the user can enter one without leaving the stamp workflow. If a named/code value has an upcoming change within the notice window, the stamp row displays both amounts and the effective date.
@@ -269,11 +291,13 @@ If a required conversion is missing, the user can enter one without leaving the 
 
 - Quantity owned must be a positive integer.
 - Quantity annulled must be an integer between zero and quantity owned.
+- Every stamp must have a valid country code.
+- Every display currency must have a supported ISO 4217 code.
 - Year of issue is optional and must be a plausible four-digit integer when supplied. Exact accepted bounds belong in the implementation specification.
 - Monetary amounts and conversion multipliers must be valid decimal strings.
 - Postage amounts cannot be negative.
 - Face-value fields must match the selected face-value type.
-- Named/code lookups require a country.
+- A named/code reference must belong to the stamp country.
 - Effective dates are calendar dates.
 - Timezones must be valid IANA timezone identifiers.
 - Manual postage values retain their entered currency.
@@ -293,21 +317,26 @@ If a required conversion is missing, the user can enter one without leaving the 
 The inventory release is complete when:
 
 1. A signed-in user can create, edit, list, and remove only their own inventory entries.
-2. Monetary, named/code, and absent face values are supported.
-3. The user can set owned and annulled quantities, subject to the quantity constraints.
-4. Annulled and expired copies always contribute zero postage value.
-5. A monetary face value in the home currency is valued at face amount.
-6. A converted monetary face value uses the applicable fixed decimal rate.
-7. A named/code face value uses the current eligible value from its shared schedule.
-8. Updating an approved fixed conversion recalculates every linked monetary stamp.
-9. Updating an approved named/code schedule recalculates every linked named/code stamp.
-10. A future value activates on its effective calendar date in each user's timezone.
-11. Current and upcoming named/code values appear during the 10-day notice window.
-12. A proposer can use their eligible pending data while other users cannot see it.
-13. A moderator can approve, reject, and merge proposals through protected controls.
-14. Inventory totals use exact decimal calculations and the user's home currency.
-15. Lint, automated tests, production build, database migrations, and an authenticated browser flow pass.
-16. Changing the home currency never reinterprets a stored manual amount as a different currency.
+2. A new user must save a country, display currency, and timezone before using the inventory.
+3. A user can save more than one country setting and switch the active country.
+4. Every stamp is assigned to one country.
+5. Monetary, named/code, and absent face values are supported.
+6. The user can set owned and annulled quantities, subject to the quantity constraints.
+7. Annulled and expired copies always contribute zero postage value.
+8. A stamp outside the active country remains visible but contributes zero postage value.
+9. Switching the active country recalculates all entries without changing their stored country or face value.
+10. A monetary face value in the active country's display currency is valued at face amount.
+11. A converted monetary face value uses the applicable fixed decimal rate.
+12. A named/code face value uses the current eligible value from its shared schedule.
+13. Updating an approved fixed conversion recalculates every linked monetary stamp.
+14. Updating an approved named/code schedule recalculates every linked named/code stamp.
+15. A future value activates on its effective calendar date in the active country setting's timezone.
+16. Current and upcoming named/code values appear during the 10-day notice window.
+17. A proposer can use their eligible pending data while other users cannot see it.
+18. A moderator can approve, reject, and merge proposals through protected controls.
+19. Inventory totals use exact decimal calculations and the active country's display currency.
+20. Lint, automated tests, production build, database migrations, and an authenticated browser flow pass.
+21. Changing a country setting's display currency never reinterprets a stored manual amount as a different currency.
 
 ## Product decision still required
 
