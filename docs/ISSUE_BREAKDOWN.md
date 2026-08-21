@@ -33,7 +33,9 @@ The numbers are local references for planning. Replace them with GitHub issue nu
 | 21 | Proposal rejection | 18 and product decision R1 |
 | 22 | Upcoming value notice in inventory | 8, 10, 12, 16 |
 | 23 | Continuous integration checks | 1, 2 |
-| 24 | Persistent preview deployment | 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, 23 |
+| 24 | JSON user data export | 5, 12, 16, 17, 18, 19, 20, 21 |
+| 25 | Account deletion | 24 |
+| 26 | Persistent preview deployment | 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, 23, 24, 25 |
 
 Issues 6 and 7 can proceed in parallel. Issues 9, 10, and 11 can also proceed in parallel after their prerequisites close. The moderation queue waits for both proposal types so its filters and permissions are tested once against the complete proposal set.
 
@@ -538,9 +540,63 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - An invalid migration fails the migration job.
 - No production credential is required or printed by the workflow.
 
-### Issue 24: Deploy a persistent preview of the inventory release
+### Issue 24: Download all user-owned and user-linked data as JSON
 
-**Prerequisites:** Issues 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, and 23
+**Prerequisites:** Issues 5, 12, 16, 17, 18, 19, 20, and 21
+
+**Feature:** A user can download one JSON file containing their private records and every non-secret record linked to their account.
+
+**Scope:**
+
+- Add a data-download control in authenticated settings.
+- Add an authenticated JSON export endpoint with a versioned document structure and `Cache-Control: no-store`.
+- Export SuperTokens account metadata, profile, country settings, inventory, private valuation data, and every proposal status.
+- Export shared contributions and moderation or audit entries linked to the user.
+- Serialize decimals and date-only values as strings.
+- Add schema coverage that requires every user-linked table or field to be exported or explicitly excluded as secret.
+
+**Acceptance tests:**
+
+- The response is valid JSON downloaded with a filename, schema version, and generation time.
+- The response headers prevent browser and intermediary caching.
+- Profile, country settings, every stamp type, and private valuation records are present.
+- Pending, rejected, approved, and merged proposals submitted by the user are present.
+- Shared definitions, schedule values, conversions, and source information linked to the user are present.
+- Moderation entries linked to the user as proposer or moderator are present.
+- Stored decimal and date-only strings are unchanged.
+- Sessions, OAuth tokens, provider secrets, API keys, and password material are absent.
+- Another user's private ID, email, profile, inventory, and private proposals are absent.
+- An unauthenticated user cannot create an export, and one user cannot request another user's export.
+- A schema coverage test fails for a new direct user reference without an export mapping or secret exclusion.
+
+### Issue 25: Delete an account without deleting shared contributions
+
+**Prerequisites:** Issue 24
+
+**Feature:** A user can permanently delete their account and private data while approved or merged shared contributions remain available without their identity.
+
+**Scope:**
+
+- Add an account-deletion control with explicit confirmation.
+- Revoke SuperTokens sessions and delete the SuperTokens identity.
+- Delete the profile, country settings, inventory, pending and rejected proposals, and private valuation data.
+- Preserve approved and merged shared records with nullable contributor references.
+- Add an idempotent deletion job so an external-service failure can be retried while account access stays blocked.
+
+**Acceptance tests:**
+
+- Cancelling the confirmation leaves the account unchanged.
+- Confirming removes the SuperTokens identity and invalidates existing sessions.
+- Profile, country settings, inventory, pending proposals, rejected proposals, and private valuation records are removed.
+- Approved and merged named/code definitions, schedule values, fixed conversions, and source information remain usable by other users.
+- Preserved shared and moderation records contain no deleted user ID or email.
+- Another user's profile, inventory, proposals, and shared contributions remain unchanged.
+- A failure while deleting the SuperTokens identity leaves the account blocked and retrying completes the deletion.
+- Repeating a deletion step does not recreate data or fail because a record is already absent.
+
+### Issue 26: Deploy a persistent preview of the inventory release
+
+**Prerequisites:** Issues 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, 23, 24, and 25
 
 **Feature:** A preview deployment supports the complete authenticated inventory and moderation flow with persistent data.
 
@@ -560,6 +616,8 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - Approved data recalculates linked inventory entries.
 - Stamps outside the active country remain visible and have postage value zero.
 - A scheduled value follows the active country setting's saved timezone.
+- The downloaded JSON contains private inventory, a shared contribution, and linked moderation history without another user's private data.
+- Account deletion removes the test user's private data while an approved contribution remains available without their identity.
 - Backup and restore instructions recover a test inventory in a non-production environment.
 
 ## Suggested GitHub metadata

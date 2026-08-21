@@ -256,6 +256,7 @@ Approval behavior:
 - Preserve stamp references.
 - Make approved data visible to every user.
 - Record moderator, decision time, and decision note.
+- Allow the proposer reference on approved shared records and retained moderation history to become null after account deletion.
 
 Merge behavior:
 
@@ -407,7 +408,72 @@ Inventory list:
 
 The interface must use `annulled`; it must not label cancelled stamps as `used`.
 
-## Phase 10: Verification and deployment
+## Phase 10: Add JSON user data export
+
+Suggested commit:
+
+```text
+feat(settings): add user data export
+```
+
+Add an authenticated `GET /api/account/export` endpoint that returns one JSON attachment with `Cache-Control: no-store`. Give the document an explicit schema version and generation time. Serialize decimals and date-only values as strings.
+
+The export service gathers:
+
+- SuperTokens account metadata exposed to the application, excluding tokens and provider secrets.
+- Profile, country settings, inventory, and private valuation records.
+- Every proposal submitted by the user, regardless of status.
+- Shared definitions, schedule values, conversions, and later postage-rate records that retain a contributor link to the user.
+- Moderation and audit entries that refer to the user as proposer, affected account, or moderator.
+
+Do not expose another user's private ID or email through a shared moderation record. Keep record identifiers and non-private decision data so relationships in the export remain understandable.
+
+Maintain one export mapping for every table with a user foreign key or stored authentication ID. Add a schema coverage test that fails when a new user-linked table or field has neither an export mapping nor an explicit secret exclusion.
+
+Tests:
+
+- Reject an unauthenticated export request.
+- Return parseable JSON with an attachment filename, schema version, and generation time.
+- Prevent browser and intermediary caching through the response headers.
+- Include fixtures for every user-owned and user-linked record type.
+- Include approved and merged contributions without changing the shared records.
+- Include moderation entries linked to the user as proposer and moderator.
+- Preserve decimal and date-only strings exactly.
+- Exclude sessions, tokens, secrets, password material, and another user's private account fields.
+- Prevent one user from exporting another user's private data.
+
+## Phase 11: Add account deletion
+
+Suggested commit:
+
+```text
+feat(settings): add account deletion
+```
+
+Add an authenticated `DELETE /api/account` operation with explicit confirmation. Treat deletion as an idempotent workflow because application records and the SuperTokens identity cannot be deleted in one database transaction.
+
+Workflow:
+
+1. Create an account-deletion job and mark the profile as deleting.
+2. Revoke sessions and block further application access for that profile.
+3. In a database transaction, delete inventory, country settings, pending and rejected proposals, and other private user-owned values.
+4. Preserve approved and merged shared records while setting proposer and other direct user references to null.
+5. Delete the SuperTokens user.
+6. Retry any failed external step without recreating deleted private data.
+7. Remove the profile and deletion job after every required deletion succeeds.
+
+Database foreign keys must use deliberate deletion behavior. User-owned records cascade from the profile. Shared and audit records use nullable contributor references rather than cascading deletion. Do not put the user's email or authentication ID into preserved proposal payloads or audit text.
+
+Tests:
+
+- Delete the authentication identity, profile, country settings, inventory, and private proposal data.
+- Preserve approved and merged definitions, schedules, conversions, and their source information.
+- Remove the deleted user's identity from preserved shared data and moderation history.
+- Leave every other user's data unchanged.
+- Reject account access while deletion is incomplete.
+- Retry an interrupted SuperTokens deletion without duplicating work or failing on already-removed records.
+
+## Phase 12: Verification and deployment
 
 Suggested commits:
 
@@ -422,6 +488,8 @@ Automated verification:
 - API tests for authentication, ownership, validation, and moderation.
 - Component tests for conditional face-value fields and quantity controls.
 - Browser tests covering sign-in, required first-run settings, active-country switching, proposal submission, stamp creation, editing, and deletion.
+- Browser tests covering a JSON data export with private, shared, and moderation records.
+- Browser tests covering account-deletion confirmation and rejection of the deleted session.
 - Two-account tests proving inventory and pending-proposal isolation.
 - Migration test from an empty database.
 
@@ -445,6 +513,6 @@ Release verification:
 
 ## Recommended delivery order
 
-Phases 1 through 5 establish a clean base and valuation engine. Phase 6 adds moderation before users depend on shared data. Phases 7 through 9 deliver the inventory workflow. Phase 10 verifies the complete authenticated flow and prepares deployment.
+Phases 1 through 5 establish a clean base and valuation engine. Phase 6 adds moderation before users depend on shared data. Phases 7 through 9 deliver the inventory workflow. Phase 10 adds data export after every user-linked record type exists. Phase 11 adds account deletion after export is available. Phase 12 verifies the complete authenticated flow and prepares deployment.
 
 Do not add postage-combination logic, a planned-mailing-date selector, a postage-rate catalog, or collection valuation while implementing these phases. Those features require separate product requirements.

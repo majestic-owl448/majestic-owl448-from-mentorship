@@ -29,6 +29,8 @@ The first release must let a user:
 10. Use country-specific named or coded face values.
 11. Propose shared named/code values, scheduled changes, and fixed currency conversions.
 12. See an upcoming named/code value during the 10 calendar days before it takes effect.
+13. Download a JSON copy of their user-owned and user-linked data.
+14. Delete their account and all user-owned data without deleting contributions that have become shared resources.
 
 ## Out of scope
 
@@ -59,6 +61,7 @@ An annulled stamp is a stamp that was already cancelled. It remains owned and vi
 | Expired stamp | Stamp identity for which every owned copy has postage value zero. |
 | Fixed conversion | Established conversion between currencies, such as a retired currency and its replacement. |
 | Proposal | User-submitted addition or change awaiting moderator action. |
+| Shared contribution | An approved or merged definition, schedule value, conversion, or future postage-rate change that is no longer owned by its proposer. |
 
 ## Roles
 
@@ -265,6 +268,41 @@ Moderator tools must support a queue, proposal detail, approve, reject, and merg
 - Moderator endpoints require a server-verified moderator role.
 - Pending proposals are filtered by proposer ID outside moderator views.
 
+## User data export
+
+An authenticated user can download one JSON file containing the data associated with their account. The export contains:
+
+- Export schema version and generation time.
+- SuperTokens user ID, email, and linked login-provider identifiers available to the application.
+- Application profile and country settings.
+- Stamp inventory entries with stored face values, quantities, and status fields.
+- Pending, rejected, approved, and merged proposals submitted by the user.
+- Private valuation data owned by the user.
+- Shared definitions, schedule values, conversions, and future postage-rate records linked to the user as contributor.
+- Moderation and audit entries linked to the user as proposer, affected account, or moderator.
+
+The export includes stored decimal amounts and date-only values as strings so JSON parsing does not change them. References between exported records use their stored identifiers.
+
+The export does not contain session tokens, OAuth access or refresh tokens, provider client secrets, API keys, password hashes, or another user's private profile fields. When a user-linked moderation entry also refers to another account, the entry remains understandable but the other account's private identifier and email are omitted.
+
+Every new table or field that stores a direct user reference must be added to the export or marked as a secret excluded by an automated test. A user must download the file before deleting the account; deletion does not retain a private export for later retrieval.
+
+## Account deletion
+
+An authenticated user can request permanent account deletion from settings. The action requires explicit confirmation and revokes the user's active sessions.
+
+Deletion removes user-owned data:
+
+- SuperTokens identity and sessions.
+- Application profile and country settings.
+- Stamp inventory entries.
+- Pending and rejected proposals.
+- Private conversion or named/code values that never became shared resources.
+
+Approved and merged contributions remain because other inventories can depend on them. This includes shared named/code definitions, value schedules, fixed conversions, and postage-rate data added in a later release. Preserved records must not retain the deleted user's ID, email, or another direct account reference. Moderation history required to explain a shared-data change remains with the user identity removed.
+
+The deletion workflow must be idempotent. If deletion of the external SuperTokens identity fails after application data cleanup starts, the account remains blocked and the system retries the incomplete step. A partial failure must not restore access to data scheduled for deletion or remove shared contributions.
+
 ## Inventory interface
 
 The authenticated inventory page contains:
@@ -278,6 +316,8 @@ The authenticated inventory page contains:
 - Unit postage value and total postage value.
 - Overall inventory postage total.
 - Edit and remove actions.
+- JSON data-download action.
+- Account-deletion action with confirmation.
 
 The face-value input changes with the selected type:
 
@@ -337,6 +377,8 @@ The inventory release is complete when:
 19. Inventory totals use exact decimal calculations and the active country's display currency.
 20. Lint, automated tests, production build, database migrations, and an authenticated browser flow pass.
 21. Changing a country setting's display currency never reinterprets a stored manual amount as a different currency.
+22. A user can download valid JSON containing all user-owned records and all non-secret records linked to their account, including shared contributions and moderation history.
+23. Account deletion removes authentication and user-owned records while approved or merged shared contributions remain without a contributor identity.
 
 ## Product decision still required
 
