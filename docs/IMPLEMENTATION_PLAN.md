@@ -110,41 +110,7 @@ Tests:
 - The active setting belongs to the authenticated user.
 - Invalid country, currency, and IANA timezone values are rejected.
 
-## Phase 4: Manage linked social logins
-
-Suggested commit:
-
-```text
-feat(auth): manage linked social logins
-```
-
-Use SuperTokens manual account linking. Keep automatic same-email linking disabled.
-
-Settings operations:
-
-```text
-GET    /api/settings/logins
-POST   /api/settings/logins/:provider/link
-DELETE /api/settings/logins/:recipeUserId
-```
-
-The link operation starts from an authenticated session and binds the new provider OAuth state to that session. After provider authentication succeeds, make the existing user primary when needed and link the new recipe user to that primary ID. Reject a provider identity that already belongs to another primary user.
-
-The removal operation requires at least two linked methods and recent authentication through a different linked method. Unlink and remove the selected recipe identity, revoke existing sessions, and create the replacement session through the confirming method. The application profile continues to use the same primary user ID.
-
-Tests:
-
-- Link a Google identity to an account created with Apple and retain one profile and inventory owner ID.
-- Do not link two accounts merely because their emails match.
-- Leave the account unchanged after a cancelled or failed provider flow.
-- Reject an identity already linked to another primary user.
-- Reject removal of the only login method.
-- Reject removal when confirmation used the method being removed.
-- Remove one method after authentication through another linked method.
-- Revoke old sessions and preserve access through the remaining method.
-- Prevent one user from listing, linking, or removing another user's login methods.
-
-## Phase 5: Add reference and scheduling tables
+## Phase 4: Add reference and scheduling tables
 
 Suggested commit:
 
@@ -191,7 +157,6 @@ CurrencyConversion
   fromCurrencyCode
   toCurrencyCode
   multiplier
-  effectiveOn nullable
   moderationStatus
   proposerId nullable
   createdAt
@@ -217,7 +182,7 @@ Tests:
 - Approved data visibility.
 - Pending data visibility only to its proposer.
 
-## Phase 6: Implement the valuation service
+## Phase 5: Implement the valuation service
 
 Suggested commit:
 
@@ -229,7 +194,7 @@ Create server-only functions rather than calculating money in React components:
 
 ```text
 resolveNamedValue(namedFaceValueId, userId, localDate)
-resolveConversion(fromCurrency, toCurrency, userId, localDate)
+resolveConversion(fromCurrency, toCurrency, userId)
 calculateStampValue(stamp, activeCountrySetting, resolvedValue)
 findUpcomingValue(namedFaceValueId, userId, localDate)
 ```
@@ -238,11 +203,13 @@ Resolution rules:
 
 1. Return zero with `OUTSIDE_ACTIVE_COUNTRY` when the stamp country differs from the active country.
 2. Include approved entries and pending entries belonging to the current user.
-3. Select the latest entry whose effective date is absent or no later than the active country setting's local date.
-4. Prefer the user's eligible pending proposal when it conflicts with the approved value for the same effective date.
-5. Find the next eligible future entry for advance notice.
-6. Display the next entry when it is no more than 10 calendar days away.
-7. Use the current value for totals until the effective date arrives.
+3. For named values, select the latest entry whose effective date is absent or no later than the active country setting's local date.
+4. Prefer the user's eligible pending named-value proposal when it conflicts with the approved value for the same effective date.
+5. Find the next eligible future named-value entry for advance notice.
+6. Display the next named value when it is no more than 10 calendar days away.
+7. Use the current named value for totals until the effective date arrives.
+
+Fixed currency conversions do not have effective dates. The conversion resolver selects an approved rate or the current user's pending correction for the currency pair.
 
 The service accepts an explicit active country setting and local date for deterministic tests. The inventory route supplies today's date in that setting's saved timezone. There is no date selector in the user interface.
 
@@ -260,58 +227,7 @@ Tests must cover:
 - Active-country switching without inventory rewrites.
 - Zero and fractional monetary values without floating-point artifacts.
 
-## Phase 7: Add moderation workflows
-
-Suggested commits:
-
-```text
-feat(moderation): add valuation proposals
-feat(moderation): add proposal review tools
-```
-
-Add proposal and audit entities or extend the reference entities with a separate immutable proposal payload. A proposal must preserve exactly what the user submitted even if the approved record later changes.
-
-API operations:
-
-- Submit a named/code definition.
-- Submit a current value.
-- Submit a future scheduled value.
-- Submit a fixed currency conversion.
-- List the current user's proposals.
-- List the moderator queue.
-- Approve a proposal.
-- Reject a proposal.
-- Merge a duplicate proposal.
-
-Approval behavior:
-
-- Run the shared-data update and proposal-status update in one transaction.
-- Link the proposer's pending definition to the approved definition.
-- Preserve stamp references.
-- Make approved data visible to every user.
-- Record moderator, decision time, and decision note.
-- Allow the proposer reference on approved shared records and retained moderation history to become null after account deletion.
-
-Merge behavior:
-
-- Select the existing canonical definition or schedule.
-- Repoint the proposer's references inside the transaction.
-- Mark the proposal `MERGED`.
-- Reject a merge that would create incompatible country, currency, or effective-date data.
-
-The rejected-proposal behavior in the PRD must be decided before completing this phase.
-
-Moderator interface:
-
-- Queue filtered by proposal type and status.
-- Submitted source and proposed values.
-- Existing possible matches.
-- Approve, reject, and merge actions with confirmation.
-- Decision note.
-
-Tests must exercise authorization, duplicate handling, transaction rollback, and pending-data visibility after every decision type.
-
-## Phase 8: Add stamp inventory persistence and APIs
+## Phase 6: Add stamp inventory persistence and APIs
 
 Suggested commit:
 
@@ -343,6 +259,8 @@ StampInventoryEntry
 
 Enforce type-specific fields in shared request validation and with database constraints supported by the selected database.
 
+Manual postage fields can accompany any face-value type. They are required for `NONE` and act as a fallback when a `MONETARY` or `NAMED` value cannot be resolved. A resolvable face value takes precedence over the stored manual fallback.
+
 API routes:
 
 ```text
@@ -372,6 +290,7 @@ The list response includes:
 Tests:
 
 - Create each face-value type.
+- Store and apply a manual fallback for unresolved monetary and named/code values.
 - Reject invalid field combinations.
 - Accept postage value zero.
 - Reject negative amounts.
@@ -385,7 +304,57 @@ Tests:
 - Return zero with `OUTSIDE_ACTIVE_COUNTRY` for stamps from other countries.
 - Recalculate values when the user switches active country without rewriting inventory entries.
 
-## Phase 9: Build proposal interfaces
+## Phase 7: Add moderation workflows
+
+Suggested commits:
+
+```text
+feat(moderation): add valuation proposals
+feat(moderation): add proposal review tools
+```
+
+Add proposal and audit entities or extend the reference entities with a separate immutable proposal payload. A proposal must preserve exactly what the user submitted even if the approved record later changes.
+
+API operations:
+
+- Submit a named/code definition or correction.
+- Submit a current or future scheduled named/code value.
+- Submit a fixed currency conversion or correction.
+- List the current user's proposals.
+- List the moderator queue.
+- Approve a proposal.
+- Reject a proposal.
+- Merge a duplicate proposal.
+
+Approval behavior:
+
+- Run the shared-data update and proposal-status update in one transaction.
+- Link the proposer's pending definition to the approved definition.
+- Preserve stamp references.
+- Make approved data visible to every user.
+- Record moderator, decision time, and decision note.
+- Allow the proposer reference on approved shared records and retained moderation history to become null after account deletion.
+
+Merge behavior:
+
+- Select the existing canonical definition or schedule.
+- Repoint the proposer's references inside the transaction.
+- Mark the proposal `MERGED`.
+- Reject a merge that would create incompatible named-value country or effective-date data, or an incompatible conversion currency pair.
+
+The rejected-proposal behavior in the PRD must be decided before completing this phase.
+
+Moderator interface:
+
+- Queue filtered by proposal type and status.
+- Submitted source and proposed values.
+- Existing possible matches.
+- Approve, reject, and merge actions with confirmation.
+- Decision note.
+
+Tests must exercise authorization, correction proposals, duplicate handling, transaction rollback, and pending-data visibility after every decision type.
+
+## Phase 8: Build proposal interfaces
 
 Suggested commits:
 
@@ -399,12 +368,12 @@ Named/code selector:
 - Search by display or normalized code.
 - Approved results.
 - The current user's pending results.
-- Form to propose a missing definition or value.
+- Form to propose a missing definition or a correction to an existing definition or value.
 - Current and upcoming values with effective dates.
 
-Proposal forms must explain that pending data is private to the proposer until approved.
+The monetary workflow also permits a missing fixed conversion or correction to an existing conversion. Proposal forms must explain that pending data is private to the proposer until approved.
 
-## Phase 10: Build the inventory interface
+## Phase 9: Build the inventory interface
 
 Suggested commits:
 
@@ -420,10 +389,11 @@ Add-stamp flow:
 3. Optionally enter the year of issue.
 4. Select monetary, named/code, or no face value.
 5. Enter the fields for that type.
-6. Enter quantity owned and quantity annulled.
-7. Set expired when applicable.
-8. Preview the resolved unit and total postage value.
-9. Save the entry.
+6. Enter a manual postage fallback when the selected face value cannot be resolved.
+7. Enter quantity owned and quantity annulled.
+8. Set expired when applicable.
+9. Preview the resolved unit and total postage value.
+10. Save the entry.
 
 Inventory list:
 
@@ -442,7 +412,9 @@ Inventory list:
 
 The interface must use `annulled`; it must not label cancelled stamps as `used`.
 
-## Phase 11: Add JSON user data export
+Every form and control introduced in Phases 8 and 9 must be keyboard accessible, have visible labels and associated errors, and communicate status without relying on color. Format monetary values with `Intl.NumberFormat` and display stored calendar dates in the user's locale.
+
+## Phase 10: Add JSON user data export
 
 Suggested commit:
 
@@ -454,7 +426,7 @@ Add an authenticated `GET /api/account/export` endpoint that returns one JSON at
 
 The export service gathers:
 
-- SuperTokens primary-user metadata and every linked login method exposed to the application, excluding tokens and provider secrets.
+- SuperTokens account metadata exposed to the application, excluding tokens and provider secrets.
 - Profile, country settings, inventory, and private valuation records.
 - Every proposal submitted by the user, regardless of status.
 - Shared definitions, schedule values, conversions, and later postage-rate records that retain a contributor link to the user.
@@ -476,7 +448,7 @@ Tests:
 - Exclude sessions, tokens, secrets, password material, and another user's private account fields.
 - Prevent one user from exporting another user's private data.
 
-## Phase 12: Add account deletion
+## Phase 11: Add account deletion
 
 Suggested commit:
 
@@ -492,7 +464,7 @@ Workflow:
 2. Revoke sessions and block further application access for that profile.
 3. In a database transaction, delete inventory, country settings, pending and rejected proposals, and other private user-owned values.
 4. Preserve approved and merged shared records while setting proposer and other direct user references to null.
-5. Delete every linked SuperTokens recipe user and the primary user.
+5. Delete the SuperTokens user identity.
 6. Retry any failed external step without recreating deleted private data.
 7. Remove the profile and deletion job after every required deletion succeeds.
 
@@ -507,7 +479,7 @@ Tests:
 - Reject account access while deletion is incomplete.
 - Retry an interrupted SuperTokens deletion without duplicating work or failing on already-removed records.
 
-## Phase 13: Verification and deployment
+## Phase 12: Verification and deployment
 
 Suggested commits:
 
@@ -522,11 +494,12 @@ Automated verification:
 - API tests for authentication, ownership, validation, and moderation.
 - Component tests for conditional face-value fields and quantity controls.
 - Browser tests covering sign-in, required first-run settings, active-country switching, proposal submission, stamp creation, editing, and deletion.
-- Browser tests covering explicit login linking, removal through a different linked login, and last-login protection.
 - Browser tests covering a JSON data export with private, shared, and moderation records.
 - Browser tests covering account-deletion confirmation and rejection of the deleted session.
 - Two-account tests proving inventory and pending-proposal isolation.
 - Migration test from an empty database.
+- Keyboard and screen-reader checks across settings, inventory, proposals, moderation, export, and deletion.
+- Localization checks for each displayed currency and calendar date.
 
 Deployment work:
 
@@ -545,9 +518,10 @@ Release verification:
 - A moderator decision changes only the intended shared definition or schedule.
 - A scheduled change activates according to each test user's local date.
 - No inventory or pending proposal crosses user boundaries.
+- The complete workflow passes the accessibility and localization audit.
 
 ## Recommended delivery order
 
-Phases 1 through 6 establish profiles, login management, shared data, and the valuation engine. Phase 7 adds moderation before users depend on shared data. Phases 8 through 10 deliver the inventory workflow. Phase 11 adds data export after every user-linked record type exists. Phase 12 adds account deletion after export is available. Phase 13 verifies the complete authenticated flow and prepares deployment.
+Phases 1 through 5 repair the baseline and establish profiles, shared data, and the valuation engine. Phase 6 adds user-owned inventory records before proposals need to reference them. Phases 7 through 9 add proposal moderation and the user interfaces. Phase 10 adds data export after every user-linked record type exists. Phase 11 adds account deletion after export is available. Phase 12 audits the complete authenticated flow and prepares deployment.
 
 Do not add postage-combination logic, a planned-mailing-date selector, a postage-rate catalog, or collection valuation while implementing these phases. Those features require separate product requirements.

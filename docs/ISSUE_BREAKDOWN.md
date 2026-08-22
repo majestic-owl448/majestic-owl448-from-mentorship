@@ -25,22 +25,22 @@ The numbers are local references for planning. Replace them with GitHub issue nu
 | 13 | Owned and annulled quantity editing | 12 |
 | 14 | Expired stamp handling | 12 |
 | 15 | Inventory entry removal | 12 |
-| 16 | Pending named/code proposal use | 4, 8, 10 |
-| 17 | Pending fixed-conversion proposal use | 6, 9 |
+| 16 | Named/code proposal submission and private use | 4, 8, 10 |
+| 17 | Fixed-conversion proposal submission and private use | 6, 9 |
 | 18 | Moderator proposal queue | 3, 16, 17 |
 | 19 | Proposal approval | 8, 12, 18 |
 | 20 | Duplicate proposal merging | 18, 19 |
 | 21 | Proposal rejection | 18 and product decision R1 |
 | 22 | Upcoming value notice in inventory | 8, 10, 12, 16 |
 | 23 | Continuous integration checks | 1, 2 |
-| 24 | Linked social-login management | 3 |
-| 25 | JSON user data export | 5, 12, 16, 17, 18, 19, 20, 21, 24 |
-| 26 | Account deletion | 25 |
+| 24 | JSON user data export | 5, 12, 16, 17, 18, 19, 20, 21 |
+| 25 | Account deletion | 24 |
+| 26 | Accessibility and localization audit | 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25 |
 | 27 | Persistent preview deployment | 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, 23, 24, 25, 26 |
 
 Issues 6 and 7 can proceed in parallel. Issues 9, 10, and 11 can also proceed in parallel after their prerequisites close. The moderation queue waits for both proposal types so its filters and permissions are tested once against the complete proposal set.
 
-Issue 24 can proceed after Issue 3; its number groups it with the other account-settings work added after the original breakdown. It must close before data export so the export covers every linked login method.
+Accessibility and localization requirements belong to each feature that introduces affected interface elements. Issue 26 audits the combined result and fixes gaps that only appear when the complete workflow is tested.
 
 ## Product decision gate
 
@@ -141,6 +141,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - An invalid or unsupported currency code receives a field error.
 - An invalid country code or timezone receives a field error.
 - One user's selection does not alter another user's profile.
+- Every field has a visible label and associated error text, and the form can be completed with a keyboard.
 
 ### Issue 5: Manage multiple country settings and select the active country
 
@@ -163,6 +164,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - The active selection persists across sessions.
 - A user cannot activate another user's country setting.
 - The active setting's saved timezone, rather than the server timezone, supplies the local date.
+- Country-setting controls and the active-country selector are keyboard accessible and expose their current selection without relying on color.
 
 ### Issue 6: Resolve an approved fixed currency conversion
 
@@ -238,15 +240,19 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Add the inventory model and authenticated create/list endpoints.
 - Support stamp country, name, optional year, monetary amount, face currency, owned quantity, annulled quantity, and expired flag.
 - Connect monetary valuation to the fixed-conversion resolver.
+- Store an optional manual postage amount and currency as a fallback when no conversion resolves the monetary value.
 
 **Acceptance tests:**
 
 - A user can add and retrieve a stamp in the active country's display currency.
 - Country is required even when the monetary face currency is shared by several countries.
 - A user can add and retrieve a stamp using an approved conversion.
+- A stamp with a missing conversion can be saved with a manual fallback, and that fallback is used until a conversion resolves.
+- A resolvable conversion takes precedence over the stored manual fallback.
 - Year of issue can be absent.
 - Invalid decimals and non-positive owned quantities receive field errors.
 - The list contains only the authenticated user's stamps.
+- Monetary inputs have visible labels, associated field errors, and keyboard-operable controls.
 
 ### Issue 10: Add and view a stamp with a named/code face value
 
@@ -260,6 +266,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Store a reference to `NamedFaceValue` on the inventory entry.
 - Store the named definition's country on the inventory entry and reject a country mismatch.
 - Use the referenced schedule for valuation.
+- Store an optional manual postage amount and currency as a fallback when the named schedule has no eligible current value.
 
 **Acceptance tests:**
 
@@ -267,6 +274,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Selecting `IT` and `B Zona 1` stores its named-face-value ID rather than a copied amount.
 - Editing the schedule changes the resolved value without rewriting the stamp record.
 - A named-face-value ID from an unavailable pending definition cannot be submitted by another user.
+- A named/code stamp with no eligible current schedule value can be saved with a manual fallback.
+- An eligible schedule value takes precedence over the stored manual fallback.
+- Named/code search, selection, and errors are labelled and keyboard accessible.
 
 ### Issue 11: Add and view a stamp with a manual postage value
 
@@ -288,6 +298,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A negative value is rejected.
 - Changing the country setting's display currency preserves the entered currency instead of relabeling the amount.
 - An unresolved manual currency is reported separately from a zero value.
+- Manual-value inputs have visible labels, associated field errors, and keyboard-operable controls.
 
 ### Issue 12: Show postage totals for the active country
 
@@ -306,6 +317,8 @@ This decision does not block proposal submission, the moderator queue, approval,
 **Acceptance tests:**
 
 - Monetary, converted, named/code, and manual entries display their valuation source.
+- Unresolved monetary and named/code values use their stored manual fallback when it can be expressed in the active display currency.
+- A stored manual fallback does not override a resolvable face value.
 - Line totals use exact decimal multiplication.
 - The inventory total equals the sum of resolvable line totals.
 - An unresolved entry is labelled and excluded from the total.
@@ -313,6 +326,8 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Two countries that share the same display currency remain separate for postal valuation.
 - Switching the active country recalculates both countries' rows and the inventory total without changing stored stamps.
 - Two users see independent lists and totals.
+- Money uses `Intl.NumberFormat` with the applicable currency, and dates use the user's locale.
+- Valuation source, unresolved state, and zero-value reasons are available without relying on color.
 
 ### Issue 13: Edit owned and annulled quantities
 
@@ -334,6 +349,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Reducing owned quantity below annulled quantity is rejected in one response.
 - Annulled copies contribute zero while non-annulled copies retain their unit value.
 - A quantity change refreshes the line and inventory totals.
+- Quantity controls have visible labels, expose validation errors, and work with a keyboard.
 
 ### Issue 14: Mark an inventory stamp as expired
 
@@ -354,6 +370,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Owned and annulled quantities do not change.
 - Removing the expired flag restores valuation from the current applicable rule.
 - Expiring one user's entry does not affect another user's matching stamp.
+- The expired control and its zero-value explanation are available to keyboard and screen-reader users without relying on color.
 
 ### Issue 15: Remove an inventory entry
 
@@ -373,16 +390,18 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Cancelling leaves it unchanged.
 - Deleting an unknown or another user's ID returns `404`.
 - Inventory totals no longer include the removed entry.
+- The remove action and confirmation can be completed or cancelled with a keyboard, and focus returns to a predictable location.
 
-### Issue 16: Submit and use a pending named/code proposal
+### Issue 16: Submit and use named/code proposals
 
 **Prerequisites:** Issues 4, 8, and 10
 
-**Feature:** A user can propose a missing named/code definition or value and use the eligible pending value in their own inventory.
+**Feature:** A user can propose a missing or corrected named/code definition or value and use the eligible pending value in their own inventory.
 
 **Scope:**
 
 - Add immutable proposal data for named definitions and schedule values.
+- Accept corrections to an existing definition's country, display name, normalized code, current value, or future value.
 - Require a source URL or source note.
 - Show the user's pending definitions in named/code search.
 - Apply an eligible pending value only for its proposer.
@@ -394,17 +413,21 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A pending current value applies immediately to the proposer's stamp.
 - A future pending value does not apply before its effective date.
 - A future pending value appears to the proposer during the 10-day notice window.
+- A correction remains private and does not overwrite the approved definition or schedule before moderation.
+- The proposer can use an eligible pending correction while other users continue to receive the approved data.
 - Proposal status is visible to its proposer.
+- Proposal inputs and status are labelled, keyboard accessible, and understandable without color.
 
-### Issue 17: Submit and use a pending fixed-conversion proposal
+### Issue 17: Submit and use fixed-conversion proposals
 
 **Prerequisites:** Issues 6 and 9
 
-**Feature:** A user can supply a missing fixed conversion and use it for their own monetary stamps while it awaits moderation.
+**Feature:** A user can propose a missing or corrected fixed conversion and use it for their own monetary stamps while it awaits moderation.
 
 **Scope:**
 
 - Add immutable fixed-conversion proposals.
+- Accept corrections to an existing conversion's source currency, target currency, or exact multiplier.
 - Require a source URL or source note.
 - Include the proposer's pending rate in their conversion resolver.
 - Hide it from other users.
@@ -413,9 +436,12 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 - A missing conversion can be submitted from the monetary-stamp workflow.
 - The proposer immediately receives a resolved value from the pending multiplier.
-- Another user still receives an unresolved result.
+- For a missing conversion, another user still receives an unresolved result.
+- A proposed correction remains private and does not overwrite the approved conversion before moderation.
+- The proposer uses their pending corrected multiplier while other users continue to receive the approved multiplier.
 - Invalid or non-positive multipliers are rejected.
 - Proposal status is visible to its proposer.
+- Proposal inputs and status are labelled, keyboard accessible, and understandable without color.
 
 ### Issue 18: Let moderators view the proposal queue
 
@@ -437,6 +463,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Queue filters return only matching proposals.
 - Proposal detail includes proposer, submission time, source, and proposed values.
 - Private inventory data not required for review is absent.
+- Queue filters, proposal details, and moderation navigation are labelled and keyboard accessible.
 
 ### Issue 19: Let a moderator approve a proposal
 
@@ -454,11 +481,13 @@ This decision does not block proposal submission, the moderator queue, approval,
 **Acceptance tests:**
 
 - Approval makes the proposed data visible to another user.
+- Approval of a correction updates the intended shared definition, schedule value, or conversion without creating a duplicate approved record.
 - A linked stamp resolves through the approved data without being rewritten.
 - Approval of a scheduled value does not activate it before its effective local date.
 - Approval recalculates affected current inventory values.
 - A forced shared-data failure rolls back the proposal status.
 - A second approval attempt is rejected without duplicating data.
+- Approval confirmation and its resulting status are keyboard accessible and do not rely on color alone.
 
 ### Issue 20: Let a moderator merge a duplicate proposal
 
@@ -478,8 +507,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A conversion duplicate can be merged into the approved currency pair.
 - The proposer's stamps retain the same resolved value after the merge.
 - Another user sees only the canonical approved record.
-- An incompatible country, currency, or effective date cannot be merged.
+- An incompatible named-value country or effective date, or an incompatible conversion currency pair, cannot be merged.
 - A transaction failure leaves all references unchanged.
+- Merge-target selection and confirmation are labelled and keyboard accessible.
 
 ### Issue 21: Let a moderator reject a proposal
 
@@ -500,6 +530,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Another user cannot see or use the rejected data.
 - The proposer's existing stamps follow the behavior selected in R1.
 - A second decision attempt does not alter the completed proposal.
+- Rejection confirmation, required-note errors, and completed status are keyboard accessible and do not rely on color alone.
 
 This issue is not ready for implementation until R1 is decided. Its other prerequisites can close first.
 
@@ -522,6 +553,7 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - An eligible pending future value appears only to its proposer.
 - Totals continue using the current amount before the date.
 - The notice disappears and totals use the new amount on the effective date in the active country setting's timezone.
+- The notice uses a localized date and communicates current and upcoming values without relying on color.
 
 ### Issue 23: Run project checks in continuous integration
 
@@ -543,36 +575,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - An invalid migration fails the migration job.
 - No production credential is required or printed by the workflow.
 
-### Issue 24: Link and remove social login methods
+### Issue 24: Download all user-owned and user-linked data as JSON
 
-**Prerequisites:** Issue 3
-
-**Feature:** A signed-in user can explicitly attach multiple Google or Apple logins to one application account and remove one after proving access through another.
-
-**Scope:**
-
-- List the login methods linked to the current SuperTokens primary user.
-- Add a settings action that starts a provider OAuth flow bound to the authenticated account.
-- Use manual SuperTokens account linking and keep automatic same-email linking disabled.
-- Add a removal action that requires at least two methods and recent authentication through a different linked method.
-- Revoke existing sessions after removal and keep the application profile keyed by the same primary user ID.
-
-**Acceptance tests:**
-
-- An Apple-authenticated user can link a Google identity and later reach the same profile and inventory through either method.
-- Linking does not duplicate or transfer country settings, inventory, proposals, or roles.
-- Signing in with the same email through another provider does not automatically link accounts.
-- A cancelled or failed provider flow leaves the linked-method list unchanged.
-- A provider identity already attached to another primary user cannot be linked.
-- The only login method cannot be removed.
-- Authenticating through the method selected for removal does not satisfy confirmation.
-- Authenticating through another linked method permits removal.
-- Old sessions are invalid after removal, and the remaining method can create a new session for the same application account.
-- One user cannot list, link, or remove another user's login methods.
-
-### Issue 25: Download all user-owned and user-linked data as JSON
-
-**Prerequisites:** Issues 5, 12, 16, 17, 18, 19, 20, 21, and 24
+**Prerequisites:** Issues 5, 12, 16, 17, 18, 19, 20, and 21
 
 **Feature:** A user can download one JSON file containing their private records and every non-secret record linked to their account.
 
@@ -590,7 +595,7 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - The response is valid JSON downloaded with a filename, schema version, and generation time.
 - The response headers prevent browser and intermediary caching.
 - Profile, country settings, every stamp type, and private valuation records are present.
-- Every linked Google and Apple login method is present without tokens or provider secrets.
+- SuperTokens account metadata is present without tokens or provider secrets.
 - Pending, rejected, approved, and merged proposals submitted by the user are present.
 - Shared definitions, schedule values, conversions, and source information linked to the user are present.
 - Moderation entries linked to the user as proposer or moderator are present.
@@ -599,17 +604,18 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - Another user's private ID, email, profile, inventory, and private proposals are absent.
 - An unauthenticated user cannot create an export, and one user cannot request another user's export.
 - A schema coverage test fails for a new direct user reference without an export mapping or secret exclusion.
+- The download control has an accessible name, works with a keyboard, and announces failure without relying on color.
 
-### Issue 26: Delete an account without deleting shared contributions
+### Issue 25: Delete an account without deleting shared contributions
 
-**Prerequisites:** Issue 25
+**Prerequisites:** Issue 24
 
 **Feature:** A user can permanently delete their account and private data while approved or merged shared contributions remain available without their identity.
 
 **Scope:**
 
 - Add an account-deletion control with explicit confirmation.
-- Revoke SuperTokens sessions and delete the primary identity and every linked login identity.
+- Revoke SuperTokens sessions and delete the authentication identity.
 - Delete the profile, country settings, inventory, pending and rejected proposals, and private valuation data.
 - Preserve approved and merged shared records with nullable contributor references.
 - Add an idempotent deletion job so an external-service failure can be retried while account access stays blocked.
@@ -617,13 +623,38 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 **Acceptance tests:**
 
 - Cancelling the confirmation leaves the account unchanged.
-- Confirming removes every linked SuperTokens identity and invalidates existing sessions.
+- Confirming removes the SuperTokens identity and invalidates existing sessions.
 - Profile, country settings, inventory, pending proposals, rejected proposals, and private valuation records are removed.
 - Approved and merged named/code definitions, schedule values, fixed conversions, and source information remain usable by other users.
 - Preserved shared and moderation records contain no deleted user ID or email.
 - Another user's profile, inventory, proposals, and shared contributions remain unchanged.
 - A failure while deleting the SuperTokens identity leaves the account blocked and retrying completes the deletion.
 - Repeating a deletion step does not recreate data or fail because a record is already absent.
+- The deletion control and confirmation are keyboard accessible, use explicit text, and return focus predictably when cancelled.
+
+### Issue 26: Audit accessibility and localization across the complete workflow
+
+**Prerequisites:** Issues 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, and 25
+
+**Feature:** The complete authenticated workflow meets the PRD's accessibility and localization requirements when its parts are used together.
+
+**Scope:**
+
+- Audit first-run settings, country switching, stamp forms, inventory controls, proposal workflows, moderation, export, and deletion with keyboard and screen-reader checks.
+- Fix missing labels, error associations, focus movement, status announcements, and color-only communication found by the audit.
+- Verify money formatting with the applicable currency and date formatting with the user's locale.
+- Add automated coverage for defects that can regress through component or workflow changes.
+
+**Acceptance tests:**
+
+- Every interactive control in the release can be reached and operated with a keyboard in a logical order.
+- Every input has a visible label, and each validation error is programmatically associated with its field.
+- Opening and closing forms or confirmations moves focus to a predictable element.
+- Loading, success, error, pending, approved, rejected, expired, annulled, unresolved, and upcoming states do not rely on color alone.
+- Dynamic status changes that require immediate feedback are announced to screen-reader users without repeating unchanged content.
+- Monetary values use `Intl.NumberFormat` with the applicable currency.
+- Calendar dates are stored unambiguously and displayed in the user's locale.
+- Automated tests cover each defect fixed during the audit.
 
 ### Issue 27: Deploy a persistent preview of the inventory release
 
@@ -647,9 +678,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - Approved data recalculates linked inventory entries.
 - Stamps outside the active country remain visible and have postage value zero.
 - A scheduled value follows the active country setting's saved timezone.
-- Two social logins reach the same test inventory, and one can be removed only after authentication through the other.
 - The downloaded JSON contains private inventory, a shared contribution, and linked moderation history without another user's private data.
 - Account deletion removes the test user's private data while an approved contribution remains available without their identity.
+- The complete workflow passes the accessibility and localization audit.
 - Backup and restore instructions recover a test inventory in a non-production environment.
 
 ## Suggested GitHub metadata
@@ -662,6 +693,7 @@ Use one area label per issue:
 - `area: valuation`
 - `area: inventory`
 - `area: moderation`
+- `area: accessibility`
 - `area: deployment`
 
 Add `blocked` to Issue 21 until R1 is decided. Add a `prerequisite` section to the GitHub issue body using the issue links that replace the local numbers in this proposal.
