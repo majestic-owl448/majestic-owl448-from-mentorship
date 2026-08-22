@@ -4,49 +4,49 @@
 
 This document turns the product requirements and implementation plan into proposed issues. Each issue delivers one observable capability with its own acceptance tests. An issue listed under **Prerequisites** must be closed before work starts on the dependent issue.
 
-The numbers are local references for planning. Replace them with GitHub issue numbers when the issues are created.
+The GitHub issue links below are the authoritative work items for this plan.
 
 ## Dependency summary
 
 | Issue | Capability | Prerequisites |
 | ---: | --- | --- |
-| 1 | Reliable local checks | None |
-| 2 | Persistent application database | 1 |
-| 3 | Authenticated application profile | 2 |
-| 4 | Required first country setting | 3 |
-| 5 | Multiple country settings and active selection | 4 |
-| 6 | Approved fixed currency conversion | 4 |
-| 7 | Approved named/code face value | 4 |
-| 8 | Future named/code value resolution | 4, 7 |
-| 9 | Add and view a monetary-face-value stamp | 3, 4, 6 |
-| 10 | Add and view a named/code-face-value stamp | 3, 4, 7 |
-| 11 | Add and view a manual-value stamp | 3, 4 |
-| 12 | Active-country inventory postage totals | 5, 9, 10, 11 |
-| 13 | Owned and annulled quantity editing | 12 |
-| 14 | Expired stamp handling | 12 |
-| 15 | Inventory entry removal | 12 |
-| 16 | Named/code proposal submission and private use | 4, 8, 10 |
-| 17 | Fixed-conversion proposal submission and private use | 6, 9 |
-| 18 | Moderator proposal queue | 3, 16, 17 |
-| 19 | Proposal approval | 8, 12, 18 |
-| 20 | Duplicate proposal merging | 18, 19 |
-| 21 | Proposal rejection | 18 and product decision R1 |
-| 22 | Upcoming value notice in inventory | 8, 10, 12, 16 |
-| 23 | Continuous integration checks | 1, 2 |
-| 24 | JSON user data export | 5, 12, 16, 17, 18, 19, 20, 21 |
-| 25 | Account deletion | 24 |
-| 26 | Accessibility and localization audit | 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25 |
-| 27 | Persistent preview deployment | 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, 23, 24, 25, 26 |
+| [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4) | Reliable local checks | None |
+| [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5) | Persistent application database | [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4) |
+| [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6) | Authenticated application profile | [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5) |
+| [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7) | Required first country setting | [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6) |
+| [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8) | Multiple country settings and active selection | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7) |
+| [#9](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9) | Approved fixed currency conversion | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7) |
+| [#10](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10) | Approved named/code face value | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7) |
+| [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11) | Future named/code value resolution | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#10](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10) |
+| [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12) | Add and view a monetary-face-value stamp | [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#9](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9) |
+| [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13) | Add and view a named/code-face-value stamp | [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#10](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10) |
+| [#14](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14) | Add and view a manual-value stamp | [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7) |
+| [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15) | Active-country inventory postage totals | [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), [#14](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14) |
+| [#16](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/16) | Owned and annulled quantity editing | [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15) |
+| [#17](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/17) | Expired stamp handling | [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15) |
+| [#18](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/18) | Inventory entry removal | [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15) |
+| [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19) | Named/code proposal submission and private use | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13) |
+| [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20) | Fixed-conversion proposal submission and private use | [#9](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9), [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12) |
+| [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21) | Moderator proposal queue | [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19), [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20) |
+| [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22) | Proposal approval | [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21) |
+| [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23) | Duplicate proposal merging | [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22) |
+| [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24) | Proposal rejection | [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21) and product decision R1 |
+| [#25](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/25) | Upcoming value notice in inventory | [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19) |
+| [#26](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/26) | Continuous integration checks | [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4), [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5) |
+| [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27) | JSON user data export | [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19), [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20), [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22), [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23), [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24) |
+| [#28](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/28) | Account deletion | [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27) |
+| [#29](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/29) | Accessibility and localization audit | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), [#14](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#16](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/16), [#17](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/17), [#18](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/18), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19), [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20), [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22), [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23), [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24), [#25](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/25), [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27), [#28](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/28) |
+| [#30](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/30) | Persistent preview deployment | [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#16](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/16), [#17](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/17), [#18](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/18), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22), [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23), [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24), [#25](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/25), [#26](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/26), [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27), [#28](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/28), [#29](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/29) |
 
-Issues 6 and 7 can proceed in parallel. Issues 9, 10, and 11 can also proceed in parallel after their prerequisites close. The moderation queue waits for both proposal types so its filters and permissions are tested once against the complete proposal set.
+[#9](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9) and [#10](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10) can proceed in parallel. [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), and [#14](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14) can also proceed in parallel after their prerequisites close. The moderation queue waits for both proposal types so its filters and permissions are tested once against the complete proposal set.
 
-Accessibility and localization requirements belong to each feature that introduces affected interface elements. Issue 26 audits the combined result and fixes gaps that only appear when the complete workflow is tested.
+Accessibility and localization requirements belong to each feature that introduces affected interface elements. [#29](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/29) audits the combined result and fixes gaps that only appear when the complete workflow is tested.
 
 ## Product decision gate
 
 ### R1: Value after proposal rejection
 
-The product has not decided what happens when a moderator rejects a value already used by its proposer. Before Issue 21 starts, choose one behavior:
+The product has not decided what happens when a moderator rejects a value already used by its proposer. Before [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24) starts, choose one behavior:
 
 1. Stop applying the rejected value and fall back to an approved or manual value.
 2. Keep the rejected value as private data for that proposer.
@@ -55,7 +55,7 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 ## Proposed issues
 
-### Issue 1: Make local project checks reliable
+### [#4: Make local project checks reliable](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4)
 
 **Prerequisites:** None
 
@@ -76,9 +76,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - `pnpm build` exits successfully.
 - A database test cannot add, change, or remove a record from the configured development database.
 
-### Issue 2: Persist application data in a deployable database
+### [#5: Persist application data in a deployable database](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5)
 
-**Prerequisites:** Issue 1
+**Prerequisites:** [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4)
 
 **Feature:** Application records survive a deployment and can be recreated from committed migrations.
 
@@ -96,9 +96,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A test database reset does not affect development or production data.
 - A record created before an application restart remains afterward.
 
-### Issue 3: Persist a profile for the authenticated user
+### [#6: Persist a profile for the authenticated user](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6)
 
-**Prerequisites:** Issue 2
+**Prerequisites:** [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5)
 
 **Feature:** A signed-in SuperTokens user has one application profile keyed by their primary user ID.
 
@@ -118,9 +118,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - An unauthenticated request returns `401`.
 - A request for another user's private record returns `404`.
 
-### Issue 4: Require the first country setting
+### [#7: Require the first country setting](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7)
 
-**Prerequisites:** Issue 3
+**Prerequisites:** [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6)
 
 **Feature:** A newly authenticated user saves the minimum settings required for inventory valuation: country, display currency, and timezone.
 
@@ -143,9 +143,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - One user's selection does not alter another user's profile.
 - Every field has a visible label and associated error text, and the form can be completed with a keyboard.
 
-### Issue 5: Manage multiple country settings and select the active country
+### [#8: Manage multiple country settings and select the active country](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8)
 
-**Prerequisites:** Issue 4
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7)
 
 **Feature:** A user can save settings for more than one country and choose which country controls current postage valuation.
 
@@ -166,9 +166,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - The active setting's saved timezone, rather than the server timezone, supplies the local date.
 - Country-setting controls and the active-country selector are keyboard accessible and expose their current selection without relying on color.
 
-### Issue 6: Resolve an approved fixed currency conversion
+### [#9: Resolve an approved fixed currency conversion](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9)
 
-**Prerequisites:** Issue 4
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7)
 
 **Feature:** A monetary face value in another currency can be expressed in the active country's display currency through an approved fixed conversion.
 
@@ -187,9 +187,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A missing conversion returns a typed unresolved result rather than silently using `1`.
 - Stamp validity is not inferred from the currency conversion.
 
-### Issue 7: Resolve an approved named/code face value
+### [#10: Resolve an approved named/code face value](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10)
 
-**Prerequisites:** Issue 4
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7)
 
 **Feature:** A country-specific name or code resolves to the approved value in its shared value schedule.
 
@@ -208,9 +208,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Two approved definitions cannot share the same country and normalized code.
 - The amount comes from the schedule and is not copied onto the named definition.
 
-### Issue 8: Resolve future named/code value changes by local date
+### [#11: Resolve future named/code value changes by local date](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11)
 
-**Prerequisites:** Issues 4 and 7
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), and [#10](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10)
 
 **Feature:** A named/code schedule switches to a future amount on its effective date in the active country setting's timezone.
 
@@ -229,9 +229,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - The future amount is reported as upcoming no more than 10 calendar days before its date.
 - The current amount remains the calculation value before the effective date.
 
-### Issue 9: Add and view a stamp with a monetary face value
+### [#12: Add and view a stamp with a monetary face value](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12)
 
-**Prerequisites:** Issues 3, 4, and 6
+**Prerequisites:** [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), and [#9](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9)
 
 **Feature:** A user can add an owned stamp with a monetary face amount and see its resolved unit postage value.
 
@@ -254,9 +254,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - The list contains only the authenticated user's stamps.
 - Monetary inputs have visible labels, associated field errors, and keyboard-operable controls.
 
-### Issue 10: Add and view a stamp with a named/code face value
+### [#13: Add and view a stamp with a named/code face value](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13)
 
-**Prerequisites:** Issues 3, 4, and 7
+**Prerequisites:** [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), and [#10](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/10)
 
 **Feature:** A user can select an approved country-specific name/code while adding a stamp and see its resolved unit postage value.
 
@@ -278,9 +278,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - An eligible schedule value takes precedence over the stored manual fallback.
 - Named/code search, selection, and errors are labelled and keyboard accessible.
 
-### Issue 11: Add and view a stamp with a manual postage value
+### [#14: Add and view a stamp with a manual postage value](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14)
 
-**Prerequisites:** Issues 3 and 4
+**Prerequisites:** [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), and [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7)
 
 **Feature:** A user can record a stamp whose postage value cannot be resolved from a face value.
 
@@ -300,9 +300,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - An unresolved manual currency is reported separately from a zero value.
 - Manual-value inputs have visible labels, associated field errors, and keyboard-operable controls.
 
-### Issue 12: Show postage totals for the active country
+### [#15: Show postage totals for the active country](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15)
 
-**Prerequisites:** Issues 5, 9, 10, and 11
+**Prerequisites:** [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), and [#14](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14)
 
 **Feature:** A user can see every owned stamp while postage values and totals are calculated for the active country.
 
@@ -329,9 +329,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Money uses `Intl.NumberFormat` with the applicable currency, and dates use the user's locale.
 - Valuation source, unresolved state, and zero-value reasons are available without relying on color.
 
-### Issue 13: Edit owned and annulled quantities
+### [#16: Edit owned and annulled quantities](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/16)
 
-**Prerequisites:** Issue 12
+**Prerequisites:** [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15)
 
 **Feature:** A user can change how many copies they own and how many of those copies are annulled.
 
@@ -351,9 +351,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A quantity change refreshes the line and inventory totals.
 - Quantity controls have visible labels, expose validation errors, and work with a keyboard.
 
-### Issue 14: Mark an inventory stamp as expired
+### [#17: Mark an inventory stamp as expired](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/17)
 
-**Prerequisites:** Issue 12
+**Prerequisites:** [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15)
 
 **Feature:** A user can mark a stamp identity as expired so every owned copy has zero postage value.
 
@@ -372,9 +372,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Expiring one user's entry does not affect another user's matching stamp.
 - The expired control and its zero-value explanation are available to keyboard and screen-reader users without relying on color.
 
-### Issue 15: Remove an inventory entry
+### [#18: Remove an inventory entry](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/18)
 
-**Prerequisites:** Issue 12
+**Prerequisites:** [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15)
 
 **Feature:** A user can remove one stamp entry from their inventory after confirmation.
 
@@ -392,9 +392,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Inventory totals no longer include the removed entry.
 - The remove action and confirmation can be completed or cancelled with a keyboard, and focus returns to a predictable location.
 
-### Issue 16: Submit and use named/code proposals
+### [#19: Submit and use named/code proposals](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19)
 
-**Prerequisites:** Issues 4, 8, and 10
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11), and [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13)
 
 **Feature:** A user can propose a missing or corrected named/code definition or value and use the eligible pending value in their own inventory.
 
@@ -418,9 +418,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Proposal status is visible to its proposer.
 - Proposal inputs and status are labelled, keyboard accessible, and understandable without color.
 
-### Issue 17: Submit and use fixed-conversion proposals
+### [#20: Submit and use fixed-conversion proposals](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20)
 
-**Prerequisites:** Issues 6 and 9
+**Prerequisites:** [#9](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/9), and [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12)
 
 **Feature:** A user can propose a missing or corrected fixed conversion and use it for their own monetary stamps while it awaits moderation.
 
@@ -443,9 +443,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Proposal status is visible to its proposer.
 - Proposal inputs and status are labelled, keyboard accessible, and understandable without color.
 
-### Issue 18: Let moderators view the proposal queue
+### [#21: Let moderators view the proposal queue](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21)
 
-**Prerequisites:** Issues 3, 16, and 17
+**Prerequisites:** [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19), and [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20)
 
 **Feature:** A moderator can list and inspect pending named/code and fixed-conversion proposals.
 
@@ -465,9 +465,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - Private inventory data not required for review is absent.
 - Queue filters, proposal details, and moderation navigation are labelled and keyboard accessible.
 
-### Issue 19: Let a moderator approve a proposal
+### [#22: Let a moderator approve a proposal](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22)
 
-**Prerequisites:** Issues 8, 12, and 18
+**Prerequisites:** [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), and [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21)
 
 **Feature:** A moderator can approve a proposal and publish its definition, value, or conversion to all users.
 
@@ -489,9 +489,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A second approval attempt is rejected without duplicating data.
 - Approval confirmation and its resulting status are keyboard accessible and do not rely on color alone.
 
-### Issue 20: Let a moderator merge a duplicate proposal
+### [#23: Let a moderator merge a duplicate proposal](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23)
 
-**Prerequisites:** Issues 18 and 19
+**Prerequisites:** [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21), and [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22)
 
 **Feature:** A moderator can merge a pending duplicate into an existing approved definition, schedule value, or conversion.
 
@@ -511,9 +511,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 - A transaction failure leaves all references unchanged.
 - Merge-target selection and confirmation are labelled and keyboard accessible.
 
-### Issue 21: Let a moderator reject a proposal
+### [#24: Let a moderator reject a proposal](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24)
 
-**Prerequisites:** Issue 18 and product decision R1
+**Prerequisites:** [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21) and product decision R1
 
 **Feature:** A moderator can reject a proposal without publishing it as shared data.
 
@@ -534,9 +534,9 @@ This decision does not block proposal submission, the moderator queue, approval,
 
 This issue is not ready for implementation until R1 is decided. Its other prerequisites can close first.
 
-### Issue 22: Show an upcoming named/code value in inventory
+### [#25: Show an upcoming named/code value in inventory](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/25)
 
-**Prerequisites:** Issues 8, 10, 12, and 16
+**Prerequisites:** [#11](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/11), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), and [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19)
 
 **Feature:** An inventory row shows the current and next named/code values when a change is no more than 10 calendar days away.
 
@@ -555,9 +555,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - The notice disappears and totals use the new amount on the effective date in the active country setting's timezone.
 - The notice uses a localized date and communicates current and upcoming values without relying on color.
 
-### Issue 23: Run project checks in continuous integration
+### [#26: Run project checks in continuous integration](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/26)
 
-**Prerequisites:** Issues 1 and 2
+**Prerequisites:** [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4), and [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5)
 
 **Feature:** Every proposed code change receives automated lint, test, build, and migration results.
 
@@ -575,9 +575,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - An invalid migration fails the migration job.
 - No production credential is required or printed by the workflow.
 
-### Issue 24: Download all user-owned and user-linked data as JSON
+### [#27: Download all user-owned and user-linked data as JSON](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27)
 
-**Prerequisites:** Issues 5, 12, 16, 17, 18, 19, 20, and 21
+**Prerequisites:** [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19), [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20), [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22), [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23), and [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24)
 
 **Feature:** A user can download one JSON file containing their private records and every non-secret record linked to their account.
 
@@ -606,9 +606,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - A schema coverage test fails for a new direct user reference without an export mapping or secret exclusion.
 - The download control has an accessible name, works with a keyboard, and announces failure without relying on color.
 
-### Issue 25: Delete an account without deleting shared contributions
+### [#28: Delete an account without deleting shared contributions](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/28)
 
-**Prerequisites:** Issue 24
+**Prerequisites:** [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27)
 
 **Feature:** A user can permanently delete their account and private data while approved or merged shared contributions remain available without their identity.
 
@@ -632,9 +632,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - Repeating a deletion step does not recreate data or fail because a record is already absent.
 - The deletion control and confirmation are keyboard accessible, use explicit text, and return focus predictably when cancelled.
 
-### Issue 26: Audit accessibility and localization across the complete workflow
+### [#29: Audit accessibility and localization across the complete workflow](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/29)
 
-**Prerequisites:** Issues 4, 5, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, and 25
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#12](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/12), [#13](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/13), [#14](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/14), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#16](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/16), [#17](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/17), [#18](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/18), [#19](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/19), [#20](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/20), [#21](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/21), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22), [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23), [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24), [#25](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/25), [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27), and [#28](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/28)
 
 **Feature:** The complete authenticated workflow meets the PRD's accessibility and localization requirements when its parts are used together.
 
@@ -656,9 +656,9 @@ This issue is not ready for implementation until R1 is decided. Its other prereq
 - Calendar dates are stored unambiguously and displayed in the user's locale.
 - Automated tests cover each defect fixed during the audit.
 
-### Issue 27: Deploy a persistent preview of the inventory release
+### [#30: Deploy a persistent preview of the inventory release](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/30)
 
-**Prerequisites:** Issues 4, 5, 12, 13, 14, 15, 19, 20, 21, 22, 23, 24, 25, and 26
+**Prerequisites:** [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7), [#8](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/8), [#15](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/15), [#16](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/16), [#17](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/17), [#18](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/18), [#22](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/22), [#23](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/23), [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24), [#25](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/25), [#26](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/26), [#27](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/27), [#28](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/28), and [#29](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/29)
 
 **Feature:** A preview deployment supports the complete authenticated inventory and moderation flow with persistent data.
 
@@ -696,4 +696,4 @@ Use one area label per issue:
 - `area: accessibility`
 - `area: deployment`
 
-Add `blocked` to Issue 21 until R1 is decided. Add a `prerequisite` section to the GitHub issue body using the issue links that replace the local numbers in this proposal.
+Keep the `blocked` label on [#24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24) until R1 is decided. Add a `prerequisite` section to the GitHub issue body using the issue links that replace the local numbers in this proposal.
