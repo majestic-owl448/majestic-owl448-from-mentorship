@@ -24,6 +24,7 @@ type ResolvedValue = {
   source:
     | "FACE_AMOUNT"
     | "FIXED_CONVERSION"
+    | "PENDING_CONVERSION_PROPOSAL"
     | "NAMED_SCHEDULE"
     | "MANUAL_FALLBACK"
     | "EXPIRED"
@@ -88,6 +89,7 @@ async function resolveUnitPostageValue(
       stamp.faceAmount,
       stamp.faceCurrencyCode,
       activeCountry.displayCurrencyCode,
+      stamp.userId,
     );
     if (conversion.status === "RESOLVED") {
       return {
@@ -96,7 +98,9 @@ async function resolveUnitPostageValue(
         source:
           conversion.source === "IDENTITY"
             ? "FACE_AMOUNT"
-            : "FIXED_CONVERSION",
+            : conversion.source === "PENDING_PROPOSAL"
+              ? "PENDING_CONVERSION_PROPOSAL"
+              : "FIXED_CONVERSION",
       };
     }
   }
@@ -107,6 +111,7 @@ async function resolveUnitPostageValue(
         namedValue.amount.toFixed(),
         namedValue.currencyCode,
         activeCountry.displayCurrencyCode,
+        stamp.userId,
       );
       if (conversion.status === "RESOLVED") {
         return {
@@ -123,6 +128,7 @@ async function resolveUnitPostageValue(
       stamp.manualPostageAmount,
       stamp.manualPostageCurrencyCode,
       activeCountry.displayCurrencyCode,
+      stamp.userId,
     );
     if (fallbackConversion.status === "RESOLVED") {
       return {

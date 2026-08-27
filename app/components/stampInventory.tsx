@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
+import { FixedConversionProposals } from "@/app/components/fixedConversionProposals";
 
 export type StampValue = {
   amount: string;
@@ -112,6 +113,7 @@ export function formatInventoryDate(value: string, locale?: string) {
 const valuationSourceLabels: Record<string, string> = {
   FACE_AMOUNT: "Face amount",
   FIXED_CONVERSION: "Fixed currency conversion",
+  PENDING_CONVERSION_PROPOSAL: "Your pending fixed-conversion proposal",
   NAMED_SCHEDULE: "Named/code schedule",
   MANUAL_FALLBACK: "Manual postage value",
   EXPIRED: "Expired stamp",
@@ -562,23 +564,23 @@ export function StampInventory({
   const [namedSearchError, setNamedSearchError] = useState<string | null>(null);
   const inventoryTotalRef = useRef<HTMLDivElement>(null);
 
+  const loadInventory = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch("/api/stamps", { signal });
+    if (!response.ok) {
+      throw new Error("Stamp inventory could not be loaded.");
+    }
+    setInventory((await response.json()) as InventoryResponse);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/stamps", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Stamp inventory could not be loaded.");
-        }
-        return (await response.json()) as InventoryResponse;
-      })
-      .then(setInventory)
-      .catch((caught: unknown) => {
+    loadInventory(controller.signal).catch((caught: unknown) => {
         if (caught instanceof Error && caught.name !== "AbortError") {
           setLoadError(caught.message);
         }
       });
     return () => controller.abort();
-  }, [activeCountryCode, activeDisplayCurrencyCode]);
+  }, [activeCountryCode, activeDisplayCurrencyCode, loadInventory]);
 
   useEffect(() => {
     setCountryCode(activeCountryCode);
@@ -696,6 +698,12 @@ export function StampInventory({
           Add monetary, named, or no-face-value stamps and see their postage value for the active country.
         </p>
       </div>
+
+      <FixedConversionProposals
+        activeDisplayCurrencyCode={activeDisplayCurrencyCode}
+        currencies={currencies}
+        onProposalSubmitted={() => loadInventory()}
+      />
 
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
         <div>

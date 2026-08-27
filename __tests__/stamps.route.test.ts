@@ -184,6 +184,7 @@ async function createNamedFaceValue(
 describe("stamp inventory API", () => {
   beforeEach(async () => {
     auth.userId = null;
+    await prisma.currencyConversionProposal.deleteMany();
     await prisma.currencyConversion.deleteMany();
     await prisma.stampInventoryEntry.deleteMany();
     await prisma.namedFaceValue.deleteMany();
@@ -876,6 +877,113 @@ describe("stamp inventory API", () => {
           currencyCode: "EUR",
           source: "FIXED_CONVERSION",
         },
+      },
+    });
+  });
+
+  it("uses a pending missing conversion for its proposer's stamp only", async () => {
+    await createActiveSetting("first-user");
+    await createActiveSetting("second-user");
+    await prisma.currencyConversionProposal.create({
+      data: {
+        submittedById: "first-user",
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.000516456899089",
+        sourceNote: "National postal tariff",
+      },
+    });
+
+    auth.userId = "first-user";
+    const proposerResponse = await POST(
+      request("POST", {
+        ...validStamp,
+        faceAmount: "1936.27",
+        faceCurrencyCode: "ITL",
+      }),
+    );
+    expect(await proposerResponse.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: {
+          amount: "0.99999999999905803",
+          currencyCode: "EUR",
+          source: "PENDING_CONVERSION_PROPOSAL",
+        },
+        valuation: {
+          status: "RESOLVED",
+          source: "PENDING_CONVERSION_PROPOSAL",
+        },
+      },
+    });
+
+    auth.userId = "second-user";
+    const otherResponse = await POST(
+      request("POST", {
+        ...validStamp,
+        postalEntityId: "second-user-postal-entity",
+        faceAmount: "1936.27",
+        faceCurrencyCode: "ITL",
+      }),
+    );
+    expect(await otherResponse.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: null,
+        totalPostageValue: null,
+        valuation: { status: "UNRESOLVED", source: null },
+      },
+    });
+  });
+
+  it("uses a pending correction for its proposer while others keep the approved multiplier", async () => {
+    await createActiveSetting("first-user");
+    await createActiveSetting("second-user");
+    const approved = await prisma.currencyConversion.create({
+      data: {
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.0005",
+      },
+    });
+    await prisma.currencyConversionProposal.create({
+      data: {
+        submittedById: "first-user",
+        targetCurrencyConversionId: approved.id,
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.0006",
+        sourceNote: "Corrected national postal tariff",
+      },
+    });
+
+    auth.userId = "first-user";
+    const proposerResponse = await POST(
+      request("POST", {
+        ...validStamp,
+        faceAmount: "1000",
+        faceCurrencyCode: "ITL",
+      }),
+    );
+    expect(await proposerResponse.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: {
+          amount: "0.6",
+          source: "PENDING_CONVERSION_PROPOSAL",
+        },
+      },
+    });
+
+    auth.userId = "second-user";
+    const otherResponse = await POST(
+      request("POST", {
+        ...validStamp,
+        postalEntityId: "second-user-postal-entity",
+        faceAmount: "1000",
+        faceCurrencyCode: "ITL",
+      }),
+    );
+    expect(await otherResponse.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: { amount: "0.5", source: "FIXED_CONVERSION" },
       },
     });
   });
