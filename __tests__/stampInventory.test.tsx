@@ -1,9 +1,50 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  formatInventoryDate,
   formatMoney,
   NamedFaceValueFields,
   StampInventory,
+  StampInventoryResults,
+  type SavedStamp,
 } from "@/app/components/stampInventory";
+
+function savedStamp(
+  id: string,
+  source: string | null,
+  amount: string | null = "1",
+): SavedStamp {
+  return {
+    id,
+    countryCode: "IT",
+    postalEntityId: "italy-post",
+    postalEntity: {
+      id: "italy-post",
+      name: "Poste Italiane",
+      countryCode: "IT",
+    },
+    name: `Stamp ${id}`,
+    yearOfIssue: null,
+    faceValueType: "MONETARY",
+    faceAmount: "1",
+    faceCurrencyCode: "EUR",
+    namedFaceValueId: null,
+    namedFaceValue: null,
+    manualPostageAmount: null,
+    manualPostageCurrencyCode: null,
+    quantityOwned: 1,
+    quantityAnnulled: 0,
+    usableQuantity: 1,
+    expired: false,
+    unitPostageValue:
+      amount === null ? null : { amount, currencyCode: "EUR", source: source! },
+    totalPostageValue: amount === null ? null : { amount, currencyCode: "EUR" },
+    valuation:
+      source === null
+        ? { status: "UNRESOLVED", source: null }
+        : { status: "RESOLVED", source },
+    createdAt: "2026-08-27T12:00:00.000Z",
+  };
+}
 
 describe("stamp inventory interface", () => {
   it("renders visible labels and native keyboard-operable controls", () => {
@@ -56,6 +97,50 @@ describe("stamp inventory interface", () => {
         currencyCode: "EUR",
       }),
     ).toContain("0.123456789012345678901");
+  });
+
+  it("formats inventory dates with the requested user locale", () => {
+    expect(formatInventoryDate("2026-08-27T12:00:00.000Z", "en-GB")).toBe(
+      "27/08/2026",
+    );
+  });
+
+  it("shows the inventory total, valuation sources, zero reason, and unresolved state in text", () => {
+    const markup = renderToStaticMarkup(
+      <StampInventoryResults
+        inventory={{
+          activeCountryCode: "IT",
+          displayCurrencyCode: "EUR",
+          inventoryTotal: { amount: "4", currencyCode: "EUR" },
+          stamps: [
+            savedStamp("face", "FACE_AMOUNT"),
+            savedStamp("converted", "FIXED_CONVERSION"),
+            savedStamp("named", "NAMED_SCHEDULE"),
+            savedStamp("manual", "MANUAL_FALLBACK"),
+            savedStamp("expired", "EXPIRED", "0"),
+            savedStamp("outside", "OUTSIDE_ACTIVE_COUNTRY", "0"),
+            savedStamp("unresolved", null, null),
+          ],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Inventory total:");
+    for (const label of [
+      "Face amount",
+      "Fixed currency conversion",
+      "Named/code schedule",
+      "Manual postage value",
+      "Expired stamp",
+      "Outside active country",
+      "Unresolved",
+    ]) {
+      expect(markup).toContain(label);
+    }
+    expect(markup).toContain(
+      "Unresolved entries are excluded from the inventory total.",
+    );
+    expect(markup).toContain("Added:");
   });
 
   it("labels named search and selection and requires a country first", () => {
