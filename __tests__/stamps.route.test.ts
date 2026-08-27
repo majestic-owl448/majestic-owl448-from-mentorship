@@ -26,7 +26,7 @@ vi.mock("supertokens-node/nextjs", () => ({
 }));
 
 import { GET, POST } from "@/app/api/stamps/route";
-import { PATCH } from "@/app/api/stamps/[stampId]/route";
+import { DELETE, PATCH } from "@/app/api/stamps/[stampId]/route";
 import { GET as SEARCH_NAMED_FACE_VALUES } from "@/app/api/named-face-values/route";
 
 const validStamp = {
@@ -64,7 +64,7 @@ const validNoFaceValueStamp = {
 };
 
 function request(
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   body?: unknown,
   stampId?: string,
 ) {
@@ -79,6 +79,12 @@ function request(
         body === undefined ? undefined : { "Content-Type": "application/json" },
     },
   );
+}
+
+function deleteStamp(stampId: string) {
+  return DELETE(request("DELETE", undefined, stampId), {
+    params: Promise.resolve({ stampId }),
+  });
 }
 
 function updateStamp(stampId: string, body: unknown) {
@@ -285,6 +291,60 @@ describe("stamp inventory API", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("requires authentication for removing a stamp", async () => {
+    const response = await deleteStamp("missing-stamp");
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("removes the selected stamp and returns the refreshed inventory total", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const firstCreated = await POST(request("POST", validStamp));
+    const firstStamp = (await firstCreated.json()).stamp;
+    const secondCreated = await POST(
+      request("POST", {
+        ...validStamp,
+        name: "Second stamp",
+        faceAmount: "1.25",
+        quantityOwned: "2",
+        quantityAnnulled: "0",
+      }),
+    );
+    const secondStamp = (await secondCreated.json()).stamp;
+
+    const response = await deleteStamp(firstStamp.id);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      deletedStampId: firstStamp.id,
+      inventoryTotal: { amount: "2.5", currencyCode: "EUR" },
+    });
+    expect(
+      await prisma.stampInventoryEntry.findMany({ orderBy: { name: "asc" } }),
+    ).toMatchObject([{ id: secondStamp.id, name: "Second stamp" }]);
+  });
+
+  it("returns 404 without removing an unknown or another user's stamp", async () => {
+    await createActiveSetting("first-user");
+    await createActiveSetting("second-user");
+    auth.userId = "first-user";
+    const created = await POST(request("POST", validStamp));
+    const stamp = (await created.json()).stamp;
+
+    expect((await deleteStamp("missing-stamp")).status).toBe(404);
+
+    auth.userId = "second-user";
+    const response = await deleteStamp(stamp.id);
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Stamp not found." });
+    expect(
+      await prisma.stampInventoryEntry.findUnique({ where: { id: stamp.id } }),
+    ).toMatchObject({ id: stamp.id, userId: "first-user" });
   });
 
   it("updates both quantities and returns refreshed line and inventory totals", async () => {

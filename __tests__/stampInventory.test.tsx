@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   applyStampUpdate,
+  applyStampRemoval,
   formatInventoryDate,
   formatMoney,
   NamedFaceValueFields,
@@ -208,6 +209,52 @@ describe("stamp inventory interface", () => {
       inventoryTotal: { amount: "4", currencyCode: "EUR" },
       stamps: [updated, unchanged],
     });
+  });
+
+  it("removes one line and replaces the inventory total from a delete response", () => {
+    const removed = savedStamp("removed", "FACE_AMOUNT");
+    const remaining = savedStamp("remaining", "FACE_AMOUNT");
+    const inventory = {
+      activeCountryCode: "IT",
+      displayCurrencyCode: "EUR",
+      inventoryTotal: { amount: "2", currencyCode: "EUR" },
+      stamps: [removed, remaining],
+    };
+
+    expect(
+      applyStampRemoval(inventory, removed.id, {
+        amount: "1",
+        currencyCode: "EUR",
+      }),
+    ).toEqual({
+      ...inventory,
+      inventoryTotal: { amount: "1", currencyCode: "EUR" },
+      stamps: [remaining],
+    });
+  });
+
+  it("renders a labelled removal confirmation with native buttons", () => {
+    const stamp = savedStamp("removable", "FACE_AMOUNT");
+    const markup = renderToStaticMarkup(
+      <StampInventoryResults
+        inventory={{
+          activeCountryCode: "IT",
+          displayCurrencyCode: "EUR",
+          inventoryTotal: { amount: "1", currencyCode: "EUR" },
+          stamps: [stamp],
+        }}
+        onStampRemoved={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Remove stamp");
+    expect(markup).toContain("Remove Stamp removable?");
+    expect(markup).toContain("Confirm removal");
+    expect(markup).toContain("Cancel");
+    expect(markup).toContain(
+      'aria-labelledby="stamp-removable-remove-confirmation"',
+    );
+    expect(markup).not.toContain("onKeyDown");
   });
 
   it("labels named search and selection and requires a country first", () => {
