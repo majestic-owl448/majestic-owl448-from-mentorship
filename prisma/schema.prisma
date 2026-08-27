@@ -97,7 +97,7 @@ model ValueSchedule {
   countryCode     String                 @map("country_code")
   currencyCode    String                 @map("currency_code")
   currency        Currency               @relation(fields: [currencyCode], references: [code], onDelete: Restrict)
-  currentValue    ValueScheduleValue?
+  values          ValueScheduleValue[]
   namedFaceValues NamedFaceValue[]
   createdAt       DateTime               @default(now()) @map("created_at")
   updatedAt       DateTime               @updatedAt @map("updated_at")
@@ -108,12 +108,14 @@ model ValueSchedule {
 
 model ValueScheduleValue {
   id              String        @id @default(cuid())
-  valueScheduleId String        @unique @map("value_schedule_id")
+  valueScheduleId String        @map("value_schedule_id")
   amount          String
+  effectiveOn     String?       @map("effective_on")
   valueSchedule   ValueSchedule @relation(fields: [valueScheduleId], references: [id], onDelete: Cascade)
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
+  @@unique([valueScheduleId, effectiveOn])
   @@map("value_schedule_values")
 }
 
