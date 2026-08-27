@@ -24,6 +24,7 @@ enum PostalEntityStatus {
 enum FaceValueType {
   MONETARY
   NAMED
+  NONE
 }
 
 model UserProfile {

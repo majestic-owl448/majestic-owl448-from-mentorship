@@ -20,7 +20,7 @@ export type NewStampInput = {
   postalEntityId: string;
   name: string;
   yearOfIssue: number | null;
-  faceValueType: "MONETARY" | "NAMED";
+  faceValueType: "MONETARY" | "NAMED" | "NONE";
   faceAmount: string | null;
   faceCurrencyCode: string | null;
   namedFaceValueId: string | null;
@@ -92,7 +92,11 @@ export function validateNewStamp(input: unknown): ValidationResult {
   ) {
     errors.yearOfIssue = "Enter a year from 1 to 9999, or leave it blank.";
   }
-  if (faceValueType !== "MONETARY" && faceValueType !== "NAMED") {
+  if (
+    faceValueType !== "MONETARY" &&
+    faceValueType !== "NAMED" &&
+    faceValueType !== "NONE"
+  ) {
     errors.faceValueType = "Select a face value type.";
   } else if (faceValueType === "MONETARY") {
     if (!isDecimal(faceAmount)) {
@@ -105,7 +109,7 @@ export function validateNewStamp(input: unknown): ValidationResult {
       errors.namedFaceValueId =
         "Do not select a named face value for a monetary stamp.";
     }
-  } else {
+  } else if (faceValueType === "NAMED") {
     if (!namedFaceValueId) {
       errors.namedFaceValueId = "Select a named face value.";
     }
@@ -114,6 +118,19 @@ export function validateNewStamp(input: unknown): ValidationResult {
     }
     if (faceCurrencyCode) {
       errors.faceCurrencyCode = "Do not enter a currency for a named stamp.";
+    }
+  } else {
+    if (faceAmount) {
+      errors.faceAmount =
+        "Do not enter an amount for a stamp without a face value.";
+    }
+    if (faceCurrencyCode) {
+      errors.faceCurrencyCode =
+        "Do not enter a currency for a stamp without a face value.";
+    }
+    if (namedFaceValueId) {
+      errors.namedFaceValueId =
+        "Do not select a named face value for a stamp without a face value.";
     }
   }
 
@@ -136,6 +153,14 @@ export function validateNewStamp(input: unknown): ValidationResult {
   ) {
     errors.manualPostageCurrencyCode =
       "Enter a three-letter manual postage currency code.";
+  }
+  if (faceValueType === "NONE") {
+    if (!hasManualAmount) {
+      errors.manualPostageAmount = "Enter the manual postage amount.";
+    }
+    if (!hasManualCurrency) {
+      errors.manualPostageCurrencyCode = "Select the manual postage currency.";
+    }
   }
 
   const ownedIsInteger = /^\d+$/.test(quantityOwnedValue);
@@ -173,7 +198,7 @@ export function validateNewStamp(input: unknown): ValidationResult {
       postalEntityId,
       name,
       yearOfIssue,
-      faceValueType: faceValueType as "MONETARY" | "NAMED",
+      faceValueType: faceValueType as "MONETARY" | "NAMED" | "NONE",
       faceAmount: faceValueType === "MONETARY" ? faceAmount : null,
       faceCurrencyCode: faceValueType === "MONETARY" ? faceCurrencyCode : null,
       namedFaceValueId: faceValueType === "NAMED" ? namedFaceValueId : null,

@@ -39,6 +39,7 @@ describe("stamp inventory interface", () => {
       expect(markup).toContain(label);
     }
     expect(markup).toContain('<button type="submit"');
+    expect(markup).toContain('<option value="NONE">No face value</option>');
     expect(markup).not.toContain("onKeyDown");
   });
 
