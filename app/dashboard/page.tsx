@@ -8,6 +8,7 @@ import type {
   SettingOption,
 } from "@/app/components/initialPostalEntitySettingForm";
 import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
+import { NamedFaceValueProposals } from "@/app/components/namedFaceValueProposals";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
 
@@ -154,22 +155,29 @@ function DashboardContent() {
       />
 
       {settings.activePostalEntitySetting && (
-        <StampInventory
-          activeCountryCode={
-            settings.activePostalEntitySetting.postalEntity.countryCode
-          }
-          activeDisplayCurrencyCode={
-            settings.activePostalEntitySetting.displayCurrencyCode
-          }
-          activePostalEntityId={
-            settings.activePostalEntitySetting.postalEntity.id
-          }
-          countries={settings.options.countries}
-          currencies={settings.options.currencies}
-          postalEntities={settings.postalEntitySettings.map(
-            (setting) => setting.postalEntity,
-          )}
-        />
+        <>
+          <NamedFaceValueProposals
+            activeCountryCode={settings.activePostalEntitySetting.postalEntity.countryCode}
+            countries={settings.options.countries}
+            currencies={settings.options.currencies}
+          />
+          <StampInventory
+            activeCountryCode={
+              settings.activePostalEntitySetting.postalEntity.countryCode
+            }
+            activeDisplayCurrencyCode={
+              settings.activePostalEntitySetting.displayCurrencyCode
+            }
+            activePostalEntityId={
+              settings.activePostalEntitySetting.postalEntity.id
+            }
+            countries={settings.options.countries}
+            currencies={settings.options.currencies}
+            postalEntities={settings.postalEntitySettings.map(
+              (setting) => setting.postalEntity,
+            )}
+          />
+        </>
       )}
 
       <button

@@ -30,7 +30,9 @@ function savedStamp(
     faceAmount: "1",
     faceCurrencyCode: "EUR",
     namedFaceValueId: null,
+    namedFaceValueProposalId: null,
     namedFaceValue: null,
+    upcomingNamedFaceValue: null,
     manualPostageAmount: null,
     manualPostageCurrencyCode: null,
     quantityOwned: 1,
@@ -143,6 +145,41 @@ describe("stamp inventory interface", () => {
       "Unresolved entries are excluded from the inventory total.",
     );
     expect(markup).toContain("Added:");
+  });
+
+  it("shows pending definition status and an upcoming named value in text", () => {
+    const pending = savedStamp("pending", "NAMED_SCHEDULE");
+    pending.faceValueType = "NAMED";
+    pending.namedFaceValueId = null;
+    pending.namedFaceValueProposalId = "pending-definition";
+    pending.namedFaceValue = {
+      id: "pending-definition",
+      countryCode: "IT",
+      displayCode: "B Zona 2",
+      proposalStatus: "PENDING",
+    };
+    pending.upcomingNamedFaceValue = {
+      amount: "2.20",
+      currencyCode: "EUR",
+      effectiveOn: "2028-10-01",
+      daysUntil: 10,
+    };
+
+    const markup = renderToStaticMarkup(
+      <StampInventoryResults
+        inventory={{
+          activeCountryCode: "IT",
+          displayCurrencyCode: "EUR",
+          inventoryTotal: { amount: "1", currencyCode: "EUR" },
+          stamps: [pending],
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Definition status: PENDING");
+    expect(markup).toContain(
+      "Upcoming named/code value: 2.20 EUR from 2028-10-01",
+    );
   });
 
   it("renders labelled keyboard-operable quantity editors for inventory lines", () => {

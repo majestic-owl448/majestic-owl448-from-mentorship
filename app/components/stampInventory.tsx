@@ -19,10 +19,18 @@ export type SavedStamp = {
   faceAmount: string | null;
   faceCurrencyCode: string | null;
   namedFaceValueId: string | null;
+  namedFaceValueProposalId: string | null;
   namedFaceValue: {
     id: string;
     countryCode: string;
     displayCode: string;
+    proposalStatus?: "PENDING";
+  } | null;
+  upcomingNamedFaceValue: {
+    amount: string;
+    currencyCode: string;
+    effectiveOn: string;
+    daysUntil: number;
   } | null;
   manualPostageAmount: string | null;
   manualPostageCurrencyCode: string | null;
@@ -68,6 +76,8 @@ type NamedFaceValueOption = {
   id: string;
   countryCode: string;
   displayCode: string;
+  namedFaceValueProposalId?: string;
+  proposalStatus?: "PENDING";
 };
 
 export function formatMoney(value: StampValue) {
@@ -426,6 +436,16 @@ export function StampInventoryResults({
                     ? `${stamp.faceAmount} ${stamp.faceCurrencyCode}`
                     : "No face value"}
               </p>
+              {stamp.namedFaceValue?.proposalStatus && (
+                <p>Definition status: {stamp.namedFaceValue.proposalStatus}</p>
+              )}
+              {stamp.upcomingNamedFaceValue && (
+                <p>
+                  Upcoming named/code value: {stamp.upcomingNamedFaceValue.amount}{" "}
+                  {stamp.upcomingNamedFaceValue.currencyCode} from{" "}
+                  {stamp.upcomingNamedFaceValue.effectiveOn}
+                </p>
+              )}
               {stamp.manualPostageAmount !== null &&
                 stamp.manualPostageCurrencyCode !== null && (
                   <p>
@@ -504,9 +524,9 @@ export function NamedFaceValueFields({
       </div>
       <div>
         <label htmlFor="named-face-value" className="block font-medium">Name or code</label>
-        <select id="named-face-value" name="namedFaceValueId" defaultValue="" disabled={!countryCode} aria-describedby={selectionError ? "named-face-value-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+        <select id="named-face-value" name="namedFaceValueReference" defaultValue="" disabled={!countryCode} aria-describedby={selectionError ? "named-face-value-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
           <option value="">Select a named face value</option>
-          {options.map((option) => <option key={option.id} value={option.id}>{option.displayCode}</option>)}
+          {options.map((option) => <option key={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`} value={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`}>{option.displayCode}{option.proposalStatus ? ` (${option.proposalStatus})` : ""}</option>)}
         </select>
         <FieldError id="named-face-value-error" message={selectionError} />
       </div>
@@ -602,6 +622,9 @@ export function StampInventory({
     setStatus(null);
     const form = event.currentTarget;
     const data = new FormData(form);
+    const namedReference = String(data.get("namedFaceValueReference") ?? "");
+    const [namedReferenceType, namedReferenceId = ""] =
+      namedReference.split(":", 2);
     const response = await fetch("/api/stamps", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -613,7 +636,10 @@ export function StampInventory({
         faceValueType: data.get("faceValueType"),
         faceAmount: data.get("faceAmount"),
         faceCurrencyCode: data.get("faceCurrencyCode"),
-        namedFaceValueId: data.get("namedFaceValueId"),
+        namedFaceValueId:
+          namedReferenceType === "approved" ? namedReferenceId : "",
+        namedFaceValueProposalId:
+          namedReferenceType === "proposal" ? namedReferenceId : "",
         manualPostageAmount: data.get("manualPostageAmount"),
         manualPostageCurrencyCode: data.get("manualPostageCurrencyCode"),
         quantityOwned: data.get("quantityOwned"),
