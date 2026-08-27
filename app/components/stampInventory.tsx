@@ -58,7 +58,8 @@ type StampErrors = Partial<
     | "manualPostageAmount"
     | "manualPostageCurrencyCode"
     | "quantityOwned"
-    | "quantityAnnulled",
+    | "quantityAnnulled"
+    | "expired",
     string
   >
 >;
@@ -123,7 +124,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   ) : null;
 }
 
-export function applyStampQuantityUpdate(
+export function applyStampUpdate(
   inventory: InventoryResponse,
   stamp: SavedStamp,
   inventoryTotal: StampValue,
@@ -137,7 +138,7 @@ export function applyStampQuantityUpdate(
   };
 }
 
-function StampQuantityEditor({
+function StampEditor({
   stamp,
   onUpdated,
 }: {
@@ -151,6 +152,8 @@ function StampQuantityEditor({
   const annulledId = `stamp-${stamp.id}-annulled-quantity`;
   const ownedErrorId = `${ownedId}-error`;
   const annulledErrorId = `${annulledId}-error`;
+  const expiredId = `stamp-${stamp.id}-expired`;
+  const expiredExplanationId = `${expiredId}-explanation`;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -166,6 +169,7 @@ function StampQuantityEditor({
         body: JSON.stringify({
           quantityOwned: data.get("quantityOwned"),
           quantityAnnulled: data.get("quantityAnnulled"),
+          expired: data.get("expired") === "on",
         }),
       });
       const result = (await response.json()) as {
@@ -181,9 +185,9 @@ function StampQuantityEditor({
       }
 
       onUpdated(result.stamp, result.inventoryTotal);
-      setStatus("Quantities updated.");
+      setStatus("Stamp updated.");
     } catch {
-      setStatus("Quantities could not be updated.");
+      setStatus("Stamp could not be updated.");
     } finally {
       setSaving(false);
     }
@@ -234,12 +238,33 @@ function StampQuantityEditor({
           message={errors.quantityAnnulled}
         />
       </div>
+      <fieldset className="sm:col-span-2">
+        <legend className="font-medium">Expiration</legend>
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            id={expiredId}
+            name="expired"
+            type="checkbox"
+            defaultChecked={stamp.expired}
+            aria-describedby={expiredExplanationId}
+            className="h-5 w-5"
+          />
+          <label htmlFor={expiredId}>Expired</label>
+        </div>
+        <p
+          id={expiredExplanationId}
+          className="mt-1 text-sm text-zinc-600 dark:text-zinc-400"
+        >
+          Expired stamps have zero usable quantity and zero postage value.
+          Stored stamp details and quantities stay unchanged.
+        </p>
+      </fieldset>
       <button
         type="submit"
         disabled={saving}
         className="h-10 rounded-full bg-foreground px-5 font-medium text-background disabled:opacity-60 sm:w-fit"
       >
-        {saving ? "Saving…" : "Save quantities"}
+        {saving ? "Saving…" : "Save stamp"}
       </button>
       {status && <p role="status">{status}</p>}
     </form>
@@ -248,10 +273,10 @@ function StampQuantityEditor({
 
 export function StampInventoryResults({
   inventory,
-  onQuantityUpdated,
+  onStampUpdated,
 }: {
   inventory: InventoryResponse;
-  onQuantityUpdated?: (
+  onStampUpdated?: (
     stamp: SavedStamp,
     inventoryTotal: StampValue,
   ) => void;
@@ -321,10 +346,10 @@ export function StampInventoryResults({
                   : valuationSourceLabels[stamp.valuation.source] ??
                     stamp.valuation.source}
               </p>
-              {onQuantityUpdated && (
-                <StampQuantityEditor
+              {onStampUpdated && (
+                <StampEditor
                   stamp={stamp}
-                  onUpdated={onQuantityUpdated}
+                  onUpdated={onStampUpdated}
                 />
               )}
             </li>
@@ -626,10 +651,10 @@ export function StampInventory({
       {inventory && (
         <StampInventoryResults
           inventory={inventory}
-          onQuantityUpdated={(stamp, inventoryTotal) =>
+          onStampUpdated={(stamp, inventoryTotal) =>
             setInventory((current) =>
               current
-                ? applyStampQuantityUpdate(current, stamp, inventoryTotal)
+                ? applyStampUpdate(current, stamp, inventoryTotal)
                 : current,
             )
           }

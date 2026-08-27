@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  applyStampQuantityUpdate,
+  applyStampUpdate,
   formatInventoryDate,
   formatMoney,
   NamedFaceValueFields,
@@ -154,7 +154,7 @@ describe("stamp inventory interface", () => {
           inventoryTotal: { amount: "1", currencyCode: "EUR" },
           stamps: [stamp],
         }}
-        onQuantityUpdated={() => undefined}
+        onStampUpdated={() => undefined}
       />,
     );
 
@@ -168,7 +168,16 @@ describe("stamp inventory interface", () => {
     expect(markup).toMatch(
       /<input[^>]+type="number"[^>]+name="quantityAnnulled"/,
     );
-    expect(markup).toContain("Save quantities");
+    expect(markup).toContain(
+      '<label for="stamp-editable-expired">Expired</label>',
+    );
+    expect(markup).toContain(
+      'aria-describedby="stamp-editable-expired-explanation"',
+    );
+    expect(markup).toContain(
+      "Expired stamps have zero usable quantity and zero postage value.",
+    );
+    expect(markup).toContain("Save stamp");
     expect(markup).not.toContain("onKeyDown");
   });
 
@@ -190,7 +199,7 @@ describe("stamp inventory interface", () => {
     };
 
     expect(
-      applyStampQuantityUpdate(inventory, updated, {
+      applyStampUpdate(inventory, updated, {
         amount: "4",
         currencyCode: "EUR",
       }),

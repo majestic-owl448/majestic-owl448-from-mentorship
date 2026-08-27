@@ -81,7 +81,7 @@ function request(
   );
 }
 
-function updateQuantities(stampId: string, body: unknown) {
+function updateStamp(stampId: string, body: unknown) {
   return PATCH(request("PATCH", body, stampId), {
     params: Promise.resolve({ stampId }),
   });
@@ -277,9 +277,10 @@ describe("stamp inventory API", () => {
   });
 
   it("requires authentication for updating stamp quantities", async () => {
-    const response = await updateQuantities("missing-stamp", {
+    const response = await updateStamp("missing-stamp", {
       quantityOwned: 1,
       quantityAnnulled: 0,
+      expired: false,
     });
 
     expect(response.status).toBe(401);
@@ -292,9 +293,10 @@ describe("stamp inventory API", () => {
     const created = await POST(request("POST", validStamp));
     const createdBody = await created.json();
 
-    const response = await updateQuantities(createdBody.stamp.id, {
+    const response = await updateStamp(createdBody.stamp.id, {
       quantityOwned: 5,
       quantityAnnulled: 2,
+      expired: false,
     });
 
     expect(response.status).toBe(200);
@@ -328,9 +330,10 @@ describe("stamp inventory API", () => {
     );
     const { stamp } = await created.json();
 
-    const response = await updateQuantities(stamp.id, {
+    const response = await updateStamp(stamp.id, {
       quantityOwned: 1,
       quantityAnnulled: 2,
+      expired: false,
     });
 
     expect(response.status).toBe(400);
@@ -352,14 +355,14 @@ describe("stamp inventory API", () => {
 
     for (const [body, errors] of [
       [
-        { quantityOwned: 0, quantityAnnulled: 0 },
+        { quantityOwned: 0, quantityAnnulled: 0, expired: false },
         {
           quantityOwned:
             "Enter an owned quantity from 1 to 2,147,483,647.",
         },
       ],
       [
-        { quantityOwned: 2.5, quantityAnnulled: -1 },
+        { quantityOwned: 2.5, quantityAnnulled: -1, expired: false },
         {
           quantityOwned:
             "Enter an owned quantity from 1 to 2,147,483,647.",
@@ -367,8 +370,12 @@ describe("stamp inventory API", () => {
             "Enter an annulled quantity from 0 to 2,147,483,647.",
         },
       ],
+      [
+        { quantityOwned: 3, quantityAnnulled: 1, expired: "true" },
+        { expired: "Select whether the stamp is expired." },
+      ],
     ] as const) {
-      const response = await updateQuantities(stamp.id, body);
+      const response = await updateStamp(stamp.id, body);
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ errors });
     }
@@ -382,16 +389,54 @@ describe("stamp inventory API", () => {
     const { stamp } = await created.json();
 
     auth.userId = "second-user";
-    const response = await updateQuantities(stamp.id, {
+    const response = await updateStamp(stamp.id, {
       quantityOwned: 4,
       quantityAnnulled: 0,
+      expired: true,
     });
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "Stamp not found." });
     expect(
       await prisma.stampInventoryEntry.findUnique({ where: { id: stamp.id } }),
-    ).toMatchObject({ quantityOwned: 3, quantityAnnulled: 1 });
+    ).toMatchObject({
+      quantityOwned: 3,
+      quantityAnnulled: 1,
+      expired: false,
+    });
+  });
+
+  it("expires only the selected user's matching stamp", async () => {
+    await createActiveSetting("first-user");
+    await createActiveSetting("second-user");
+
+    auth.userId = "first-user";
+    const firstCreated = await POST(request("POST", validStamp));
+    const firstStamp = (await firstCreated.json()).stamp;
+
+    auth.userId = "second-user";
+    const secondCreated = await POST(
+      request("POST", {
+        ...validStamp,
+        postalEntityId: "second-user-postal-entity",
+      }),
+    );
+    const secondStamp = (await secondCreated.json()).stamp;
+
+    auth.userId = "first-user";
+    const response = await updateStamp(firstStamp.id, {
+      quantityOwned: 3,
+      quantityAnnulled: 1,
+      expired: true,
+    });
+
+    expect(response.status).toBe(200);
+    expect(
+      await prisma.stampInventoryEntry.findMany({ orderBy: { userId: "asc" } }),
+    ).toMatchObject([
+      { id: firstStamp.id, userId: "first-user", expired: true },
+      { id: secondStamp.id, userId: "second-user", expired: false },
+    ]);
   });
 
   it("sums resolvable line totals exactly and excludes unresolved entries", async () => {
@@ -895,6 +940,110 @@ describe("stamp inventory API", () => {
         totalPostageValue: { amount: "0", currencyCode: "EUR" },
       },
     });
+  });
+
+  it("marks an existing stamp expired and restores its current valuation", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1", "1.35");
+    const created = await POST(request("POST", validNamedStamp));
+    const original = (await created.json()).stamp;
+
+    let response = await updateStamp(original.id, {
+      quantityOwned: original.quantityOwned,
+      quantityAnnulled: original.quantityAnnulled,
+      expired: true,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        id: original.id,
+        name: original.name,
+        yearOfIssue: original.yearOfIssue,
+        faceValueType: "NAMED",
+        namedFaceValueId: "italy-b-zone-one",
+        quantityOwned: 3,
+        quantityAnnulled: 1,
+        usableQuantity: 0,
+        expired: true,
+        unitPostageValue: {
+          amount: "0",
+          currencyCode: "EUR",
+          source: "EXPIRED",
+        },
+        totalPostageValue: { amount: "0", currencyCode: "EUR" },
+        valuation: { status: "RESOLVED", source: "EXPIRED" },
+      },
+      inventoryTotal: { amount: "0", currencyCode: "EUR" },
+    });
+
+    await prisma.valueScheduleValue.update({
+      where: { id: "italy-b-zone-one-value" },
+      data: { amount: "1.40" },
+    });
+    response = await updateStamp(original.id, {
+      quantityOwned: original.quantityOwned,
+      quantityAnnulled: original.quantityAnnulled,
+      expired: false,
+    });
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        quantityOwned: 3,
+        quantityAnnulled: 1,
+        usableQuantity: 2,
+        expired: false,
+        unitPostageValue: {
+          amount: "1.4",
+          currencyCode: "EUR",
+          source: "NAMED_SCHEDULE",
+        },
+        totalPostageValue: { amount: "2.8", currencyCode: "EUR" },
+      },
+      inventoryTotal: { amount: "2.8", currencyCode: "EUR" },
+    });
+  });
+
+  it("zeros expired stamps for each face-value type and conversion path", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1", "1.35");
+    await prisma.currencyConversion.create({
+      data: {
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.000516456899089",
+      },
+    });
+
+    const inputs = [
+      {
+        ...validStamp,
+        name: "Converted monetary stamp",
+        faceAmount: "1936.27",
+        faceCurrencyCode: "ITL",
+      },
+      validNamedStamp,
+      validNoFaceValueStamp,
+    ];
+
+    for (const input of inputs) {
+      const created = await POST(request("POST", input));
+      const stamp = (await created.json()).stamp;
+      const response = await updateStamp(stamp.id, {
+        quantityOwned: stamp.quantityOwned,
+        quantityAnnulled: stamp.quantityAnnulled,
+        expired: true,
+      });
+
+      expect(await response.json()).toMatchObject({
+        stamp: {
+          faceValueType: input.faceValueType,
+          usableQuantity: 0,
+          unitPostageValue: { amount: "0", source: "EXPIRED" },
+          totalPostageValue: { amount: "0" },
+        },
+      });
+    }
   });
 
   it("returns a known zero total when every unresolved stamp is annulled", async () => {

@@ -6,7 +6,7 @@ import { addExactDecimals, multiplyExactDecimals } from "@/lib/decimal";
 import { resolveNamedFaceValueById } from "@/lib/namedFaceValue";
 import { localDateInTimeZone } from "@/lib/postalEntitySettings";
 import type { NewStampInput } from "@/lib/stampValidation";
-import type { StampQuantityInput } from "@/lib/stampQuantityValidation";
+import type { StampUpdateInput } from "@/lib/stampUpdateValidation";
 
 type ActiveCountry = {
   displayCurrencyCode: string;
@@ -266,10 +266,10 @@ export async function listStamps(
   );
 }
 
-export async function updateStampQuantities(
+export async function updateStamp(
   userId: string,
   stampId: string,
-  input: StampQuantityInput,
+  input: StampUpdateInput,
 ) {
   const stamp = await prisma.stampInventoryEntry.findFirst({
     where: { id: stampId, userId },
