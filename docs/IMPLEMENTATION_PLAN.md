@@ -1,5 +1,12 @@
 # Stamp Inventory Implementation Plan
 
+## Document status
+
+- Last reviewed: August 27, 2026.
+- Completed delivery issues: [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4), [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5), and [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6).
+- Next delivery issue: [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7).
+- Issues #4 through #30 are the delivery tracker. This document records the implementation sequence and cross-phase constraints.
+
 ## Current repository baseline
 
 The repository currently contains:
@@ -7,16 +14,18 @@ The repository currently contains:
 - Next.js 16 App Router with React 19 and TypeScript.
 - Tailwind CSS 4.
 - SuperTokens authentication with Google and Apple.
-- Prisma 7 connected to a local SQLite file.
+- Prisma 7 with committed SQLite migrations and separate development, test, and production connection configuration.
 - A protected placeholder dashboard.
-- A generic authenticated data route that reads and creates database users.
-- Vitest and ESLint configuration.
+- An authenticated profile route that creates or updates a `UserProfile` keyed by the SuperTokens primary user ID.
+- Vitest and ESLint configuration, with database tests running against a temporary database.
 
-At the time of planning, the production build passes. Lint fails on three React effect patterns, and the test command fails because one suite contains no tests. The only passing test writes and deletes a Prisma user in the configured database.
+The baseline repair is complete. `pnpm lint`, `pnpm test --run`, and `pnpm build` pass, and the retained test suites contain assertions. The database test applies every committed migration to a disposable SQLite database instead of writing to the development database.
 
 The implementation should keep each phase in an atomic conventional commit. Schema migrations and their matching application changes belong in the same feature phase unless splitting them leaves both commits runnable.
 
 ## Phase 1: Repair the baseline
+
+Status: completed in [issue #4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4).
 
 Suggested commit:
 
@@ -34,27 +43,32 @@ Work:
 
 Exit condition: all existing checks pass before inventory tables are introduced.
 
-## Phase 2: Configure persistent storage
+## Phase 2: Prepare repeatable database setup
+
+Status: completed in [issue #5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5). Production hosting and database provisioning remain part of [issue #30](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/30).
 
 Suggested commit:
 
 ```text
-chore(db): configure persistent database
+feat(db): add repeatable setup commands
 ```
 
-SQLite is suitable for local development but not for persistent deployment on the target described in the repository README. Select the production database before storing user inventories.
+The repository uses SQLite in every environment until a production host is selected. Each environment has a separate database connection, and a production database must be provisioned independently rather than copied from local development. The deployment proposal recommends PostgreSQL for the first release; that migration belongs to deployment work after the hosting decision.
 
 Work:
 
-1. Choose and provision the hosted database.
-2. Update the Prisma datasource and driver adapter.
-3. Keep local and test database configuration separate from production.
-4. Add migration and deployment commands to the README.
-5. Verify a clean database can apply every migration from the beginning.
+1. Commit the migrations required to initialize an empty database.
+2. Add commands to apply committed migrations and create later development migrations.
+3. Keep local, test, and production database connections separate.
+4. Run database tests against a disposable database.
+5. Document database initialization and deployment migration commands in the README.
+6. Verify a clean database can apply every committed migration from the beginning.
 
-Exit condition: local development, isolated tests, and the production target each have documented database configuration.
+Exit condition: local development, isolated tests, and independently provisioned production storage each have documented connection and migration procedures.
 
 ## Phase 3: Connect authentication to application profiles
+
+Status: profile persistence was completed in [issue #6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6). Country settings begin with [issue #7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7); the moderator guard remains future work.
 
 Suggested commits:
 
@@ -342,7 +356,7 @@ Merge behavior:
 - Mark the proposal `MERGED`.
 - Reject a merge that would create incompatible named-value country or effective-date data, or an incompatible conversion currency pair.
 
-The rejected-proposal behavior in the PRD must be decided before completing this phase.
+Product decision R1 in [issue #24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24) must be decided before implementing rejected-proposal behavior.
 
 Moderator interface:
 
@@ -522,6 +536,6 @@ Release verification:
 
 ## Recommended delivery order
 
-Phases 1 through 5 repair the baseline and establish profiles, shared data, and the valuation engine. Phase 6 adds user-owned inventory records before proposals need to reference them. Phases 7 through 9 add proposal moderation and the user interfaces. Phase 10 adds data export after every user-linked record type exists. Phase 11 adds account deletion after export is available. Phase 12 audits the complete authenticated flow and prepares deployment.
+Phases 1 and 2 establish reliable checks and repeatable database setup. Phases 3 through 5 establish profiles, shared data, and the valuation engine. Phase 6 adds user-owned inventory records before proposals need to reference them. Phases 7 through 9 add proposal moderation and the user interfaces. Phase 10 adds data export after every user-linked record type exists. Phase 11 adds account deletion after export is available. Phase 12 audits the complete authenticated flow and prepares deployment.
 
 Do not add postage-combination logic, a planned-mailing-date selector, a postage-rate catalog, or collection valuation while implementing these phases. Those features require separate product requirements.
