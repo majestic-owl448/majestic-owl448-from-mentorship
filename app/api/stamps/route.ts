@@ -7,6 +7,7 @@ import {
   requireActivePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
 import {
+  calculateInventoryTotal,
   createStamp,
   listStamps,
   presentStamp,
@@ -59,6 +60,10 @@ export async function GET(request: NextRequest) {
         displayCurrencyCode:
           activePostalEntitySetting.displayCurrencyCode,
         stamps,
+        inventoryTotal: calculateInventoryTotal(
+          stamps,
+          activePostalEntitySetting.displayCurrencyCode,
+        ),
       });
     } catch (caught) {
       if (caught instanceof PostalEntitySettingRequiredError) {
@@ -99,11 +104,17 @@ export async function POST(request: NextRequest) {
       const { userId, activePostalEntitySetting } =
         await authenticatedContext(session);
       const created = await createStamp(userId, validation.data);
+      const stamp = await presentStamp(
+        created,
+        activePostalEntitySetting,
+      );
+      const stamps = await listStamps(userId, activePostalEntitySetting);
       return NextResponse.json(
         {
-          stamp: await presentStamp(
-            created,
-            activePostalEntitySetting,
+          stamp,
+          inventoryTotal: calculateInventoryTotal(
+            stamps,
+            activePostalEntitySetting.displayCurrencyCode,
           ),
         },
         { status: 201 },

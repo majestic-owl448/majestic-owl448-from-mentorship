@@ -3,12 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
 
-type StampValue = {
+export type StampValue = {
   amount: string;
   currencyCode: string;
 };
 
-type SavedStamp = {
+export type SavedStamp = {
   id: string;
   countryCode: string;
   postalEntityId: string;
@@ -32,12 +32,17 @@ type SavedStamp = {
   expired: boolean;
   unitPostageValue: (StampValue & { source: string }) | null;
   totalPostageValue: StampValue | null;
+  valuation:
+    | { status: "RESOLVED"; source: string }
+    | { status: "UNRESOLVED"; source: null };
+  createdAt: string;
 };
 
-type InventoryResponse = {
+export type InventoryResponse = {
   activeCountryCode: string;
   displayCurrencyCode: string;
   stamps: SavedStamp[];
+  inventoryTotal: StampValue;
 };
 
 type StampErrors = Partial<
@@ -89,6 +94,19 @@ export function formatMoney(value: StampValue) {
   }
 }
 
+export function formatInventoryDate(value: string, locale?: string) {
+  return new Intl.DateTimeFormat(locale).format(new Date(value));
+}
+
+const valuationSourceLabels: Record<string, string> = {
+  FACE_AMOUNT: "Face amount",
+  FIXED_CONVERSION: "Fixed currency conversion",
+  NAMED_SCHEDULE: "Named/code schedule",
+  MANUAL_FALLBACK: "Manual postage value",
+  EXPIRED: "Expired stamp",
+  OUTSIDE_ACTIVE_COUNTRY: "Outside active country",
+};
+
 function Money({ value }: { value: StampValue }) {
   return formatMoney(value);
 }
@@ -99,6 +117,84 @@ function FieldError({ id, message }: { id: string; message?: string }) {
       {message}
     </p>
   ) : null;
+}
+
+export function StampInventoryResults({
+  inventory,
+}: {
+  inventory: InventoryResponse;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-lg font-semibold">
+        Inventory total: <Money value={inventory.inventoryTotal} />
+      </p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        Unresolved entries are excluded from the inventory total.
+      </p>
+      {inventory.stamps.length === 0 ? (
+        <p>No stamps have been added yet.</p>
+      ) : (
+        <ul className="grid gap-3">
+          {inventory.stamps.map((stamp) => (
+            <li
+              key={stamp.id}
+              className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700"
+            >
+              <h3 className="font-semibold">
+                {stamp.name}
+                {stamp.yearOfIssue ? ` (${stamp.yearOfIssue})` : ""}
+              </h3>
+              <p>
+                {stamp.postalEntity.name} ({stamp.countryCode}) ·{" "}
+                {stamp.faceValueType === "NAMED"
+                  ? stamp.namedFaceValue?.displayCode
+                  : stamp.faceValueType === "MONETARY"
+                    ? `${stamp.faceAmount} ${stamp.faceCurrencyCode}`
+                    : "No face value"}
+              </p>
+              {stamp.manualPostageAmount !== null &&
+                stamp.manualPostageCurrencyCode !== null && (
+                  <p>
+                    Manual postage: {stamp.manualPostageAmount}{" "}
+                    {stamp.manualPostageCurrencyCode}
+                  </p>
+                )}
+              <p>
+                Owned: {stamp.quantityOwned}; annulled: {stamp.quantityAnnulled};
+                usable: {stamp.usableQuantity}
+              </p>
+              <p>{stamp.expired ? "Expired" : "Not expired"}</p>
+              <p>Added: {formatInventoryDate(stamp.createdAt)}</p>
+              <p>
+                Unit postage:{" "}
+                {stamp.unitPostageValue ? (
+                  <Money value={stamp.unitPostageValue} />
+                ) : (
+                  "Unresolved"
+                )}
+              </p>
+              <p>
+                Total postage:{" "}
+                {stamp.totalPostageValue ? (
+                  <Money value={stamp.totalPostageValue} />
+                ) : (
+                  "Unresolved"
+                )}
+              </p>
+              <p>
+                Valuation source:{" "}
+                {stamp.valuation.status === "UNRESOLVED"
+                  ? "Unresolved"
+                  : valuationSourceLabels[stamp.valuation.source] ??
+                    stamp.valuation.source}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function NamedFaceValueFields({
@@ -244,17 +340,24 @@ export function StampInventory({
     });
     const result = (await response.json()) as {
       stamp?: SavedStamp;
+      inventoryTotal?: StampValue;
       errors?: StampErrors;
       error?: string;
     };
-    if (!response.ok || !result.stamp) {
+    if (!response.ok || !result.stamp || !result.inventoryTotal) {
       setErrors(result.errors ?? {});
       setStatus(result.error ?? "Correct the highlighted stamp fields.");
       return;
     }
 
     setInventory((current) =>
-      current ? { ...current, stamps: [...current.stamps, result.stamp!] } : current,
+      current
+        ? {
+            ...current,
+            stamps: [...current.stamps, result.stamp!],
+            inventoryTotal: result.inventoryTotal!,
+          }
+        : current,
     );
     form.reset();
     setCountryCode(activeCountryCode);
@@ -382,35 +485,7 @@ export function StampInventory({
       {status && <p role="status">{status}</p>}
       {loadError && <p role="alert">{loadError}</p>}
       {!inventory && !loadError && <p>Loading stamp inventory…</p>}
-      {inventory?.stamps.length === 0 && <p>No stamps have been added yet.</p>}
-      {inventory && inventory.stamps.length > 0 && (
-        <ul className="grid gap-3">
-          {inventory.stamps.map((stamp) => (
-            <li key={stamp.id} className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
-              <h3 className="font-semibold">{stamp.name}{stamp.yearOfIssue ? ` (${stamp.yearOfIssue})` : ""}</h3>
-              <p>
-                {stamp.postalEntity.name} ({stamp.countryCode}) ·{" "}
-                {stamp.faceValueType === "NAMED"
-                  ? stamp.namedFaceValue?.displayCode
-                  : stamp.faceValueType === "MONETARY"
-                    ? `${stamp.faceAmount} ${stamp.faceCurrencyCode}`
-                    : "No face value"}
-              </p>
-              {stamp.manualPostageAmount !== null &&
-                stamp.manualPostageCurrencyCode !== null && (
-                  <p>
-                    Manual postage: {stamp.manualPostageAmount}{" "}
-                    {stamp.manualPostageCurrencyCode}
-                  </p>
-                )}
-              <p>Owned: {stamp.quantityOwned}; annulled: {stamp.quantityAnnulled}; usable: {stamp.usableQuantity}</p>
-              <p>{stamp.expired ? "Expired" : "Not expired"}</p>
-              <p>Unit postage: {stamp.unitPostageValue ? <Money value={stamp.unitPostageValue} /> : "Unresolved"}</p>
-              <p>Total postage: {stamp.totalPostageValue ? <Money value={stamp.totalPostageValue} /> : "Unresolved"}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      {inventory && <StampInventoryResults inventory={inventory} />}
     </section>
   );
 }

@@ -2,7 +2,7 @@ import type { StampInventoryEntry } from "@/lib/generated/prisma/client";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { prisma } from "@/lib/db";
-import { multiplyExactDecimals } from "@/lib/decimal";
+import { addExactDecimals, multiplyExactDecimals } from "@/lib/decimal";
 import { resolveNamedFaceValueById } from "@/lib/namedFaceValue";
 import { localDateInTimeZone } from "@/lib/postalEntitySettings";
 import type { NewStampInput } from "@/lib/stampValidation";
@@ -178,8 +178,27 @@ async function presentStampRecord(
     expired: stamp.expired,
     unitPostageValue,
     totalPostageValue,
+    valuation: unitPostageValue
+      ? { status: "RESOLVED" as const, source: unitPostageValue.source }
+      : { status: "UNRESOLVED" as const, source: null },
     createdAt: stamp.createdAt.toISOString(),
     updatedAt: stamp.updatedAt.toISOString(),
+  };
+}
+
+export function calculateInventoryTotal(
+  stamps: Awaited<ReturnType<typeof presentStampRecord>>[],
+  currencyCode: string,
+) {
+  return {
+    amount: stamps.reduce(
+      (total, stamp) =>
+        stamp.totalPostageValue
+          ? addExactDecimals(total, stamp.totalPostageValue.amount)
+          : total,
+      "0",
+    ),
+    currencyCode,
   };
 }
 

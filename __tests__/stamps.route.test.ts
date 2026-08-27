@@ -107,6 +107,31 @@ async function createActiveSetting(
   });
 }
 
+async function createAdditionalSetting(
+  userId: string,
+  countryCode: string,
+  displayCurrencyCode: string,
+) {
+  const postalEntity = await prisma.postalEntity.create({
+    data: {
+      id: `${userId}-${countryCode.toLowerCase()}-postal-entity`,
+      name: `${userId} ${countryCode} Post`,
+      normalizedName: `${userId} ${countryCode.toLowerCase()} post`,
+      countryCode,
+      submittedById: userId,
+    },
+  });
+  return prisma.userPostalEntitySetting.create({
+    data: {
+      userId,
+      postalEntityId: postalEntity.id,
+      displayCurrencyCode,
+      timeZone: "Europe/Rome",
+      timeZoneMode: "SYSTEM",
+    },
+  });
+}
+
 async function createNamedFaceValue(
   id: string,
   countryCode: string,
@@ -219,7 +244,9 @@ describe("stamp inventory API", () => {
           source: "FACE_AMOUNT",
         },
         totalPostageValue: { amount: "5", currencyCode: "EUR" },
+        valuation: { status: "RESOLVED", source: "FACE_AMOUNT" },
       },
+      inventoryTotal: { amount: "5", currencyCode: "EUR" },
     });
 
     const listed = await GET(request("GET"));
@@ -227,7 +254,125 @@ describe("stamp inventory API", () => {
       activeCountryCode: "IT",
       displayCurrencyCode: "EUR",
       stamps: [{ name: "Italian monetary stamp" }],
+      inventoryTotal: { amount: "5", currencyCode: "EUR" },
     });
+  });
+
+  it("sums resolvable line totals exactly and excludes unresolved entries", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await POST(
+      request("POST", {
+        ...validStamp,
+        name: "Fractional face stamp",
+        faceAmount: "0.1",
+        quantityOwned: "3",
+        quantityAnnulled: "0",
+      }),
+    );
+    await POST(
+      request("POST", {
+        ...validNoFaceValueStamp,
+        name: "Fractional manual stamp",
+        manualPostageAmount: "0.2",
+        quantityOwned: "2",
+        quantityAnnulled: "0",
+      }),
+    );
+    await POST(
+      request("POST", {
+        ...validStamp,
+        name: "Unresolved stamp",
+        faceCurrencyCode: "ITL",
+        quantityOwned: "1",
+        quantityAnnulled: "0",
+      }),
+    );
+
+    const response = await GET(request("GET"));
+    const body = await response.json();
+    expect(body.inventoryTotal).toEqual({ amount: "0.7", currencyCode: "EUR" });
+    expect(body.stamps).toMatchObject([
+      {
+        totalPostageValue: { amount: "0.3", currencyCode: "EUR" },
+        valuation: { status: "RESOLVED", source: "FACE_AMOUNT" },
+      },
+      {
+        totalPostageValue: { amount: "0.4", currencyCode: "EUR" },
+        valuation: { status: "RESOLVED", source: "MANUAL_FALLBACK" },
+      },
+      {
+        unitPostageValue: null,
+        totalPostageValue: null,
+        valuation: { status: "UNRESOLVED", source: null },
+      },
+    ]);
+  });
+
+  it("separates countries sharing a currency and recalculates after activation", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user", "IT", "EUR");
+    const swissSetting = await createAdditionalSetting(
+      "first-user",
+      "CH",
+      "EUR",
+    );
+    await POST(
+      request("POST", {
+        ...validStamp,
+        name: "Italian stamp",
+        quantityOwned: "1",
+        quantityAnnulled: "0",
+      }),
+    );
+    await POST(
+      request("POST", {
+        ...validStamp,
+        countryCode: "CH",
+        postalEntityId: "first-user-ch-postal-entity",
+        name: "Swiss stamp",
+        faceAmount: "3",
+        quantityOwned: "2",
+        quantityAnnulled: "0",
+      }),
+    );
+    const storedBefore = await prisma.stampInventoryEntry.findMany({
+      orderBy: { name: "asc" },
+    });
+
+    let response = await GET(request("GET"));
+    expect(await response.json()).toMatchObject({
+      activeCountryCode: "IT",
+      inventoryTotal: { amount: "2.5", currencyCode: "EUR" },
+      stamps: [
+        { name: "Italian stamp", unitPostageValue: { source: "FACE_AMOUNT" } },
+        {
+          name: "Swiss stamp",
+          unitPostageValue: { amount: "0", source: "OUTSIDE_ACTIVE_COUNTRY" },
+          totalPostageValue: { amount: "0" },
+        },
+      ],
+    });
+
+    await prisma.userProfile.update({
+      where: { id: "first-user" },
+      data: { activePostalEntitySettingId: swissSetting.id },
+    });
+    response = await GET(request("GET"));
+    expect(await response.json()).toMatchObject({
+      activeCountryCode: "CH",
+      inventoryTotal: { amount: "6", currencyCode: "EUR" },
+      stamps: [
+        {
+          name: "Italian stamp",
+          unitPostageValue: { amount: "0", source: "OUTSIDE_ACTIVE_COUNTRY" },
+        },
+        { name: "Swiss stamp", unitPostageValue: { source: "FACE_AMOUNT" } },
+      ],
+    });
+    expect(
+      await prisma.stampInventoryEntry.findMany({ orderBy: { name: "asc" } }),
+    ).toEqual(storedBefore);
   });
 
   it("stores a named face value reference and resolves its schedule", async () => {
@@ -699,8 +844,16 @@ describe("stamp inventory API", () => {
 
     auth.userId = "first-user";
     const response = await GET(request("GET"));
-    expect((await response.json()).stamps).toMatchObject([
-      { name: "First stamp" },
-    ]);
+    expect(await response.json()).toMatchObject({
+      stamps: [{ name: "First stamp" }],
+      inventoryTotal: { amount: "5", currencyCode: "EUR" },
+    });
+
+    auth.userId = "second-user";
+    const secondResponse = await GET(request("GET"));
+    expect(await secondResponse.json()).toMatchObject({
+      stamps: [{ name: "Second stamp" }],
+      inventoryTotal: { amount: "5", currencyCode: "EUR" },
+    });
   });
 });
