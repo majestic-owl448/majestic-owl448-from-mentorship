@@ -23,6 +23,10 @@ const supportedCurrencies = new Set(
 );
 
 function isTimeZone(value: string) {
+  if (/^[+-]\d{2}(?::?\d{2})?$/.test(value)) {
+    return false;
+  }
+
   try {
     new Intl.DateTimeFormat("en", { timeZone: value }).format();
     return true;

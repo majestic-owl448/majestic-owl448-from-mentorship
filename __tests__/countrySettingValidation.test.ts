@@ -43,6 +43,7 @@ describe("country setting validation", () => {
       "Select a currency supported by this application.",
     ],
     ["timeZone", "Mars/Olympus", "Enter a valid IANA timezone."],
+    ["timeZone", "+01:00", "Enter a valid IANA timezone."],
     [
       "timeZoneMode",
       "AUTOMATIC",

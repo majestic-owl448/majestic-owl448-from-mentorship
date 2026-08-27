@@ -117,7 +117,7 @@ export function InitialCountrySettingForm({
     <form onSubmit={onSubmit} className="flex w-full max-w-lg flex-col gap-5" noValidate>
       <div className="flex flex-col gap-2">
         <label htmlFor="countryCode" className="font-medium">
-          Country or postal territory
+          Country
         </label>
         <p id="countryCode-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
           Choose the country whose stamps you want to value first.
@@ -132,7 +132,7 @@ export function InitialCountrySettingForm({
           className={inputClass}
           required
         >
-          <option value="">Select a country or territory</option>
+          <option value="">Select a country</option>
           {countries.map((country) => (
             <option key={country.value} value={country.value}>
               {country.label}

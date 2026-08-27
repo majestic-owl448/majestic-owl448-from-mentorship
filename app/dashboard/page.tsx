@@ -93,7 +93,7 @@ function DashboardContent() {
 
       {activeSetting ? (
         <dl className="grid max-w-lg grid-cols-[max-content_1fr] gap-x-5 gap-y-3">
-          <dt className="font-medium">Country or territory</dt>
+          <dt className="font-medium">Country</dt>
           <dd>{activeSetting.countryCode}</dd>
           <dt className="font-medium">Display currency</dt>
           <dd>{activeSetting.displayCurrencyCode}</dd>
