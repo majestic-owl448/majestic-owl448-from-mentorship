@@ -8,7 +8,15 @@ import {
   listUserNamedFaceValueProposals,
   ProposalTargetError,
 } from "@/lib/namedFaceValueProposals";
-import { validateNamedFaceValueProposal } from "@/lib/namedFaceValueProposalValidation";
+import {
+  type ValueProposalInput,
+  validateNamedFaceValueProposal,
+} from "@/lib/namedFaceValueProposalValidation";
+import {
+  localDateInTimeZone,
+  PostalEntitySettingRequiredError,
+  requireActivePostalEntitySetting,
+} from "@/lib/postalEntitySettings";
 import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
@@ -66,7 +74,15 @@ export async function POST(request: NextRequest) {
       const proposal =
         validation.data.proposalType === "DEFINITION"
           ? await createDefinitionProposal(userId, validation.data)
-          : await createValueProposal(userId, validation.data);
+          : await (async (valueInput: ValueProposalInput) => {
+              const activeSetting =
+                await requireActivePostalEntitySetting(userId);
+              return createValueProposal(
+                userId,
+                valueInput,
+                localDateInTimeZone(activeSetting.timeZone),
+              );
+            })(validation.data);
       return NextResponse.json(
         {
           proposal: {
@@ -82,6 +98,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { errors: { [caught.field]: caught.message } },
           { status: 400 },
+        );
+      }
+      if (caught instanceof PostalEntitySettingRequiredError) {
+        return NextResponse.json(
+          { error: caught.message, settingsUrl: "/dashboard" },
+          { status: 409 },
         );
       }
       throw caught;

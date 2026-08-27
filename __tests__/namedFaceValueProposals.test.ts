@@ -10,6 +10,7 @@ import {
   listUserNamedFaceValueProposals,
 } from "@/lib/namedFaceValueProposals";
 import { validateNamedFaceValueProposal } from "@/lib/namedFaceValueProposalValidation";
+import { localDateInTimeZone } from "@/lib/postalEntitySettings";
 import {
   createStamp,
   presentStamp,
@@ -29,7 +30,7 @@ async function createUser(userId: string) {
       submittedById: userId,
     },
   });
-  await prisma.userPostalEntitySetting.create({
+  const setting = await prisma.userPostalEntitySetting.create({
     data: {
       userId,
       postalEntityId: postalEntity.id,
@@ -37,6 +38,10 @@ async function createUser(userId: string) {
       timeZone: "Europe/Rome",
       timeZoneMode: "SYSTEM",
     },
+  });
+  await prisma.userProfile.update({
+    where: { id: userId },
+    data: { activePostalEntitySettingId: setting.id },
   });
 }
 
@@ -216,14 +221,18 @@ describe("named/code proposals", () => {
       currencyCode: "EUR",
       ...source,
     });
-    await createValueProposal("first-user", {
-      proposalType: "VALUE",
-      targetNamedFaceValueId: null,
-      definitionProposalId: proposal.id,
-      amount: "2.10",
-      effectiveOn: null,
-      ...source,
-    });
+    await createValueProposal(
+      "first-user",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: null,
+        definitionProposalId: proposal.id,
+        amount: "2.10",
+        effectiveOn: null,
+        ...source,
+      },
+      localDateInTimeZone("Europe/Rome"),
+    );
     const input = {
       countryCode: "IT",
       postalEntityId: "first-user-post",
@@ -272,46 +281,72 @@ describe("named/code proposals", () => {
     await createUser("first-user");
     await createUser("second-user");
     await createApprovedDefinition();
-    await createValueProposal("first-user", {
-      proposalType: "VALUE",
-      targetNamedFaceValueId: "italy-zone-one",
-      definitionProposalId: null,
-      amount: "1.50",
-      effectiveOn: null,
-      ...source,
+    await prisma.valueScheduleValue.create({
+      data: {
+        id: "italy-zone-one-later",
+        valueScheduleId: "italy-zone-one-schedule",
+        amount: "1.60",
+        effectiveOn: "2028-12-01",
+      },
     });
+    await createValueProposal(
+      "first-user",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: "italy-zone-one",
+        definitionProposalId: null,
+        amount: "1.50",
+        effectiveOn: null,
+        ...source,
+      },
+      "2028-10-05",
+    );
 
     const proposer = await resolveNamedFaceValueById(
       "italy-zone-one",
       "IT",
-      "2028-09-01",
+      "2028-10-06",
       "first-user",
     );
     const otherUser = await resolveNamedFaceValueById(
       "italy-zone-one",
       "IT",
-      "2028-09-01",
+      "2028-10-06",
       "second-user",
     );
     expect(proposer.status === "RESOLVED" && proposer.amount.toFixed()).toBe(
       "1.5",
     );
     expect(otherUser.status === "RESOLVED" && otherUser.amount.toFixed()).toBe(
-      "1.35",
+      "1.4",
     );
+    const afterLaterSchedule = await resolveNamedFaceValueById(
+      "italy-zone-one",
+      "IT",
+      "2028-12-01",
+      "first-user",
+    );
+    expect(
+      afterLaterSchedule.status === "RESOLVED" &&
+        afterLaterSchedule.amount.toFixed(),
+    ).toBe("1.6");
   });
 
   it("keeps a future pending value inactive and exposes it in the ten-day notice window", async () => {
     await createUser("first-user");
     await createApprovedDefinition();
-    await createValueProposal("first-user", {
-      proposalType: "VALUE",
-      targetNamedFaceValueId: "italy-zone-one",
-      definitionProposalId: null,
-      amount: "1.55",
-      effectiveOn: "2028-09-11",
-      ...source,
-    });
+    await createValueProposal(
+      "first-user",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: "italy-zone-one",
+        definitionProposalId: null,
+        amount: "1.55",
+        effectiveOn: "2028-09-11",
+        ...source,
+      },
+      "2028-08-01",
+    );
 
     const elevenDaysBefore = await resolveNamedFaceValueById(
       "italy-zone-one",
@@ -357,14 +392,18 @@ describe("named/code proposals", () => {
       currencyCode: "EUR",
       ...source,
     });
-    await createValueProposal("first-user", {
-      proposalType: "VALUE",
-      targetNamedFaceValueId: null,
-      definitionProposalId: definition.id,
-      amount: "2.10",
-      effectiveOn: null,
-      ...source,
-    });
+    await createValueProposal(
+      "first-user",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: null,
+        definitionProposalId: definition.id,
+        amount: "2.10",
+        effectiveOn: null,
+        ...source,
+      },
+      "2028-09-01",
+    );
 
     const result = await resolveNamedFaceValueProposalById(
       definition.id,

@@ -122,6 +122,7 @@ type SchedulableNamedFaceValue = {
     id: string;
     amount: string;
     effectiveOn: string | null;
+    eligibleOn: string | null;
     pending: boolean;
     createdAt: Date;
   }>;
@@ -135,9 +136,9 @@ function resolveNamedFaceValueSchedule(
   const datedValues = namedFaceValue.values.map((value) => ({
     ...value,
     effectiveMilliseconds:
-      value.effectiveOn === null
+      value.eligibleOn === null
         ? Number.NEGATIVE_INFINITY
-        : calendarDateMilliseconds(value.effectiveOn),
+        : calendarDateMilliseconds(value.eligibleOn),
   }));
   const precedence = (
     left: (typeof datedValues)[number],
@@ -152,7 +153,11 @@ function resolveNamedFaceValueSchedule(
     .sort(precedence)[0];
 
   const nextValue = datedValues
-    .filter((value) => value.effectiveMilliseconds > localDateMilliseconds)
+    .filter(
+      (value) =>
+        value.effectiveOn !== null &&
+        value.effectiveMilliseconds > localDateMilliseconds,
+    )
     .sort(
       (left, right) =>
         left.effectiveMilliseconds - right.effectiveMilliseconds ||
@@ -288,6 +293,7 @@ async function pendingValues(
       id: true,
       amount: true,
       effectiveOn: true,
+      eligibleOn: true,
       createdAt: true,
     },
   });
@@ -307,6 +313,7 @@ async function schedulableApprovedDefinition(
     values: [
       ...definition.valueSchedule.values.map((value) => ({
         ...value,
+        eligibleOn: value.effectiveOn,
         pending: false,
       })),
       ...proposals.map((value) => ({ ...value, pending: true })),
@@ -358,7 +365,11 @@ export async function resolveNamedFaceValueProposalById(
       normalizedCode: proposal.normalizedCode,
       currencyCode: proposal.currencyCode,
       values: [
-        ...approvedValues.map((value) => ({ ...value, pending: false })),
+        ...approvedValues.map((value) => ({
+          ...value,
+          eligibleOn: value.effectiveOn,
+          pending: false,
+        })),
         ...proposals.map((value) => ({ ...value, pending: true })),
       ],
     },

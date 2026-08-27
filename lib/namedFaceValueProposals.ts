@@ -45,6 +45,7 @@ export async function createDefinitionProposal(
 export async function createValueProposal(
   userId: string,
   input: ValueProposalInput,
+  localDate: string,
 ) {
   if (input.targetNamedFaceValueId) {
     const target = await prisma.namedFaceValue.findUnique({
@@ -75,6 +76,7 @@ export async function createValueProposal(
       definitionProposalId: input.definitionProposalId,
       amount: input.amount,
       effectiveOn: input.effectiveOn,
+      eligibleOn: input.effectiveOn ?? localDate,
       sourceUrl: input.sourceUrl,
       sourceNote: input.sourceNote,
     },
@@ -107,6 +109,7 @@ export async function listUserNamedFaceValueProposals(userId: string) {
         definitionProposalId: true,
         amount: true,
         effectiveOn: true,
+        eligibleOn: true,
         sourceUrl: true,
         sourceNote: true,
         status: true,

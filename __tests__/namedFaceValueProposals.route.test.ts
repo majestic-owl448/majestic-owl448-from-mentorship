@@ -74,6 +74,28 @@ describe("named/code proposal API", () => {
       displayCode: "B Zona 2",
       status: "PENDING",
     });
+    const postalEntity = await prisma.postalEntity.create({
+      data: {
+        id: "first-user-post",
+        name: "First User Post",
+        normalizedName: "first user post",
+        countryCode: "IT",
+        submittedById: "first-user",
+      },
+    });
+    const setting = await prisma.userPostalEntitySetting.create({
+      data: {
+        userId: "first-user",
+        postalEntityId: postalEntity.id,
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "SYSTEM",
+      },
+    });
+    await prisma.userProfile.update({
+      where: { id: "first-user" },
+      data: { activePostalEntitySettingId: setting.id },
+    });
 
     const valueResponse = await POST(
       request("POST", {

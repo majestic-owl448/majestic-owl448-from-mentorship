@@ -213,6 +213,7 @@ model NamedFaceValueValueProposal {
   definitionProposalId String?                           @map("definition_proposal_id")
   amount               String
   effectiveOn          String?                           @map("effective_on")
+  eligibleOn           String                            @map("eligible_on")
   sourceUrl            String?                           @map("source_url")
   sourceNote           String?                           @map("source_note")
   status               ProposalStatus                    @default(PENDING)

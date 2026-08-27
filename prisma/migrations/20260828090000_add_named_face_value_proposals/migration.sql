@@ -36,6 +36,7 @@ CREATE TABLE "named_face_value_value_proposals" (
         AND CAST("amount" AS NUMERIC) >= 0
     ),
     "effective_on" TEXT,
+    "eligible_on" TEXT NOT NULL,
     "source_url" TEXT,
     "source_note" TEXT,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
