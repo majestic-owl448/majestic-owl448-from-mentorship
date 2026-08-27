@@ -61,6 +61,53 @@ describe("fixed-conversion proposals", () => {
           "Select an approved conversion to correct.",
       },
     });
+
+    expect(
+      validateCurrencyConversionProposal({
+        proposalKind: "MISSING",
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: ".5",
+        sourceNote: "Tariff",
+      }),
+    ).toMatchObject({ data: { multiplier: "0.5" } });
+  });
+
+  it("rejects non-normalized leading-dot multipliers at the database boundary", async () => {
+    await expect(
+      prisma.currencyConversionProposal.create({
+        data: {
+          submittedById: "first-user",
+          fromCurrencyCode: "ITL",
+          toCurrencyCode: "EUR",
+          multiplier: ".5",
+          ...source,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("requires the correction workflow when the proposed pair is approved", async () => {
+    await prisma.currencyConversion.create({
+      data: {
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.0005",
+      },
+    });
+
+    await expect(
+      createCurrencyConversionProposal("first-user", {
+        targetCurrencyConversionId: null,
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.0006",
+        ...source,
+      }),
+    ).rejects.toThrow(
+      "An approved conversion already exists for this pair. Submit a correction.",
+    );
+    expect(await prisma.currencyConversionProposal.count()).toBe(0);
   });
 
   it("resolves a missing conversion only for its proposer", async () => {

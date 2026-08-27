@@ -104,4 +104,32 @@ describe("fixed-conversion proposal API", () => {
     }
     expect(await prisma.currencyConversionProposal.count()).toBe(0);
   });
+
+  it("directs an approved pair to the correction workflow", async () => {
+    auth.userId = "first-user";
+    await prisma.currencyConversion.create({
+      data: {
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.0005",
+      },
+    });
+
+    const response = await POST(
+      request("POST", {
+        proposalKind: "MISSING",
+        fromCurrencyCode: "ITL",
+        toCurrencyCode: "EUR",
+        multiplier: "0.0006",
+        sourceNote: "Tariff",
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      errors: {
+        proposalKind:
+          "An approved conversion already exists for this pair. Submit a correction.",
+      },
+    });
+  });
 });

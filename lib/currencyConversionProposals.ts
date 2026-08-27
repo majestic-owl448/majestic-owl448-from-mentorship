@@ -2,9 +2,16 @@ import { prisma } from "@/lib/db";
 import type { CurrencyConversionProposalInput } from "@/lib/currencyConversionProposalValidation";
 
 export class CurrencyConversionProposalTargetError extends Error {
-  constructor() {
-    super("Select an approved conversion to correct.");
+  readonly field: "proposalKind" | "targetCurrencyConversionId";
+
+  constructor(
+    message = "Select an approved conversion to correct.",
+    field: "proposalKind" | "targetCurrencyConversionId" =
+      "targetCurrencyConversionId",
+  ) {
+    super(message);
     this.name = "CurrencyConversionProposalTargetError";
+    this.field = field;
   }
 }
 
@@ -26,7 +33,7 @@ export async function createCurrencyConversionProposal(
   userId: string,
   input: CurrencyConversionProposalInput,
 ) {
-  const [fromCurrency, toCurrency, target] = await Promise.all([
+  const [fromCurrency, toCurrency, target, approvedPair] = await Promise.all([
     prisma.currency.findUnique({ where: { code: input.fromCurrencyCode } }),
     prisma.currency.findUnique({ where: { code: input.toCurrencyCode } }),
     input.targetCurrencyConversionId
@@ -34,6 +41,16 @@ export async function createCurrencyConversionProposal(
           where: { id: input.targetCurrencyConversionId },
         })
       : null,
+    input.targetCurrencyConversionId
+      ? null
+      : prisma.currencyConversion.findUnique({
+          where: {
+            fromCurrencyCode_toCurrencyCode: {
+              fromCurrencyCode: input.fromCurrencyCode,
+              toCurrencyCode: input.toCurrencyCode,
+            },
+          },
+        }),
   ]);
   if (!fromCurrency) {
     throw new CurrencyConversionProposalCurrencyError("fromCurrencyCode");
@@ -43,6 +60,12 @@ export async function createCurrencyConversionProposal(
   }
   if (input.targetCurrencyConversionId && !target) {
     throw new CurrencyConversionProposalTargetError();
+  }
+  if (approvedPair) {
+    throw new CurrencyConversionProposalTargetError(
+      "An approved conversion already exists for this pair. Submit a correction.",
+      "proposalKind",
+    );
   }
 
   return prisma.currencyConversionProposal.create({

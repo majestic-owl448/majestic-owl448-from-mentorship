@@ -6,6 +6,8 @@ CREATE TABLE "currency_conversion_proposals" (
     "from_currency_code" TEXT NOT NULL,
     "to_currency_code" TEXT NOT NULL,
     "multiplier" TEXT NOT NULL CHECK (
+        "multiplier" GLOB '[0-9]*'
+        AND
         "multiplier" NOT GLOB '*[^0-9.]*'
         AND "multiplier" NOT GLOB '*.*.*'
         AND "multiplier" GLOB '*[0-9]*'

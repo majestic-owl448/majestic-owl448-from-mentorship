@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     } catch (caught) {
       if (caught instanceof CurrencyConversionProposalTargetError) {
         return NextResponse.json(
-          { errors: { targetCurrencyConversionId: caught.message } },
+          { errors: { [caught.field]: caught.message } },
           { status: 400 },
         );
       }

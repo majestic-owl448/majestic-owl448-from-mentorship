@@ -42,7 +42,10 @@ export function validateCurrencyConversionProposal(
   const proposalKind = stringValue(record, "proposalKind").toUpperCase();
   const fromCurrencyCode = stringValue(record, "fromCurrencyCode").toUpperCase();
   const toCurrencyCode = stringValue(record, "toCurrencyCode").toUpperCase();
-  const multiplier = stringValue(record, "multiplier");
+  const submittedMultiplier = stringValue(record, "multiplier");
+  const multiplier = submittedMultiplier.startsWith(".")
+    ? `0${submittedMultiplier}`
+    : submittedMultiplier;
   const sourceUrl = stringValue(record, "sourceUrl") || null;
   const sourceNote =
     stringValue(record, "sourceNote").replace(/\s+/g, " ") || null;
