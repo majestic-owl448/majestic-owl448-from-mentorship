@@ -1,15 +1,16 @@
-export type StampQuantityInput = {
+export type StampUpdateInput = {
   quantityOwned: number;
   quantityAnnulled: number;
+  expired: boolean;
 };
 
-export type StampQuantityErrors = Partial<
-  Record<"quantityOwned" | "quantityAnnulled", string>
+export type StampUpdateErrors = Partial<
+  Record<"quantityOwned" | "quantityAnnulled" | "expired", string>
 >;
 
-type StampQuantityValidationResult =
-  | { data: StampQuantityInput; errors?: never }
-  | { data?: never; errors: StampQuantityErrors };
+type StampUpdateValidationResult =
+  | { data: StampUpdateInput; errors?: never }
+  | { data?: never; errors: StampUpdateErrors };
 
 const zeroBigInt = BigInt(0);
 const maxDatabaseInteger = BigInt("2147483647");
@@ -24,16 +25,16 @@ function integerString(record: Record<string, unknown>, field: string) {
     : "";
 }
 
-export function validateStampQuantities(
+export function validateStampUpdate(
   input: unknown,
-): StampQuantityValidationResult {
+): StampUpdateValidationResult {
   const record =
     typeof input === "object" && input !== null
       ? (input as Record<string, unknown>)
       : {};
   const quantityOwnedValue = integerString(record, "quantityOwned");
   const quantityAnnulledValue = integerString(record, "quantityAnnulled");
-  const errors: StampQuantityErrors = {};
+  const errors: StampUpdateErrors = {};
 
   const ownedIsInteger = /^\d+$/.test(quantityOwnedValue);
   const ownedBigInt = ownedIsInteger ? BigInt(quantityOwnedValue) : zeroBigInt;
@@ -58,6 +59,10 @@ export function validateStampQuantities(
       "Annulled quantity cannot exceed owned quantity.";
   }
 
+  if (typeof record.expired !== "boolean") {
+    errors.expired = "Select whether the stamp is expired.";
+  }
+
   if (Object.keys(errors).length > 0) {
     return { errors };
   }
@@ -66,6 +71,7 @@ export function validateStampQuantities(
     data: {
       quantityOwned: Number(ownedBigInt),
       quantityAnnulled: Number(annulledBigInt),
+      expired: record.expired as boolean,
     },
   };
 }

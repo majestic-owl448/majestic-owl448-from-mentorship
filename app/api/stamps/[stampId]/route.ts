@@ -11,9 +11,9 @@ import {
   listStamps,
   presentStamp,
   StampNotFoundError,
-  updateStampQuantities,
+  updateStamp,
 } from "@/lib/stampInventory";
-import { validateStampQuantities } from "@/lib/stampQuantityValidation";
+import { validateStampUpdate } from "@/lib/stampUpdateValidation";
 import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
@@ -42,7 +42,7 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const validation = validateStampQuantities(body);
+    const validation = validateStampUpdate(body);
     if (validation.errors) {
       return NextResponse.json({ errors: validation.errors }, { status: 400 });
     }
@@ -54,7 +54,7 @@ export async function PATCH(
       const activePostalEntitySetting =
         await requireActivePostalEntitySetting(userId);
       const { stampId } = await context.params;
-      const updated = await updateStampQuantities(
+      const updated = await updateStamp(
         userId,
         stampId,
         validation.data,
