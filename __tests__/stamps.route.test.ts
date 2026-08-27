@@ -328,7 +328,30 @@ describe("stamp inventory API", () => {
       errors: {
         countryCode: "Select a valid ISO 3166-1 country.",
         faceAmount: "Enter a non-negative decimal amount.",
-        quantityOwned: "Enter a whole owned quantity greater than zero.",
+        quantityOwned: "Enter an owned quantity from 1 to 2,147,483,647.",
+      },
+    });
+  });
+
+  it("preserves every accepted decimal digit in unit and total values", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const response = await POST(
+      request("POST", {
+        ...validStamp,
+        faceAmount: "0.123456789012345678901",
+        quantityOwned: "3",
+        quantityAnnulled: "0",
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: { amount: "0.123456789012345678901" },
+        totalPostageValue: {
+          amount: "0.370370367037037036703",
+          currencyCode: "EUR",
+        },
       },
     });
   });

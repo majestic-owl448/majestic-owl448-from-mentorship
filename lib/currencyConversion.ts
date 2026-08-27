@@ -1,5 +1,6 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { multiplyExactDecimals } from "@/lib/decimal";
 
 type DecimalInput = string | Prisma.Decimal;
 
@@ -56,7 +57,9 @@ export async function resolveCurrencyConversion(
   return {
     status: "RESOLVED",
     source: "FIXED_CONVERSION",
-    amount: decimalAmount.mul(new Prisma.Decimal(conversion.multiplier)),
+    amount: new Prisma.Decimal(
+      multiplyExactDecimals(decimalAmount.toFixed(), conversion.multiplier),
+    ),
     currencyCode: toCurrencyCode,
     multiplier: new Prisma.Decimal(conversion.multiplier),
   };

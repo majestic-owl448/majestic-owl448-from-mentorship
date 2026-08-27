@@ -47,5 +47,11 @@ describe("stamp inventory interface", () => {
     expect(
       formatMoney({ amount: "9007199254740993", currencyCode: "EUR" }),
     ).toContain("9,007,199,254,740,993");
+    expect(
+      formatMoney({
+        amount: "0.123456789012345678901",
+        currencyCode: "EUR",
+      }),
+    ).toContain("0.123456789012345678901");
   });
 });

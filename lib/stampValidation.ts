@@ -34,6 +34,8 @@ type ValidationResult =
 const countryCodes = new Set(countryOptions().map(({ value }) => value));
 const decimalPattern = /^\d+(?:\.\d+)?$/;
 const currencyCodePattern = /^[A-Z]{3}$/;
+const zeroBigInt = BigInt(0);
+const maxDatabaseInteger = BigInt("2147483647");
 
 function stringValue(record: Record<string, unknown>, field: string) {
   return typeof record[field] === "string" ? record[field].trim() : "";
@@ -112,14 +114,24 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
       "Enter a three-letter manual postage currency code.";
   }
 
-  const quantityOwned = Number(quantityOwnedValue);
-  if (!/^\d+$/.test(quantityOwnedValue) || quantityOwned <= 0) {
-    errors.quantityOwned = "Enter a whole owned quantity greater than zero.";
+  const ownedIsInteger = /^\d+$/.test(quantityOwnedValue);
+  const ownedBigInt = ownedIsInteger ? BigInt(quantityOwnedValue) : zeroBigInt;
+  if (
+    !ownedIsInteger ||
+    ownedBigInt <= zeroBigInt ||
+    ownedBigInt > maxDatabaseInteger
+  ) {
+    errors.quantityOwned =
+      "Enter an owned quantity from 1 to 2,147,483,647.";
   }
-  const quantityAnnulled = Number(quantityAnnulledValue);
-  if (!/^\d+$/.test(quantityAnnulledValue)) {
-    errors.quantityAnnulled = "Enter a non-negative whole annulled quantity.";
-  } else if (!errors.quantityOwned && quantityAnnulled > quantityOwned) {
+  const annulledIsInteger = /^\d+$/.test(quantityAnnulledValue);
+  const annulledBigInt = annulledIsInteger
+    ? BigInt(quantityAnnulledValue)
+    : zeroBigInt;
+  if (!annulledIsInteger || annulledBigInt > maxDatabaseInteger) {
+    errors.quantityAnnulled =
+      "Enter an annulled quantity from 0 to 2,147,483,647.";
+  } else if (!errors.quantityOwned && annulledBigInt > ownedBigInt) {
     errors.quantityAnnulled =
       "Annulled quantity cannot exceed owned quantity.";
   }
@@ -143,8 +155,8 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
       manualPostageCurrencyCode: hasManualCurrency
         ? manualPostageCurrencyCode
         : null,
-      quantityOwned,
-      quantityAnnulled,
+      quantityOwned: Number(ownedBigInt),
+      quantityAnnulled: Number(annulledBigInt),
       expired: record.expired as boolean,
     },
   };

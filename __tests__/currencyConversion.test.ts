@@ -6,6 +6,7 @@ describe("resolveCurrencyConversion", () => {
     await prisma.currency.createMany({
       data: [
         { code: "EUR", displayName: "Euro" },
+        { code: "FRF", displayName: "French franc" },
         { code: "GBP", displayName: "Pound sterling" },
         { code: "ITL", displayName: "Italian lira" },
         { code: "USD", displayName: "United States dollar" },
@@ -63,6 +64,27 @@ describe("resolveCurrencyConversion", () => {
     expect(result.status).toBe("RESOLVED");
     if (result.status === "RESOLVED") {
       expect(result.amount.toString()).toBe("0.02");
+    }
+  });
+
+  it("preserves products beyond the Decimal default precision", async () => {
+    await prisma.currencyConversion.create({
+      data: {
+        fromCurrencyCode: "FRF",
+        toCurrencyCode: "EUR",
+        multiplier: "0.3",
+      },
+    });
+
+    const result = await resolveCurrencyConversion(
+      "0.123456789012345678901",
+      "FRF",
+      "EUR",
+    );
+
+    expect(result.status).toBe("RESOLVED");
+    if (result.status === "RESOLVED") {
+      expect(result.amount.toString()).toBe("0.0370370367037037036703");
     }
   });
 

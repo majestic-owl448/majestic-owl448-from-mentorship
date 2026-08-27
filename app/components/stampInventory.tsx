@@ -51,12 +51,24 @@ type StampErrors = Partial<
 
 export function formatMoney(value: StampValue) {
   try {
-    return new Intl.NumberFormat(undefined, {
+    const [integer, fraction = ""] = value.amount.split(".");
+    const formattedFractionLength = Math.min(fraction.length, 20);
+    const formatter = new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: value.currencyCode,
+      minimumFractionDigits: formattedFractionLength,
       maximumFractionDigits: 20,
-      // Intl accepts decimal strings and preserves digits that Number cannot.
-    }).format(value.amount as unknown as number);
+    });
+    const formattedValue = fraction
+      ? `${integer}.${fraction.slice(0, formattedFractionLength)}`
+      : integer;
+    const remainingFraction = fraction.slice(formattedFractionLength);
+    return formatter
+      .formatToParts(formattedValue as unknown as number)
+      .map((part) =>
+        part.type === "fraction" ? `${part.value}${remainingFraction}` : part.value,
+      )
+      .join("");
   } catch {
     return `${value.amount} ${value.currencyCode}`;
   }
@@ -211,12 +223,12 @@ export function StampInventory({
         </div>
         <div>
           <label htmlFor="owned-quantity" className="block font-medium">Owned quantity</label>
-          <input id="owned-quantity" name="quantityOwned" type="number" min="1" step="1" defaultValue="1" aria-describedby={errors.quantityOwned ? "owned-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="owned-quantity" name="quantityOwned" type="number" min="1" max="2147483647" step="1" defaultValue="1" aria-describedby={errors.quantityOwned ? "owned-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="owned-quantity-error" message={errors.quantityOwned} />
         </div>
         <div>
           <label htmlFor="annulled-quantity" className="block font-medium">Annulled quantity</label>
-          <input id="annulled-quantity" name="quantityAnnulled" type="number" min="0" step="1" defaultValue="0" aria-describedby={errors.quantityAnnulled ? "annulled-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="annulled-quantity" name="quantityAnnulled" type="number" min="0" max="2147483647" step="1" defaultValue="0" aria-describedby={errors.quantityAnnulled ? "annulled-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="annulled-quantity-error" message={errors.quantityAnnulled} />
         </div>
         <div className="flex items-center gap-2 self-end pb-2">

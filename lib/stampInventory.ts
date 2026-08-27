@@ -2,6 +2,7 @@ import type { StampInventoryEntry } from "@/lib/generated/prisma/client";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { prisma } from "@/lib/db";
+import { multiplyExactDecimals } from "@/lib/decimal";
 import type { NewMonetaryStampInput } from "@/lib/stampValidation";
 
 type ActiveCountry = {
@@ -57,7 +58,7 @@ async function resolveUnitPostageValue(
   );
   if (conversion.status === "RESOLVED") {
     return {
-      amount: conversion.amount.toString(),
+      amount: conversion.amount.toFixed(),
       currencyCode: conversion.currencyCode,
       source:
         conversion.source === "IDENTITY" ? "FACE_AMOUNT" : "FIXED_CONVERSION",
@@ -72,7 +73,7 @@ async function resolveUnitPostageValue(
     );
     if (fallbackConversion.status === "RESOLVED") {
       return {
-        amount: fallbackConversion.amount.toString(),
+        amount: fallbackConversion.amount.toFixed(),
         currencyCode: fallbackConversion.currencyCode,
         source: "MANUAL_FALLBACK",
       };
@@ -98,9 +99,10 @@ async function presentStamp(
         }
       : unitPostageValue
         ? {
-            amount: new Prisma.Decimal(unitPostageValue.amount)
-              .mul(usableQuantity)
-              .toString(),
+            amount: multiplyExactDecimals(
+              unitPostageValue.amount,
+              usableQuantity.toString(),
+            ),
             currencyCode: unitPostageValue.currencyCode,
           }
         : null;

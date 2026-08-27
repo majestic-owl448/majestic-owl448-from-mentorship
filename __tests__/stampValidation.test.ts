@@ -51,11 +51,27 @@ describe("monetary stamp validation", () => {
         validateNewMonetaryStamp({ ...validStamp, quantityOwned }),
       ).toMatchObject({
         errors: {
-          quantityOwned: "Enter a whole owned quantity greater than zero.",
+          quantityOwned: "Enter an owned quantity from 1 to 2,147,483,647.",
         },
       });
     },
   );
+
+  it("rejects quantities outside the database integer range", () => {
+    expect(
+      validateNewMonetaryStamp({
+        ...validStamp,
+        quantityOwned: "2147483648",
+        quantityAnnulled: "2147483648",
+      }),
+    ).toMatchObject({
+      errors: {
+        quantityOwned: "Enter an owned quantity from 1 to 2,147,483,647.",
+        quantityAnnulled:
+          "Enter an annulled quantity from 0 to 2,147,483,647.",
+      },
+    });
+  });
 
   it("requires a country even when face and display currencies can match", () => {
     expect(
