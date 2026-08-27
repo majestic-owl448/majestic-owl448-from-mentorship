@@ -76,15 +76,23 @@ async function presentStamp(
   activeCountry: ActiveCountry,
 ) {
   const unitPostageValue = await resolveUnitPostageValue(stamp, activeCountry);
-  const usableQuantity = stamp.quantityOwned - stamp.quantityAnnulled;
-  const totalPostageValue = unitPostageValue
-    ? {
-        amount: new Prisma.Decimal(unitPostageValue.amount)
-          .mul(usableQuantity)
-          .toString(),
-        currencyCode: unitPostageValue.currencyCode,
-      }
-    : null;
+  const usableQuantity = stamp.expired
+    ? 0
+    : stamp.quantityOwned - stamp.quantityAnnulled;
+  const totalPostageValue =
+    usableQuantity === 0
+      ? {
+          amount: "0",
+          currencyCode: activeCountry.displayCurrencyCode,
+        }
+      : unitPostageValue
+        ? {
+            amount: new Prisma.Decimal(unitPostageValue.amount)
+              .mul(usableQuantity)
+              .toString(),
+            currencyCode: unitPostageValue.currencyCode,
+          }
+        : null;
 
   return {
     id: stamp.id,

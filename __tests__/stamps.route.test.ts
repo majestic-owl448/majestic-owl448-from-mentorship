@@ -258,6 +258,52 @@ describe("stamp inventory API", () => {
     });
   });
 
+  it("returns zero usable quantity and postage total for an expired stamp", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const response = await POST(
+      request("POST", {
+        ...validStamp,
+        expired: true,
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        quantityOwned: 3,
+        quantityAnnulled: 1,
+        usableQuantity: 0,
+        unitPostageValue: {
+          amount: "0",
+          currencyCode: "EUR",
+          source: "EXPIRED",
+        },
+        totalPostageValue: { amount: "0", currencyCode: "EUR" },
+      },
+    });
+  });
+
+  it("returns a known zero total when every unresolved stamp is annulled", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const response = await POST(
+      request("POST", {
+        ...validStamp,
+        faceCurrencyCode: "ITL",
+        quantityOwned: "3",
+        quantityAnnulled: "3",
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        usableQuantity: 0,
+        unitPostageValue: null,
+        totalPostageValue: { amount: "0", currencyCode: "EUR" },
+      },
+    });
+  });
+
   it("returns field errors for invalid decimals and owned quantities", async () => {
     auth.userId = "first-user";
     await createActiveSetting("first-user");
