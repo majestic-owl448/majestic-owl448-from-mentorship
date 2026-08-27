@@ -5,14 +5,17 @@ describe("prisma smoke", () => {
     await prisma.$disconnect();
   });
 
-  it("writes and reads a user", async () => {
-    const created = await prisma.user.create({
-      data: { name: "smoke", email: "smoke@example.com" },
+  it("writes and reads a user profile", async () => {
+    const created = await prisma.userProfile.create({
+      data: { id: "smoke-profile", email: "smoke@example.com" },
     });
-    expect(created.id).toBeTypeOf("number");
+    expect(created.id).toBe("smoke-profile");
+    expect(created.role).toBe("USER");
     expect(created.createdAt).toBeInstanceOf(Date);
 
-    const found = await prisma.user.findMany({ orderBy: { createdAt: "desc" } });
+    const found = await prisma.userProfile.findMany({
+      orderBy: { createdAt: "desc" },
+    });
     expect(found.some((u) => u.id === created.id)).toBe(true);
   });
 });
