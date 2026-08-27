@@ -36,18 +36,7 @@ describe("country setting validation", () => {
   });
 
   it.each([
-    ["UN-NY", "United Nations - New York"],
-    ["UN-GE", "United Nations - Geneva"],
-    ["UN-VI", "United Nations - Vienna"],
-  ])("accepts the %s postal entity", (countryCode, label) => {
-    expect(validateInitialCountrySetting({ ...validInput, countryCode })).toEqual({
-      data: { ...validInput, countryCode },
-    });
-    expect(countryOptions()).toContainEqual({ value: countryCode, label });
-  });
-
-  it.each([
-    ["countryCode", "XX", "Select a valid country or UN postal entity."],
+    ["countryCode", "XX", "Select a valid ISO 3166-1 country."],
     [
       "displayCurrencyCode",
       "XXX",
@@ -68,6 +57,9 @@ describe("country setting validation", () => {
   it("provides valid country and runtime currency options", () => {
     expect(countryOptions()).toContainEqual({ value: "IT", label: "Italy" });
     expect(countryOptions().some(({ value }) => value === "EU")).toBe(false);
+    expect(countryOptions().some(({ value }) => value.startsWith("UN-"))).toBe(
+      false
+    );
     expect(currencyOptions()).toContainEqual({
       value: "EUR",
       label: "EUR - Euro",

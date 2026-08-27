@@ -21,14 +21,6 @@ type ValidationResult =
 const supportedCurrencies = new Set(
   Intl.supportedValuesOf("currency").map((code) => code.toUpperCase())
 );
-const unPostalEntities = [
-  { value: "UN-NY", label: "United Nations - New York" },
-  { value: "UN-GE", label: "United Nations - Geneva" },
-  { value: "UN-VI", label: "United Nations - Vienna" },
-];
-const unPostalEntityCodes = new Set(
-  unPostalEntities.map(({ value }) => value)
-);
 
 function isTimeZone(value: string) {
   try {
@@ -44,7 +36,6 @@ export function countryOptions() {
     ...Object.entries(countries.getNames("en", { select: "official" })).map(
       ([value, label]) => ({ value, label })
     ),
-    ...unPostalEntities,
   ]
     .filter(({ value }) => value !== "XK")
     .sort((left, right) => left.label.localeCompare(right.label));
@@ -86,8 +77,8 @@ export function validateInitialCountrySetting(input: unknown): ValidationResult 
     /^[A-Z]{2}$/.test(countryCode) &&
     countryCode !== "XK" &&
     countries.isValid(countryCode);
-  if (!isIsoCountry && !unPostalEntityCodes.has(countryCode)) {
-    errors.countryCode = "Select a valid country or UN postal entity.";
+  if (!isIsoCountry) {
+    errors.countryCode = "Select a valid ISO 3166-1 country.";
   }
   if (!supportedCurrencies.has(displayCurrencyCode)) {
     errors.displayCurrencyCode =

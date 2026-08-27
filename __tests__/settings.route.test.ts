@@ -139,7 +139,7 @@ describe("country settings API", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       errors: {
-        countryCode: "Select a valid country or UN postal entity.",
+        countryCode: "Select a valid ISO 3166-1 country.",
         displayCurrencyCode:
           "Select a currency supported by this application.",
         timeZoneMode: "Select system or custom timezone mode.",
