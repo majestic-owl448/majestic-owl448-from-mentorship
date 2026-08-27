@@ -12,12 +12,36 @@ enum UserRole {
   MODERATOR
 }
 
+enum TimeZoneMode {
+  SYSTEM
+  CUSTOM
+}
+
 model UserProfile {
-  id        String   @id
-  email     String?
-  role      UserRole @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                     String               @id
+  email                  String?
+  role                   UserRole             @default(USER)
+  activeCountrySettingId String?              @unique @map("active_country_setting_id")
+  activeCountrySetting   UserCountrySetting?  @relation("ActiveCountrySetting", fields: [activeCountrySettingId], references: [id], onDelete: SetNull)
+  countrySettings        UserCountrySetting[] @relation("UserCountrySettings")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
 
   @@map("user_profiles")
+}
+
+model UserCountrySetting {
+  id                  String       @id @default(cuid())
+  userId              String       @map("user_id")
+  countryCode         String       @map("country_code")
+  displayCurrencyCode String       @map("display_currency_code")
+  timeZone            String       @map("time_zone")
+  timeZoneMode        TimeZoneMode @map("time_zone_mode")
+  user                UserProfile  @relation("UserCountrySettings", fields: [userId], references: [id], onDelete: Cascade)
+  activeFor           UserProfile? @relation("ActiveCountrySetting")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  @@unique([userId, countryCode])
+  @@map("user_country_settings")
 }

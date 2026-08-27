@@ -18,4 +18,34 @@ describe("prisma smoke", () => {
     });
     expect(found.some((u) => u.id === created.id)).toBe(true);
   });
+
+  it("associates a country setting with its user profile", async () => {
+    const profile = await prisma.userProfile.create({
+      data: { id: "country-setting-profile" },
+    });
+    const setting = await prisma.userCountrySetting.create({
+      data: {
+        userId: profile.id,
+        countryCode: "IT",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "SYSTEM",
+      },
+    });
+
+    const updated = await prisma.userProfile.update({
+      where: { id: profile.id },
+      data: { activeCountrySettingId: setting.id },
+      include: { activeCountrySetting: true, countrySettings: true },
+    });
+
+    expect(updated.activeCountrySetting).toMatchObject({
+      id: setting.id,
+      countryCode: "IT",
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      timeZoneMode: "SYSTEM",
+    });
+    expect(updated.countrySettings).toHaveLength(1);
+  });
 });
