@@ -7,7 +7,7 @@ const settings = [
     userId: "first-user",
     displayCurrencyCode: "EUR",
     timeZone: "Europe/Rome",
-    timeZoneMode: "CUSTOM" as const,
+    timeZoneMode: "SYSTEM" as const,
     postalEntity: {
       id: "italy-entity",
       name: "Poste Italiane",
@@ -61,5 +61,9 @@ describe("postal entity settings manager", () => {
     expect(markup).toContain('id="setting-vatican-setting-currency"');
     expect(markup).toContain('name="setting-italy-setting-timeZoneMode"');
     expect(markup).toContain('name="setting-vatican-setting-timeZoneMode"');
+    expect(markup).toMatch(
+      /id="setting-italy-setting-time-zone"[^>]+value="Europe\/Rome"/
+    );
+    expect(markup).toContain("Use current browser timezone (UTC)");
   });
 });

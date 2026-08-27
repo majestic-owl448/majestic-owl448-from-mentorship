@@ -41,9 +41,7 @@ function SettingEditor({
   const [timeZoneMode, setTimeZoneMode] = useState<"SYSTEM" | "CUSTOM">(
     setting.timeZoneMode
   );
-  const [customTimeZone, setCustomTimeZone] = useState(
-    setting.timeZoneMode === "CUSTOM" ? setting.timeZone : ""
-  );
+  const [timeZone, setTimeZone] = useState(setting.timeZone);
   const [errors, setErrors] = useState<PostalEntitySettingFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -64,8 +62,7 @@ function SettingEditor({
           body: JSON.stringify({
             displayCurrencyCode,
             timeZoneMode,
-            timeZone:
-              timeZoneMode === "SYSTEM" ? systemTimeZone : customTimeZone,
+            timeZone,
           }),
         }
       );
@@ -125,7 +122,10 @@ function SettingEditor({
             name={`${prefix}-timeZoneMode`}
             value="SYSTEM"
             checked={timeZoneMode === "SYSTEM"}
-            onChange={() => setTimeZoneMode("SYSTEM")}
+            onChange={() => {
+              setTimeZoneMode("SYSTEM");
+              setTimeZone(systemTimeZone);
+            }}
           />
           System ({systemTimeZone})
         </label>
@@ -148,8 +148,8 @@ function SettingEditor({
         <input
           id={`${prefix}-time-zone`}
           type="text"
-          value={timeZoneMode === "SYSTEM" ? systemTimeZone : customTimeZone}
-          onChange={(event) => setCustomTimeZone(event.target.value)}
+          value={timeZone}
+          onChange={(event) => setTimeZone(event.target.value)}
           readOnly={timeZoneMode === "SYSTEM"}
           aria-invalid={Boolean(errors.timeZone)}
           aria-describedby={
@@ -162,6 +162,15 @@ function SettingEditor({
           <p id={`${prefix}-time-zone-error`} className="text-sm text-red-700 dark:text-red-400">
             {errors.timeZone}
           </p>
+        ) : null}
+        {timeZoneMode === "SYSTEM" ? (
+          <button
+            type="button"
+            onClick={() => setTimeZone(systemTimeZone)}
+            className="self-start text-sm font-medium underline underline-offset-4"
+          >
+            Use current browser timezone ({systemTimeZone})
+          </button>
         ) : null}
       </div>
 
