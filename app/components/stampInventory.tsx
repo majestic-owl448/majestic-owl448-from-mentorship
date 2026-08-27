@@ -46,17 +46,21 @@ type StampErrors = Partial<
   >
 >;
 
-function Money({ value }: { value: StampValue }) {
-  const amount = Number(value.amount);
+export function formatMoney(value: StampValue) {
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: value.currencyCode,
       maximumFractionDigits: 20,
-    }).format(amount);
+      // Intl accepts decimal strings and preserves digits that Number cannot.
+    }).format(value.amount as unknown as number);
   } catch {
     return `${value.amount} ${value.currencyCode}`;
   }
+}
+
+function Money({ value }: { value: StampValue }) {
+  return formatMoney(value);
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {

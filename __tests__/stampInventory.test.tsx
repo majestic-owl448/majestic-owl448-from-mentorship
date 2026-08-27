@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { StampInventory } from "@/app/components/stampInventory";
+import {
+  formatMoney,
+  StampInventory,
+} from "@/app/components/stampInventory";
 
 describe("stamp inventory interface", () => {
   it("renders visible labels and native keyboard-operable controls", () => {
@@ -30,5 +33,14 @@ describe("stamp inventory interface", () => {
     }
     expect(markup).toContain('<button type="submit"');
     expect(markup).not.toContain("onKeyDown");
+  });
+
+  it("formats exact decimal strings without converting them to Number", () => {
+    expect(
+      formatMoney({ amount: "0.99999999999905803", currencyCode: "EUR" }),
+    ).toContain("0.99999999999905803");
+    expect(
+      formatMoney({ amount: "9007199254740993", currencyCode: "EUR" }),
+    ).toContain("9,007,199,254,740,993");
   });
 });

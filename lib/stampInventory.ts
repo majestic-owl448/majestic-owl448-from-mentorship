@@ -54,11 +54,18 @@ async function resolveUnitPostageValue(
   }
 
   if (stamp.manualPostageAmount && stamp.manualPostageCurrencyCode) {
-    return {
-      amount: stamp.manualPostageAmount,
-      currencyCode: stamp.manualPostageCurrencyCode,
-      source: "MANUAL_FALLBACK",
-    };
+    const fallbackConversion = await resolveCurrencyConversion(
+      stamp.manualPostageAmount,
+      stamp.manualPostageCurrencyCode,
+      activeCountry.displayCurrencyCode,
+    );
+    if (fallbackConversion.status === "RESOLVED") {
+      return {
+        amount: fallbackConversion.amount.toString(),
+        currencyCode: fallbackConversion.currencyCode,
+        source: "MANUAL_FALLBACK",
+      };
+    }
   }
 
   return null;

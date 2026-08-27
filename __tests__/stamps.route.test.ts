@@ -89,6 +89,7 @@ describe("stamp inventory API", () => {
     await prisma.currency.createMany({
       data: [
         { code: "EUR", displayName: "Euro" },
+        { code: "GBP", displayName: "Pound sterling" },
         { code: "ITL", displayName: "Italian lira" },
       ],
     });
@@ -203,6 +204,57 @@ describe("stamp inventory API", () => {
           },
         },
       ],
+    });
+  });
+
+  it("resolves a manual fallback into the active display currency", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await prisma.currencyConversion.create({
+      data: {
+        fromCurrencyCode: "GBP",
+        toCurrencyCode: "EUR",
+        multiplier: "1.25",
+      },
+    });
+    await POST(
+      request("POST", {
+        ...validStamp,
+        faceCurrencyCode: "ITL",
+        manualPostageAmount: "2",
+        manualPostageCurrencyCode: "GBP",
+      }),
+    );
+
+    const response = await GET(request("GET"));
+    expect(await response.json()).toMatchObject({
+      stamps: [
+        {
+          unitPostageValue: {
+            amount: "2.5",
+            currencyCode: "EUR",
+            source: "MANUAL_FALLBACK",
+          },
+        },
+      ],
+    });
+  });
+
+  it("leaves a manual fallback unresolved without a display conversion", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await POST(
+      request("POST", {
+        ...validStamp,
+        faceCurrencyCode: "ITL",
+        manualPostageAmount: "2",
+        manualPostageCurrencyCode: "GBP",
+      }),
+    );
+
+    const response = await GET(request("GET"));
+    expect(await response.json()).toMatchObject({
+      stamps: [{ unitPostageValue: null, totalPostageValue: null }],
     });
   });
 
