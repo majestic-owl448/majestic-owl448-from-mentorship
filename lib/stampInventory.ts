@@ -286,6 +286,15 @@ export async function updateStamp(
   });
 }
 
+export async function deleteStamp(userId: string, stampId: string) {
+  const result = await prisma.stampInventoryEntry.deleteMany({
+    where: { id: stampId, userId },
+  });
+  if (result.count === 0) {
+    throw new StampNotFoundError();
+  }
+}
+
 export async function presentStamp(
   stamp: StampWithPostalEntity,
   activeCountry: ActiveCountry,

@@ -8,6 +8,7 @@ import {
 } from "@/lib/postalEntitySettings";
 import {
   calculateInventoryTotal,
+  deleteStamp,
   listStamps,
   presentStamp,
   StampNotFoundError,
@@ -64,6 +65,53 @@ export async function PATCH(
 
       return NextResponse.json({
         stamp,
+        inventoryTotal: calculateInventoryTotal(
+          stamps,
+          activePostalEntitySetting.displayCurrencyCode,
+        ),
+      });
+    } catch (caught) {
+      if (caught instanceof PostalEntitySettingRequiredError) {
+        return NextResponse.json(
+          { error: caught.message, settingsUrl: "/dashboard" },
+          { status: 409 },
+        );
+      }
+      if (caught instanceof StampNotFoundError) {
+        return NextResponse.json({ error: caught.message }, { status: 404 });
+      }
+      throw caught;
+    }
+  });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ stampId: string }> },
+) {
+  return withSession(request, async (error, session) => {
+    if (error) {
+      return NextResponse.json(error, { status: 500 });
+    }
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
+    try {
+      const userId = session.getUserId();
+      const user = await supertokens.getUser(userId);
+      await upsertUserProfile(userId, user?.emails[0] ?? null);
+      const activePostalEntitySetting =
+        await requireActivePostalEntitySetting(userId);
+      const { stampId } = await context.params;
+      await deleteStamp(userId, stampId);
+      const stamps = await listStamps(userId, activePostalEntitySetting);
+
+      return NextResponse.json({
+        deletedStampId: stampId,
         inventoryTotal: calculateInventoryTotal(
           stamps,
           activePostalEntitySetting.displayCurrencyCode,

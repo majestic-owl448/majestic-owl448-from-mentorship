@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
 
 export type StampValue = {
@@ -138,6 +138,18 @@ export function applyStampUpdate(
   };
 }
 
+export function applyStampRemoval(
+  inventory: InventoryResponse,
+  stampId: string,
+  inventoryTotal: StampValue,
+): InventoryResponse {
+  return {
+    ...inventory,
+    stamps: inventory.stamps.filter((stamp) => stamp.id !== stampId),
+    inventoryTotal,
+  };
+}
+
 function StampEditor({
   stamp,
   onUpdated,
@@ -271,15 +283,119 @@ function StampEditor({
   );
 }
 
+function StampRemoval({
+  stamp,
+  onRemoved,
+}: {
+  stamp: SavedStamp;
+  onRemoved(stampId: string, inventoryTotal: StampValue): void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const confirmationId = `stamp-${stamp.id}-remove-confirmation`;
+
+  function closeDialog() {
+    dialogRef.current?.close();
+    removeButtonRef.current?.focus();
+  }
+
+  async function confirmRemoval() {
+    setRemoving(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/stamps/${stamp.id}`, {
+        method: "DELETE",
+      });
+      const result = (await response.json()) as {
+        deletedStampId?: string;
+        inventoryTotal?: StampValue;
+        error?: string;
+      };
+      if (
+        !response.ok ||
+        result.deletedStampId !== stamp.id ||
+        !result.inventoryTotal
+      ) {
+        setError(result.error ?? "Stamp could not be removed.");
+        return;
+      }
+
+      onRemoved(result.deletedStampId, result.inventoryTotal);
+    } catch {
+      setError("Stamp could not be removed.");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={removeButtonRef}
+        type="button"
+        onClick={() => {
+          setError(null);
+          dialogRef.current?.showModal();
+        }}
+        className="mt-3 h-10 rounded-full border border-red-700 px-5 font-medium text-red-700 dark:border-red-300 dark:text-red-300"
+      >
+        Remove stamp
+      </button>
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={confirmationId}
+        onCancel={(event) => {
+          event.preventDefault();
+          closeDialog();
+        }}
+        className="m-auto max-w-md rounded-lg border border-zinc-300 bg-background p-6 text-foreground backdrop:bg-black/50 dark:border-zinc-700"
+      >
+        <p id={confirmationId} className="text-lg font-semibold">
+          Remove {stamp.name}?
+        </p>
+        <p className="mt-2">This removes the entry from your inventory.</p>
+        {error && (
+          <p role="alert" className="mt-2 text-red-700 dark:text-red-300">
+            {error}
+          </p>
+        )}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            disabled={removing}
+            onClick={closeDialog}
+            className="h-10 rounded-full border border-zinc-500 px-5 font-medium disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={removing}
+            onClick={confirmRemoval}
+            className="h-10 rounded-full bg-red-700 px-5 font-medium text-white disabled:opacity-60"
+          >
+            {removing ? "Removing…" : "Confirm removal"}
+          </button>
+        </div>
+      </dialog>
+    </>
+  );
+}
+
 export function StampInventoryResults({
   inventory,
   onStampUpdated,
+  onStampRemoved,
 }: {
   inventory: InventoryResponse;
   onStampUpdated?: (
     stamp: SavedStamp,
     inventoryTotal: StampValue,
   ) => void;
+  onStampRemoved?: (stampId: string, inventoryTotal: StampValue) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -352,6 +468,9 @@ export function StampInventoryResults({
                   onUpdated={onStampUpdated}
                 />
               )}
+              {onStampRemoved && (
+                <StampRemoval stamp={stamp} onRemoved={onStampRemoved} />
+              )}
             </li>
           ))}
         </ul>
@@ -421,6 +540,7 @@ export function StampInventory({
   const [namedQuery, setNamedQuery] = useState("");
   const [namedOptions, setNamedOptions] = useState<NamedFaceValueOption[]>([]);
   const [namedSearchError, setNamedSearchError] = useState<string | null>(null);
+  const inventoryTotalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -649,16 +769,26 @@ export function StampInventory({
       {loadError && <p role="alert">{loadError}</p>}
       {!inventory && !loadError && <p>Loading stamp inventory…</p>}
       {inventory && (
-        <StampInventoryResults
-          inventory={inventory}
-          onStampUpdated={(stamp, inventoryTotal) =>
-            setInventory((current) =>
-              current
-                ? applyStampUpdate(current, stamp, inventoryTotal)
-                : current,
-            )
-          }
-        />
+        <div ref={inventoryTotalRef} tabIndex={-1}>
+          <StampInventoryResults
+            inventory={inventory}
+            onStampUpdated={(stamp, inventoryTotal) =>
+              setInventory((current) =>
+                current
+                  ? applyStampUpdate(current, stamp, inventoryTotal)
+                  : current,
+              )
+            }
+            onStampRemoved={(stampId, inventoryTotal) => {
+              setInventory((current) =>
+                current
+                  ? applyStampRemoval(current, stampId, inventoryTotal)
+                  : current,
+              );
+              requestAnimationFrame(() => inventoryTotalRef.current?.focus());
+            }}
+          />
+        </div>
       )}
     </section>
   );
