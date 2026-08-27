@@ -96,13 +96,13 @@ async function resolveUnitPostageValue(
         namedValue.currencyCode,
         activeCountry.displayCurrencyCode,
       );
-      return conversion.status === "RESOLVED"
-        ? {
-            amount: conversion.amount.toFixed(),
-            currencyCode: conversion.currencyCode,
-            source: "NAMED_SCHEDULE",
-          }
-        : null;
+      if (conversion.status === "RESOLVED") {
+        return {
+          amount: conversion.amount.toFixed(),
+          currencyCode: conversion.currencyCode,
+          source: "NAMED_SCHEDULE",
+        };
+      }
     }
   }
 

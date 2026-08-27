@@ -137,12 +137,13 @@ async function createNamedFaceValue(
   countryCode: string,
   displayCode: string,
   amount?: string,
+  currencyCode = "EUR",
 ) {
   return prisma.valueSchedule.create({
     data: {
       id: `${id}-schedule`,
       countryCode,
-      currencyCode: "EUR",
+      currencyCode,
       values: amount
         ? { create: { id: `${id}-value`, amount } }
         : undefined,
@@ -520,6 +521,36 @@ describe("stamp inventory API", () => {
     auth.userId = "first-user";
     await createActiveSetting("first-user");
     await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1");
+
+    const response = await POST(
+      request("POST", {
+        ...validNamedStamp,
+        manualPostageAmount: "1.25",
+        manualPostageCurrencyCode: "EUR",
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: {
+          amount: "1.25",
+          currencyCode: "EUR",
+          source: "MANUAL_FALLBACK",
+        },
+      },
+    });
+  });
+
+  it("uses a manual fallback when a named schedule currency cannot convert", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue(
+      "italy-b-zone-one",
+      "IT",
+      "B Zona 1",
+      "1.35",
+      "GBP",
+    );
 
     const response = await POST(
       request("POST", {
