@@ -42,6 +42,8 @@ describe("GET /api/me", () => {
   beforeEach(async () => {
     auth.userId = null;
     auth.email = null;
+    await prisma.userPostalEntitySetting.deleteMany();
+    await prisma.postalEntity.deleteMany();
     await prisma.userProfile.deleteMany();
   });
 

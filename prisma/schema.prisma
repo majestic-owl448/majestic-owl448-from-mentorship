@@ -12,12 +12,58 @@ enum UserRole {
   MODERATOR
 }
 
+enum TimeZoneMode {
+  SYSTEM
+  CUSTOM
+}
+
+enum PostalEntityStatus {
+  PENDING
+}
+
 model UserProfile {
-  id        String   @id
-  email     String?
-  role      UserRole @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                          String                    @id
+  email                       String?
+  role                        UserRole                  @default(USER)
+  activePostalEntitySettingId String?                   @unique @map("active_postal_entity_setting_id")
+  activePostalEntitySetting   UserPostalEntitySetting?  @relation("ActivePostalEntitySetting", fields: [activePostalEntitySettingId], references: [id], onDelete: SetNull)
+  postalEntitySettings        UserPostalEntitySetting[] @relation("UserPostalEntitySettings")
+  submittedPostalEntities     PostalEntity[]            @relation("SubmittedPostalEntities")
+  createdAt                   DateTime                  @default(now()) @map("created_at")
+  updatedAt                   DateTime                  @updatedAt @map("updated_at")
 
   @@map("user_profiles")
+}
+
+model PostalEntity {
+  id             String                    @id @default(cuid())
+  name           String
+  normalizedName String                    @map("normalized_name")
+  countryCode    String                    @map("country_code")
+  status         PostalEntityStatus        @default(PENDING)
+  submittedById  String?                   @map("submitted_by_id")
+  submittedBy    UserProfile?              @relation("SubmittedPostalEntities", fields: [submittedById], references: [id], onDelete: SetNull)
+  userSettings   UserPostalEntitySetting[]
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+
+  @@index([countryCode, normalizedName])
+  @@map("postal_entities")
+}
+
+model UserPostalEntitySetting {
+  id                  String       @id @default(cuid())
+  userId              String       @map("user_id")
+  postalEntityId      String       @map("postal_entity_id")
+  displayCurrencyCode String       @map("display_currency_code")
+  timeZone            String       @map("time_zone")
+  timeZoneMode        TimeZoneMode @map("time_zone_mode")
+  user                UserProfile  @relation("UserPostalEntitySettings", fields: [userId], references: [id], onDelete: Cascade)
+  postalEntity        PostalEntity @relation(fields: [postalEntityId], references: [id], onDelete: Restrict)
+  activeFor           UserProfile? @relation("ActivePostalEntitySetting")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  @@unique([userId, postalEntityId])
+  @@map("user_postal_entity_settings")
 }
