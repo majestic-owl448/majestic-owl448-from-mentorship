@@ -1,9 +1,16 @@
 import { prisma } from "@/lib/db";
 import {
+  PostalEntitySettingNotFoundError,
+  PostalEntityUnavailableError,
   PostalEntitySettingAlreadyExistsError,
   PostalEntitySettingRequiredError,
+  activatePostalEntitySetting,
+  addExistingPostalEntitySetting,
   createInitialPostalEntitySetting,
+  listPostalEntitySettings,
+  localDateInTimeZone,
   requireActivePostalEntitySetting,
+  updatePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
 
 const firstSettingInput = {
@@ -15,7 +22,7 @@ const firstSettingInput = {
   timeZoneMode: "SYSTEM" as const,
 };
 
-describe("initial postal entity settings", () => {
+describe("postal entity settings", () => {
   beforeEach(async () => {
     await prisma.userPostalEntitySetting.deleteMany();
     await prisma.postalEntity.deleteMany();
@@ -59,24 +66,29 @@ describe("initial postal entity settings", () => {
     });
   });
 
-  it("rolls back a second initial submission and setting", async () => {
+  it("adds a second entity in the same country without changing the first", async () => {
     await prisma.userProfile.create({ data: { id: "first-user" } });
-    await createInitialPostalEntitySetting("first-user", firstSettingInput);
+    const first = await createInitialPostalEntitySetting(
+      "first-user",
+      firstSettingInput
+    );
 
-    await expect(
-      createInitialPostalEntitySetting("first-user", {
-        postalEntityName: "Friend Post",
-        normalizedPostalEntityName: "friend post",
-        countryCode: "IT",
-        displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
-      })
-    ).rejects.toBeInstanceOf(PostalEntitySettingAlreadyExistsError);
+    const second = await createInitialPostalEntitySetting("first-user", {
+      postalEntityName: "Vatican Post",
+      normalizedPostalEntityName: "vatican post",
+      countryCode: "IT",
+      displayCurrencyCode: "USD",
+      timeZone: "Europe/Vatican",
+      timeZoneMode: "CUSTOM",
+    });
+
+    expect(second.id).not.toBe(first.id);
     await expect(
       prisma.userPostalEntitySetting.count({ where: { userId: "first-user" } })
-    ).resolves.toBe(1);
-    await expect(prisma.postalEntity.count()).resolves.toBe(1);
+    ).resolves.toBe(2);
+    await expect(
+      prisma.userProfile.findUniqueOrThrow({ where: { id: "first-user" } })
+    ).resolves.toMatchObject({ activePostalEntitySettingId: first.id });
   });
 
   it("keeps pending entities and active selections isolated by user", async () => {
@@ -125,5 +137,102 @@ describe("initial postal entity settings", () => {
     await expect(
       requireActivePostalEntitySetting("first-user")
     ).rejects.toBeInstanceOf(PostalEntitySettingRequiredError);
+  });
+
+  it("rejects a duplicate setting for the same user and postal entity", async () => {
+    await prisma.userProfile.create({ data: { id: "first-user" } });
+    const setting = await createInitialPostalEntitySetting(
+      "first-user",
+      firstSettingInput
+    );
+
+    await expect(
+      addExistingPostalEntitySetting("first-user", setting.postalEntityId, {
+        displayCurrencyCode: "USD",
+        timeZone: "America/New_York",
+        timeZoneMode: "CUSTOM",
+      })
+    ).rejects.toBeInstanceOf(PostalEntitySettingAlreadyExistsError);
+  });
+
+  it("edits one setting without changing another", async () => {
+    await prisma.userProfile.create({ data: { id: "first-user" } });
+    const first = await createInitialPostalEntitySetting(
+      "first-user",
+      firstSettingInput
+    );
+    const second = await createInitialPostalEntitySetting("first-user", {
+      ...firstSettingInput,
+      postalEntityName: "Vatican Post",
+      normalizedPostalEntityName: "vatican post",
+    });
+
+    await updatePostalEntitySetting("first-user", first.id, {
+      displayCurrencyCode: "USD",
+      timeZone: "America/New_York",
+      timeZoneMode: "CUSTOM",
+    });
+
+    await expect(listPostalEntitySettings("first-user")).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: first.id,
+          displayCurrencyCode: "USD",
+          timeZone: "America/New_York",
+        }),
+        expect.objectContaining({
+          id: second.id,
+          displayCurrencyCode: "EUR",
+          timeZone: "Europe/Rome",
+        }),
+      ])
+    );
+  });
+
+  it("persists an eligible active selection and rejects foreign settings", async () => {
+    await prisma.userProfile.createMany({
+      data: [{ id: "first-user" }, { id: "second-user" }],
+    });
+    const first = await createInitialPostalEntitySetting(
+      "first-user",
+      firstSettingInput
+    );
+    const second = await createInitialPostalEntitySetting("first-user", {
+      ...firstSettingInput,
+      postalEntityName: "Vatican Post",
+      normalizedPostalEntityName: "vatican post",
+    });
+    const foreign = await createInitialPostalEntitySetting(
+      "second-user",
+      firstSettingInput
+    );
+
+    await activatePostalEntitySetting("first-user", second.id);
+    await expect(requireActivePostalEntitySetting("first-user")).resolves.toMatchObject({
+      id: second.id,
+    });
+    await expect(
+      activatePostalEntitySetting("first-user", foreign.id)
+    ).rejects.toBeInstanceOf(PostalEntitySettingNotFoundError);
+    await expect(
+      addExistingPostalEntitySetting(
+        "first-user",
+        foreign.postalEntityId,
+        firstSettingInput
+      )
+    ).rejects.toBeInstanceOf(PostalEntityUnavailableError);
+    await expect(requireActivePostalEntitySetting("first-user")).resolves.toMatchObject({
+      id: second.id,
+    });
+    expect(first.id).not.toBe(second.id);
+  });
+
+  it("derives the local date from the saved timezone", () => {
+    const instant = new Date("2026-01-01T00:30:00.000Z");
+
+    expect(localDateInTimeZone("America/Los_Angeles", instant)).toBe(
+      "2025-12-31"
+    );
+    expect(localDateInTimeZone("Asia/Tokyo", instant)).toBe("2026-01-01");
   });
 });

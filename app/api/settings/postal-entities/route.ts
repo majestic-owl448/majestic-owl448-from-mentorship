@@ -3,10 +3,15 @@ import supertokens from "supertokens-node";
 import { withSession } from "supertokens-node/nextjs";
 import { ensureSuperTokensInit } from "@/app/config/backend";
 import {
+  addExistingPostalEntitySetting,
   PostalEntitySettingAlreadyExistsError,
-  createInitialPostalEntitySetting,
+  PostalEntityUnavailableError,
+  createPostalEntitySetting,
 } from "@/lib/postalEntitySettings";
-import { validateInitialPostalEntitySetting } from "@/lib/postalEntitySettingValidation";
+import {
+  validateInitialPostalEntitySetting,
+  validatePostalEntitySettingValues,
+} from "@/lib/postalEntitySettingValidation";
 import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
@@ -33,23 +38,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validation = validateInitialPostalEntitySetting(body);
-    if (validation.errors) {
-      return NextResponse.json(
-        { errors: validation.errors },
-        { status: 400 }
-      );
+    const postalEntityId =
+      typeof body === "object" &&
+      body !== null &&
+      typeof (body as Record<string, unknown>).postalEntityId === "string"
+        ? (body as Record<string, string>).postalEntityId.trim()
+        : "";
+    const existingValidation = postalEntityId
+      ? validatePostalEntitySettingValues(body)
+      : null;
+    const newValidation = postalEntityId
+      ? null
+      : validateInitialPostalEntitySetting(body);
+    const errors = existingValidation?.errors ?? newValidation?.errors;
+    if (errors) {
+      return NextResponse.json({ errors }, { status: 400 });
     }
-
     const userId = session.getUserId();
     const user = await supertokens.getUser(userId);
     await upsertUserProfile(userId, user?.emails[0] ?? null);
 
     try {
-      const activePostalEntitySetting =
-        await createInitialPostalEntitySetting(userId, validation.data);
+      let postalEntitySetting;
+      if (existingValidation?.data) {
+        postalEntitySetting = await addExistingPostalEntitySetting(
+          userId,
+          postalEntityId,
+          existingValidation.data
+        );
+      } else if (newValidation?.data) {
+        postalEntitySetting = await createPostalEntitySetting(
+          userId,
+          newValidation.data
+        );
+      } else {
+        throw new Error("Postal entity setting validation did not run.");
+      }
       return NextResponse.json(
-        { activePostalEntitySetting },
+        { postalEntitySetting },
         { status: 201 }
       );
     } catch (caught) {
@@ -58,6 +84,9 @@ export async function POST(request: NextRequest) {
           { error: caught.message },
           { status: 409 }
         );
+      }
+      if (caught instanceof PostalEntityUnavailableError) {
+        return NextResponse.json({ error: caught.message }, { status: 404 });
       }
       throw caught;
     }

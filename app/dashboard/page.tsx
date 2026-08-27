@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSessionContext } from "supertokens-auth-react/recipe/session";
-import {
-  InitialPostalEntitySettingForm,
-  type SavedPostalEntitySetting,
-  type SettingOption,
+import type {
+  SavedPostalEntitySetting,
+  SettingOption,
 } from "@/app/components/initialPostalEntitySettingForm";
+import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 
 type SettingsResponse = {
   complete: boolean;
   activePostalEntitySetting: SavedPostalEntitySetting | null;
+  activeLocalDate: string | null;
+  postalEntitySettings: SavedPostalEntitySetting[];
   options: {
     countries: SettingOption[];
     currencies: SettingOption[];
@@ -62,7 +64,10 @@ function DashboardContent() {
 
   if (session.loading || !settings) {
     return (
-      <p role={currentLoadError ? "alert" : undefined} className="text-zinc-600 dark:text-zinc-400">
+      <p
+        role={currentLoadError ? "alert" : undefined}
+        className="text-zinc-600 dark:text-zinc-400"
+      >
         {currentLoadError ?? "Loading postal entity settings…"}
       </p>
     );
@@ -73,59 +78,79 @@ function DashboardContent() {
     router.push("/auth");
   }
 
-  const activeSetting = settings.activePostalEntitySetting;
+  function replaceSetting(updated: SavedPostalEntitySetting) {
+    setLoaded((current) =>
+      current?.userId === userId
+        ? {
+            ...current,
+            data: {
+              ...current.data,
+              activePostalEntitySetting:
+                current.data.activePostalEntitySetting?.id === updated.id
+                  ? updated
+                  : current.data.activePostalEntitySetting,
+              postalEntitySettings: current.data.postalEntitySettings.map(
+                (setting) => (setting.id === updated.id ? updated : setting)
+              ),
+            },
+          }
+        : current
+    );
+  }
 
   return (
-    <div className="flex w-full flex-col gap-8">
+    <div className="flex w-full flex-col gap-10">
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">
           Stamp Inventory
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">
-          {activeSetting ? "Active postal entity" : "Set up your inventory"}
+          Postal entity settings
         </h1>
         <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
-          {activeSetting
-            ? "This postal entity controls which stamps and rates can contribute to inventory value."
-            : "Submit a postal entity and save its country, display currency, and timezone before opening inventory features."}
+          Choose the postal entity used for valuation and manage each entity&apos;s display currency and timezone.
         </p>
       </div>
 
-      {activeSetting ? (
-        <dl className="grid max-w-lg grid-cols-[max-content_1fr] gap-x-5 gap-y-3">
-          <dt className="font-medium">Postal entity</dt>
-          <dd>{activeSetting.postalEntity.name}</dd>
-          <dt className="font-medium">Country</dt>
-          <dd>{activeSetting.postalEntity.countryCode}</dd>
-          <dt className="font-medium">Registry status</dt>
-          <dd className="lowercase">{activeSetting.postalEntity.status}</dd>
-          <dt className="font-medium">Display currency</dt>
-          <dd>{activeSetting.displayCurrencyCode}</dd>
-          <dt className="font-medium">Timezone</dt>
-          <dd>{activeSetting.timeZone}</dd>
-          <dt className="font-medium">Timezone mode</dt>
-          <dd className="lowercase">{activeSetting.timeZoneMode}</dd>
-        </dl>
-      ) : (
-        <InitialPostalEntitySettingForm
-          countries={settings.options.countries}
-          currencies={settings.options.currencies}
-          onSaved={(savedSetting) =>
-            setLoaded((current) =>
-              current?.userId === userId
-                ? {
-                    ...current,
-                    data: {
-                      ...current.data,
-                      complete: true,
-                      activePostalEntitySetting: savedSetting,
-                    },
-                  }
-                : current
-            )
-          }
-        />
-      )}
+      <PostalEntitySettingsManager
+        activeSettingId={settings.activePostalEntitySetting?.id ?? null}
+        countries={settings.options.countries}
+        currencies={settings.options.currencies}
+        settings={settings.postalEntitySettings}
+        onAdded={(added) =>
+          setLoaded((current) =>
+            current?.userId === userId
+              ? {
+                  ...current,
+                  data: {
+                    ...current.data,
+                    complete: true,
+                    activePostalEntitySetting:
+                      current.data.activePostalEntitySetting ?? added,
+                    postalEntitySettings: [
+                      ...current.data.postalEntitySettings,
+                      added,
+                    ],
+                  },
+                }
+              : current
+          )
+        }
+        onActivated={(active) =>
+          setLoaded((current) =>
+            current?.userId === userId
+              ? {
+                  ...current,
+                  data: {
+                    ...current.data,
+                    activePostalEntitySetting: active,
+                  },
+                }
+              : current
+          )
+        }
+        onUpdated={replaceSetting}
+      />
 
       <button
         onClick={onSignOut}
@@ -140,7 +165,7 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <SessionAuthForNextJS>
-      <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-center px-6 py-16 sm:px-16 sm:py-32">
+      <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-6 py-16 sm:px-16 sm:py-24">
         <DashboardContent />
       </main>
     </SessionAuthForNextJS>

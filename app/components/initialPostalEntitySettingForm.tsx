@@ -30,6 +30,7 @@ type Props = {
   countries: SettingOption[];
   currencies: SettingOption[];
   onSaved: (setting: SavedPostalEntitySetting) => void;
+  submitLabel?: string;
 };
 
 const inputClass =
@@ -66,6 +67,7 @@ export function InitialPostalEntitySettingForm({
   countries,
   currencies,
   onSaved,
+  submitLabel = "Save postal entity setting",
 }: Props) {
   const isMounted = useIsMounted();
   const systemTimeZone = isMounted
@@ -114,7 +116,7 @@ export function InitialPostalEntitySettingForm({
         return;
       }
 
-      onSaved(result.activePostalEntitySetting);
+      onSaved(result.postalEntitySetting);
     } catch {
       setSubmitError("The postal entity setting could not be saved.");
     } finally {
@@ -283,7 +285,7 @@ export function InitialPostalEntitySettingForm({
         disabled={submitting}
         className="h-11 rounded-full bg-foreground px-5 text-sm font-medium text-background disabled:opacity-60"
       >
-        {submitting ? "Saving…" : "Save postal entity setting"}
+        {submitting ? "Saving…" : submitLabel}
       </button>
     </form>
   );
