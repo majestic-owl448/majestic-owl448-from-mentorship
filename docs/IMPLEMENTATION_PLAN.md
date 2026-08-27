@@ -3,8 +3,6 @@
 ## Document status
 
 - Last reviewed: August 27, 2026.
-- Completed delivery issues: [#4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4), [#5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5), and [#6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6).
-- Next delivery issue: [#7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7).
 - Issues #4 through #30 are the delivery tracker. This document records the implementation sequence and cross-phase constraints.
 
 ## Current repository baseline
@@ -15,8 +13,10 @@ The repository currently contains:
 - Tailwind CSS 4.
 - SuperTokens authentication with Google and Apple.
 - Prisma 7 with committed SQLite migrations and separate development, test, and production connection configuration.
-- A protected placeholder dashboard.
+- A protected settings dashboard.
 - An authenticated profile route that creates or updates a `UserProfile` keyed by the SuperTokens primary user ID.
+- An initial postal-entity setting flow that saves a postal entity, display currency, and timezone before inventory access.
+- A settings manager that lets each user add and edit postal-entity settings and select the active setting.
 - Vitest and ESLint configuration, with database tests running against a temporary database.
 
 The baseline repair is complete. `pnpm lint`, `pnpm test --run`, and `pnpm build` pass, and the retained test suites contain assertions. The database test applies every committed migration to a disposable SQLite database instead of writing to the development database.
@@ -24,8 +24,6 @@ The baseline repair is complete. `pnpm lint`, `pnpm test --run`, and `pnpm build
 The implementation should keep each phase in an atomic conventional commit. Schema migrations and their matching application changes belong in the same feature phase unless splitting them leaves both commits runnable.
 
 ## Phase 1: Repair the baseline
-
-Status: completed in [issue #4](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/4).
 
 Suggested commit:
 
@@ -44,8 +42,6 @@ Work:
 Exit condition: all existing checks pass before inventory tables are introduced.
 
 ## Phase 2: Prepare repeatable database setup
-
-Status: completed in [issue #5](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/5). Production hosting and database provisioning remain part of [issue #30](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/30).
 
 Suggested commit:
 
@@ -68,47 +64,55 @@ Exit condition: local development, isolated tests, and independently provisioned
 
 ## Phase 3: Connect authentication to application profiles
 
-Status: profile persistence was completed in [issue #6](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/6). Country settings begin with [issue #7](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/7); the moderator guard remains future work.
-
 Suggested commits:
 
 ```text
 feat(auth): persist user profiles and roles
-feat(settings): require initial country settings
-feat(settings): support multiple country settings
+feat(settings): require initial postal entity settings
+feat(settings): manage postal entity settings
 ```
 
 Add:
 
 ```text
 UserProfile
-  id                       String primary key, SuperTokens primary user ID
-  email                    String nullable
-  role                     USER or MODERATOR
-  activeCountrySettingId   String nullable until initial settings are saved
+  id                            String primary key, SuperTokens primary user ID
+  email                         String nullable
+  role                          USER or MODERATOR
+  activePostalEntitySettingId   String nullable until initial settings are saved
   createdAt
   updatedAt
 
-UserCountrySetting
+PostalEntity
+  id
+  name
+  normalizedName
+  countryCode
+  status
+  submittedById nullable
+  createdAt
+  updatedAt
+
+UserPostalEntitySetting
   id
   userId
-  countryCode
+  postalEntityId
   displayCurrencyCode
   timeZone
   timeZoneMode             SYSTEM or CUSTOM
   createdAt
   updatedAt
 
-unique(userId, countryCode)
+unique(userId, postalEntityId)
 ```
 
 Work:
 
 1. Replace the unrelated numeric Prisma user with a profile keyed by the SuperTokens primary user ID.
 2. Create or update the profile from authenticated server-side code.
-3. Add the minimum settings flow for country, display currency, and timezone. Block inventory routes until the first country setting exists.
-4. Offer the browser's IANA timezone as the system-derived default and allow a custom timezone per country setting.
-5. Let the user add country settings and select one active setting.
+3. Add the minimum settings flow for postal entity, display currency, and timezone. Block inventory routes until the first postal-entity setting exists.
+4. Offer the browser's IANA timezone as the system-derived default and allow a custom timezone per postal-entity setting.
+5. Let the user add postal-entity settings and select one active setting.
 6. Add a server-side moderator-role guard.
 7. Remove the generic `/api/data` route.
 8. Keep `/api/me` limited to authenticated profile information.
@@ -119,8 +123,8 @@ Tests:
 - A profile is associated with the session user ID.
 - A supplied client user ID is ignored or rejected.
 - A normal user cannot call moderator endpoints.
-- The first country setting becomes active.
-- Country settings are isolated by user and unique by user plus country.
+- The first postal-entity setting becomes active.
+- Postal-entity settings are isolated by user and unique by user plus postal entity.
 - The active setting belongs to the authenticated user.
 - Invalid country, currency, and IANA timezone values are rejected.
 
