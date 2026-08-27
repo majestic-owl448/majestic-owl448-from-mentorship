@@ -7,7 +7,7 @@ type DecimalInput = string | Prisma.Decimal;
 export type ConversionResolution =
   | {
       status: "RESOLVED";
-      source: "IDENTITY" | "FIXED_CONVERSION";
+      source: "IDENTITY" | "FIXED_CONVERSION" | "PENDING_PROPOSAL";
       amount: Prisma.Decimal;
       currencyCode: string;
       multiplier: Prisma.Decimal;
@@ -23,6 +23,7 @@ export async function resolveCurrencyConversion(
   amount: DecimalInput,
   fromCurrencyCode: string,
   toCurrencyCode: string,
+  userId?: string,
 ): Promise<ConversionResolution> {
   const decimalAmount = new Prisma.Decimal(amount);
 
@@ -36,16 +37,30 @@ export async function resolveCurrencyConversion(
     };
   }
 
-  const conversion = await prisma.currencyConversion.findUnique({
-    where: {
-      fromCurrencyCode_toCurrencyCode: {
-        fromCurrencyCode,
-        toCurrencyCode,
+  const [proposal, conversion] = await Promise.all([
+    userId
+      ? prisma.currencyConversionProposal.findFirst({
+          where: {
+            submittedById: userId,
+            fromCurrencyCode,
+            toCurrencyCode,
+            status: "PENDING",
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })
+      : null,
+    prisma.currencyConversion.findUnique({
+      where: {
+        fromCurrencyCode_toCurrencyCode: {
+          fromCurrencyCode,
+          toCurrencyCode,
+        },
       },
-    },
-  });
+    }),
+  ]);
 
-  if (!conversion) {
+  const multiplier = proposal?.multiplier ?? conversion?.multiplier;
+  if (!multiplier) {
     return {
       status: "UNRESOLVED",
       reason: "MISSING_CONVERSION",
@@ -56,11 +71,11 @@ export async function resolveCurrencyConversion(
 
   return {
     status: "RESOLVED",
-    source: "FIXED_CONVERSION",
+    source: proposal ? "PENDING_PROPOSAL" : "FIXED_CONVERSION",
     amount: new Prisma.Decimal(
-      multiplyExactDecimals(decimalAmount.toFixed(), conversion.multiplier),
+      multiplyExactDecimals(decimalAmount.toFixed(), multiplier),
     ),
     currencyCode: toCurrencyCode,
-    multiplier: new Prisma.Decimal(conversion.multiplier),
+    multiplier: new Prisma.Decimal(multiplier),
   };
 }
