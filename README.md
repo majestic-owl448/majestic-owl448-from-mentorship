@@ -101,10 +101,17 @@ The authentication code is organized as follows:
 | `app/config/backend.ts` | Server recipes and SuperTokens initialization |
 | `app/config/frontend.tsx` | Client recipes and Next.js router integration |
 | `app/api/auth/[[...path]]/route.ts` | Authentication API routes |
+| `app/api/me/route.ts` | Authenticated profile endpoint |
 | `app/auth/[[...path]]/page.tsx` | Prebuilt sign-in and sign-up interface |
 | `app/components/supertokensProvider.tsx` | Client initialization and provider |
 | `app/components/sessionAuthForNextJS.tsx` | Server-rendering-safe session guard |
 | `app/dashboard/page.tsx` | Example protected page |
+| `lib/userProfile.ts` | Profile creation and email updates for signed-in users |
+
+`GET /api/me` creates or updates one `UserProfile` keyed by the SuperTokens
+primary user ID. The profile stores an optional email address and a `USER` or
+`MODERATOR` role. Requests without a session return `401`, and requests for a
+different user ID return `404`.
 
 Email login is not enabled because the project does not yet have an email delivery
 service. The credentials in `sample.env` are placeholders and must be replaced
