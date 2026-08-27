@@ -67,3 +67,26 @@ model UserPostalEntitySetting {
   @@unique([userId, postalEntityId])
   @@map("user_postal_entity_settings")
 }
+
+model Currency {
+  code            String               @id
+  displayName     String               @map("display_name")
+  conversionsFrom CurrencyConversion[] @relation("ConversionSourceCurrency")
+  conversionsTo   CurrencyConversion[] @relation("ConversionTargetCurrency")
+
+  @@map("currencies")
+}
+
+model CurrencyConversion {
+  id               String   @id @default(cuid())
+  fromCurrencyCode String   @map("from_currency_code")
+  toCurrencyCode   String   @map("to_currency_code")
+  multiplier       String
+  fromCurrency     Currency @relation("ConversionSourceCurrency", fields: [fromCurrencyCode], references: [code], onDelete: Restrict)
+  toCurrency       Currency @relation("ConversionTargetCurrency", fields: [toCurrencyCode], references: [code], onDelete: Restrict)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([fromCurrencyCode, toCurrencyCode])
+  @@map("currency_conversions")
+}
