@@ -119,6 +119,9 @@ export function NamedFaceValueProposals({
     "DEFINITION",
   );
   const [countryCode, setCountryCode] = useState(activeCountryCode);
+  const [targetCountryCode, setTargetCountryCode] =
+    useState(activeCountryCode);
+  const [targetReference, setTargetReference] = useState("");
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<NamedOption[]>([]);
   const [proposals, setProposals] = useState<ProposalsResponse | null>(null);
@@ -148,7 +151,10 @@ export function NamedFaceValueProposals({
 
   useEffect(() => {
     const controller = new AbortController();
-    const parameters = new URLSearchParams({ countryCode, query });
+    const parameters = new URLSearchParams({
+      countryCode: targetCountryCode,
+      query,
+    });
     fetch(`/api/named-face-values?${parameters}`, {
       signal: controller.signal,
     })
@@ -168,7 +174,7 @@ export function NamedFaceValueProposals({
         }
       });
     return () => controller.abort();
-  }, [countryCode, query]);
+  }, [query, targetCountryCode]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -221,12 +227,21 @@ export function NamedFaceValueProposals({
         return;
       }
 
-      await loadProposals();
       form.reset();
       setProposalType("DEFINITION");
       setCountryCode(activeCountryCode);
+      setTargetCountryCode(activeCountryCode);
+      setTargetReference("");
       setQuery("");
       setStatus("Proposal submitted with PENDING status.");
+      try {
+        await loadProposals();
+        setLoadError(null);
+      } catch {
+        setLoadError(
+          "Proposal submitted, but the status list could not be refreshed.",
+        );
+      }
     } catch {
       setStatus("The proposal could not be submitted.");
     } finally {
@@ -260,12 +275,20 @@ export function NamedFaceValueProposals({
           </select>
           <FieldError id="proposal-type-error" message={errors.proposalType} />
         </div>
+        {proposalType === "DEFINITION" && (
+          <div>
+            <label htmlFor="proposal-country" className="block font-medium">Proposed country</label>
+            <select id="proposal-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-describedby={errors.countryCode ? "proposal-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+              {countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <FieldError id="proposal-country-error" message={errors.countryCode} />
+          </div>
+        )}
         <div>
-          <label htmlFor="proposal-country" className="block font-medium">Country</label>
-          <select id="proposal-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-describedby={errors.countryCode ? "proposal-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <label htmlFor="proposal-target-country" className="block font-medium">Existing definition country</label>
+          <select id="proposal-target-country" value={targetCountryCode} onChange={(event) => { setTargetCountryCode(event.target.value); setTargetReference(""); }} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             {countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <FieldError id="proposal-country-error" message={errors.countryCode} />
         </div>
         <div>
           <label htmlFor="proposal-search" className="block font-medium">Search existing definitions</label>
@@ -276,7 +299,7 @@ export function NamedFaceValueProposals({
           <label htmlFor="proposal-target" className="block font-medium">
             {proposalType === "DEFINITION" ? "Definition to correct (optional)" : "Definition for this value"}
           </label>
-          <select id="proposal-target" name="proposalTarget" defaultValue="" aria-describedby={errors.targetNamedFaceValueId || errors.definitionProposalId ? "proposal-target-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="proposal-target" name="proposalTarget" value={targetReference} onChange={(event) => setTargetReference(event.target.value)} aria-describedby={errors.targetNamedFaceValueId || errors.definitionProposalId ? "proposal-target-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="">{proposalType === "DEFINITION" ? "Create a new definition" : "Select a definition"}</option>
             {targetOptions.map((option) => <option key={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`} value={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`}>{option.displayCode}{option.proposalStatus ? ` (${option.proposalStatus})` : ""}</option>)}
           </select>

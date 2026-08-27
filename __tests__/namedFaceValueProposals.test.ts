@@ -167,6 +167,43 @@ describe("named/code proposals", () => {
       });
   });
 
+  it("keeps a pending match when twenty approved definitions also match", async () => {
+    await createUser("first-user");
+    await prisma.valueSchedule.create({
+      data: {
+        id: "approved-matches-schedule",
+        countryCode: "IT",
+        currencyCode: "EUR",
+        namedFaceValues: {
+          create: Array.from({ length: 20 }, (_, index) => ({
+            id: `approved-match-${index}`,
+            displayCode: `Approved Match ${index}`,
+            normalizedCode: `approved match ${index}`,
+          })),
+        },
+      },
+    });
+    const pending = await createDefinitionProposal("first-user", {
+      proposalType: "DEFINITION",
+      targetNamedFaceValueId: null,
+      countryCode: "IT",
+      displayCode: "Pending Match",
+      normalizedCode: "pending match",
+      currencyCode: "EUR",
+      ...source,
+    });
+
+    const results = await searchNamedFaceValues("IT", "match", "first-user");
+    expect(results).toHaveLength(21);
+    expect(results).toContainEqual({
+      id: pending.id,
+      countryCode: "IT",
+      displayCode: "Pending Match",
+      namedFaceValueProposalId: pending.id,
+      proposalStatus: "PENDING",
+    });
+  });
+
   it("lets only the proposer reference a pending definition in inventory", async () => {
     await createUser("first-user");
     await createUser("second-user");

@@ -89,7 +89,7 @@ export async function searchNamedFaceValues(
       namedFaceValueProposalId: proposal.id,
       proposalStatus: proposal.status,
     })),
-  ].slice(0, 20);
+  ];
 }
 
 function calendarDateMilliseconds(value: string): number {
