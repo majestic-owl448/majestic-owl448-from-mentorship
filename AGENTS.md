@@ -13,3 +13,8 @@
 - After the user approves a text-only change, apply it and create its atomic commit without requiring runtime verification.
 - Before committing a functional code change, verify the exact behavior the change claims to implement or fix.
 - Use a verification method that matches the behavior. For example, a component remount test does not verify a full browser reload.
+
+## Project Checks
+
+- Before committing a functional or dependency change, run `pnpm lint`, `pnpm test --run`, and `pnpm build`.
+- Database tests must override `DATABASE_URL` with a disposable database. They must not add, change, or remove records in the development database configured in `.env`.
