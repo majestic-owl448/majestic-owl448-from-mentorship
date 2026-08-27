@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
+    "db:init": "prisma migrate deploy",
+    "db:migrate": "prisma migrate dev",
     "postinstall": "prisma generate"
   },
   "dependencies": {

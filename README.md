@@ -12,7 +12,7 @@ Create the local environment file before installing dependencies. Prisma reads
 ```bash
 cp sample.env .env
 pnpm install
-pnpm prisma migrate dev
+pnpm db:init
 pnpm dev
 ```
 
@@ -41,14 +41,51 @@ the `better-sqlite3` driver adapter. The schema and migrations live in `prisma/`
 The generated client is written to `lib/generated/prisma` and re-exported as a
 singleton from `lib/db.ts`.
 
+Set `DATABASE_URL` to a different database for each environment:
+
+| Environment | Connection setup |
+| --- | --- |
+| Development | Copy `sample.env` to `.env`. The default is the ignored `data.db` file. |
+| Test | `pnpm test --run` creates a temporary database, applies every committed migration, and removes the database afterward. |
+| Production | Provision persistent SQLite storage independently and store its file URL in the deployment platform's environment settings. Do not upload a development or test database. |
+
+Initialize an empty database, or apply all pending committed migrations to an
+existing database, with:
+
 ```bash
-pnpm prisma migrate dev
-pnpm prisma generate
+pnpm db:init
+```
+
+The command reads only the current process's `DATABASE_URL`, so set that value to
+the intended database before running it. It uses `prisma migrate deploy`, which
+applies committed migrations in order without creating a migration or resetting
+existing data. Run the same command against the independently provisioned
+production database during deployment.
+
+When changing the schema during development, create and apply the next migration:
+
+```bash
+pnpm db:migrate --name describe_change
+```
+
+Prisma writes the migration to `prisma/migrations/`. Commit the migration with
+the schema change so `pnpm db:init` can apply it in test and production.
+
+Database files and records do not move between environments; only the committed
+migration files do.
+
+To inspect a development database:
+
+```bash
 pnpm prisma studio
 ```
 
-SQLite is for local development only. A Vercel deployment has an ephemeral,
-read-only filesystem, so production storage requires a hosted database.
+The current Prisma schema uses SQLite in every environment. A production target
+must provide persistent SQLite storage outside the application deployment before
+the migration command runs. A target that provides PostgreSQL instead requires a
+matching Prisma provider, adapter, and migration set before deployment. Local
+database files match the `data.db*` ignore rule and are not committed or included
+as deployment inputs.
 
 ## Authentication
 
