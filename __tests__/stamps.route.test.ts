@@ -26,6 +26,7 @@ vi.mock("supertokens-node/nextjs", () => ({
 }));
 
 import { GET, POST } from "@/app/api/stamps/route";
+import { PATCH } from "@/app/api/stamps/[stampId]/route";
 import { GET as SEARCH_NAMED_FACE_VALUES } from "@/app/api/named-face-values/route";
 
 const validStamp = {
@@ -62,11 +63,27 @@ const validNoFaceValueStamp = {
   manualPostageCurrencyCode: "EUR",
 };
 
-function request(method: "GET" | "POST", body?: unknown) {
-  return new NextRequest("http://localhost/api/stamps", {
-    method,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+function request(
+  method: "GET" | "POST" | "PATCH",
+  body?: unknown,
+  stampId?: string,
+) {
+  return new NextRequest(
+    stampId
+      ? `http://localhost/api/stamps/${stampId}`
+      : "http://localhost/api/stamps",
+    {
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers:
+        body === undefined ? undefined : { "Content-Type": "application/json" },
+    },
+  );
+}
+
+function updateQuantities(stampId: string, body: unknown) {
+  return PATCH(request("PATCH", body, stampId), {
+    params: Promise.resolve({ stampId }),
   });
 }
 
@@ -257,6 +274,124 @@ describe("stamp inventory API", () => {
       stamps: [{ name: "Italian monetary stamp" }],
       inventoryTotal: { amount: "5", currencyCode: "EUR" },
     });
+  });
+
+  it("requires authentication for updating stamp quantities", async () => {
+    const response = await updateQuantities("missing-stamp", {
+      quantityOwned: 1,
+      quantityAnnulled: 0,
+    });
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Authentication required" });
+  });
+
+  it("updates both quantities and returns refreshed line and inventory totals", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const created = await POST(request("POST", validStamp));
+    const createdBody = await created.json();
+
+    const response = await updateQuantities(createdBody.stamp.id, {
+      quantityOwned: 5,
+      quantityAnnulled: 2,
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        id: createdBody.stamp.id,
+        quantityOwned: 5,
+        quantityAnnulled: 2,
+        usableQuantity: 3,
+        unitPostageValue: { amount: "2.5", currencyCode: "EUR" },
+        totalPostageValue: { amount: "7.5", currencyCode: "EUR" },
+      },
+      inventoryTotal: { amount: "7.5", currencyCode: "EUR" },
+    });
+    expect(
+      await prisma.stampInventoryEntry.findUnique({
+        where: { id: createdBody.stamp.id },
+      }),
+    ).toMatchObject({ quantityOwned: 5, quantityAnnulled: 2 });
+  });
+
+  it("rejects reducing owned quantity below annulled quantity atomically", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const created = await POST(
+      request("POST", {
+        ...validStamp,
+        quantityOwned: "3",
+        quantityAnnulled: "2",
+      }),
+    );
+    const { stamp } = await created.json();
+
+    const response = await updateQuantities(stamp.id, {
+      quantityOwned: 1,
+      quantityAnnulled: 2,
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      errors: {
+        quantityAnnulled: "Annulled quantity cannot exceed owned quantity.",
+      },
+    });
+    expect(
+      await prisma.stampInventoryEntry.findUnique({ where: { id: stamp.id } }),
+    ).toMatchObject({ quantityOwned: 3, quantityAnnulled: 2 });
+  });
+
+  it("rejects non-integer and out-of-range quantity updates", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const created = await POST(request("POST", validStamp));
+    const { stamp } = await created.json();
+
+    for (const [body, errors] of [
+      [
+        { quantityOwned: 0, quantityAnnulled: 0 },
+        {
+          quantityOwned:
+            "Enter an owned quantity from 1 to 2,147,483,647.",
+        },
+      ],
+      [
+        { quantityOwned: 2.5, quantityAnnulled: -1 },
+        {
+          quantityOwned:
+            "Enter an owned quantity from 1 to 2,147,483,647.",
+          quantityAnnulled:
+            "Enter an annulled quantity from 0 to 2,147,483,647.",
+        },
+      ],
+    ] as const) {
+      const response = await updateQuantities(stamp.id, body);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ errors });
+    }
+  });
+
+  it("does not allow a user to update another user's stamp", async () => {
+    await createActiveSetting("first-user");
+    await createActiveSetting("second-user");
+    auth.userId = "first-user";
+    const created = await POST(request("POST", validStamp));
+    const { stamp } = await created.json();
+
+    auth.userId = "second-user";
+    const response = await updateQuantities(stamp.id, {
+      quantityOwned: 4,
+      quantityAnnulled: 0,
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Stamp not found." });
+    expect(
+      await prisma.stampInventoryEntry.findUnique({ where: { id: stamp.id } }),
+    ).toMatchObject({ quantityOwned: 3, quantityAnnulled: 1 });
   });
 
   it("sums resolvable line totals exactly and excludes unresolved entries", async () => {
