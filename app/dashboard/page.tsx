@@ -9,6 +9,7 @@ import type {
 } from "@/app/components/initialPostalEntitySettingForm";
 import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
+import { StampInventory } from "@/app/components/stampInventory";
 
 type SettingsResponse = {
   complete: boolean;
@@ -151,6 +152,25 @@ function DashboardContent() {
         }
         onUpdated={replaceSetting}
       />
+
+      {settings.activePostalEntitySetting && (
+        <StampInventory
+          activeCountryCode={
+            settings.activePostalEntitySetting.postalEntity.countryCode
+          }
+          activeDisplayCurrencyCode={
+            settings.activePostalEntitySetting.displayCurrencyCode
+          }
+          activePostalEntityId={
+            settings.activePostalEntitySetting.postalEntity.id
+          }
+          countries={settings.options.countries}
+          currencies={settings.options.currencies}
+          postalEntities={settings.postalEntitySettings.map(
+            (setting) => setting.postalEntity,
+          )}
+        />
+      )}
 
       <button
         onClick={onSignOut}
