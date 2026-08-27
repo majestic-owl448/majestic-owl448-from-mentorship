@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { SessionAuth } from "supertokens-auth-react/recipe/session";
+import { useIsMounted } from "@/app/hooks/useIsMounted";
 
 type Props = Parameters<typeof SessionAuth>[0] & {
   children?: React.ReactNode;
@@ -13,13 +13,9 @@ type Props = Parameters<typeof SessionAuth>[0] & {
  * we are on the client.
  */
 export function SessionAuthForNextJS(props: Props) {
-  const [loaded, setLoaded] = useState(false);
+  const isMounted = useIsMounted();
 
-  useEffect(() => {
-    setLoaded(true);
-  }, []);
-
-  if (!loaded) {
+  if (!isMounted) {
     return props.children;
   }
 

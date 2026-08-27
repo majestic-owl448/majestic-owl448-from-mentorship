@@ -13,13 +13,16 @@ const secondaryClass = `${buttonClass} border border-solid border-black/[.08] ho
 export function AuthButtons() {
   const router = useRouter();
   const session = useSessionContext();
-  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<{
+    userId: string;
+    value: string;
+  } | null>(null);
 
-  const signedIn = !session.loading && session.doesSessionExist;
+  const userId =
+    !session.loading && session.doesSessionExist ? session.userId : null;
 
   useEffect(() => {
-    if (!signedIn) {
-      setDisplayName(null);
+    if (!userId) {
       return;
     }
 
@@ -28,7 +31,7 @@ export function AuthButtons() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (active && data) {
-          setDisplayName(data.email ?? data.userId);
+          setDisplayName({ userId, value: data.email ?? data.userId });
         }
       })
       .catch(() => {
@@ -38,7 +41,7 @@ export function AuthButtons() {
     return () => {
       active = false;
     };
-  }, [signedIn]);
+  }, [userId]);
 
   if (session.loading) {
     return <div className="h-12" />;
@@ -62,10 +65,13 @@ export function AuthButtons() {
     router.refresh();
   }
 
+  const currentDisplayName =
+    displayName?.userId === session.userId ? displayName.value : session.userId;
+
   return (
     <div className="flex flex-col items-start gap-4">
       <p className="text-lg text-zinc-950 dark:text-zinc-50">
-        Welcome! <span className="font-medium break-all">{displayName ?? session.userId}</span>
+        Welcome! <span className="font-medium break-all">{currentDisplayName}</span>
       </p>
       <button className={secondaryClass} onClick={onSignOut}>
         Sign out
