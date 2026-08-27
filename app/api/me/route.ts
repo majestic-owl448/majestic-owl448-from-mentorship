@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import supertokens from "supertokens-node";
 import { withSession } from "supertokens-node/nextjs";
 import { ensureSuperTokensInit } from "@/app/config/backend";
+import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
 
@@ -18,13 +19,18 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = session.getUserId();
+    const requestedUserId = request.nextUrl.searchParams.get("userId");
+    if (requestedUserId && requestedUserId !== userId) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
     const user = await supertokens.getUser(userId);
+    const profile = await upsertUserProfile(userId, user?.emails[0] ?? null);
 
     return NextResponse.json({
-      userId,
-      // Apple only sends the email on first sign-in, so it comes off the stored
-      // user rather than the access token payload.
-      email: user?.emails[0] ?? null,
+      userId: profile.id,
+      email: profile.email,
+      role: profile.role,
     });
   });
 }
