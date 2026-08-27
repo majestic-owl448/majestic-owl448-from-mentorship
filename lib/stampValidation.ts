@@ -2,6 +2,7 @@ import { countryOptions } from "@/lib/postalEntitySettingValidation";
 
 export type StampField =
   | "countryCode"
+  | "postalEntityId"
   | "name"
   | "yearOfIssue"
   | "faceAmount"
@@ -14,6 +15,7 @@ export type StampField =
 
 export type NewMonetaryStampInput = {
   countryCode: string;
+  postalEntityId: string;
   name: string;
   yearOfIssue: number | null;
   faceAmount: string;
@@ -47,6 +49,7 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
       ? (input as Record<string, unknown>)
       : {};
   const countryCode = stringValue(record, "countryCode").toUpperCase();
+  const postalEntityId = stringValue(record, "postalEntityId");
   const name = stringValue(record, "name").replace(/\s+/g, " ");
   const yearValue = stringValue(record, "yearOfIssue");
   const faceAmount = stringValue(record, "faceAmount");
@@ -65,6 +68,9 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
 
   if (!countryCodes.has(countryCode)) {
     errors.countryCode = "Select a valid ISO 3166-1 country.";
+  }
+  if (!postalEntityId) {
+    errors.postalEntityId = "Select a postal entity.";
   }
   if (!name) {
     errors.name = "Enter the stamp name.";
@@ -128,6 +134,7 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
   return {
     data: {
       countryCode,
+      postalEntityId,
       name,
       yearOfIssue,
       faceAmount,

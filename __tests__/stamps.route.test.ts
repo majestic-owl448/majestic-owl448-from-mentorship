@@ -29,6 +29,7 @@ import { GET, POST } from "@/app/api/stamps/route";
 
 const validStamp = {
   countryCode: "IT",
+  postalEntityId: "first-user-postal-entity",
   name: "Italian monetary stamp",
   yearOfIssue: "",
   faceAmount: "2.50",
@@ -56,6 +57,7 @@ async function createActiveSetting(
   await prisma.userProfile.create({ data: { id: userId } });
   const postalEntity = await prisma.postalEntity.create({
     data: {
+      id: `${userId}-postal-entity`,
       name: `${userId} Post`,
       normalizedName: `${userId} post`,
       countryCode,
@@ -110,6 +112,12 @@ describe("stamp inventory API", () => {
     expect(await created.json()).toMatchObject({
       stamp: {
         countryCode: "IT",
+        postalEntityId: "first-user-postal-entity",
+        postalEntity: {
+          id: "first-user-postal-entity",
+          name: "first-user Post",
+          countryCode: "IT",
+        },
         yearOfIssue: null,
         faceAmount: "2.50",
         quantityOwned: 3,
@@ -325,13 +333,51 @@ describe("stamp inventory API", () => {
     });
   });
 
+  it("rejects a postal entity that does not belong to the stamp country", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    const response = await POST(
+      request("POST", { ...validStamp, countryCode: "CH" }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      errors: {
+        postalEntityId:
+          "Select a postal entity that belongs to the stamp country.",
+      },
+    });
+    expect(await prisma.stampInventoryEntry.count()).toBe(0);
+  });
+
+  it("rejects another user's postal entity", async () => {
+    await createActiveSetting("first-user");
+    await createActiveSetting("second-user");
+    auth.userId = "first-user";
+    const response = await POST(
+      request("POST", {
+        ...validStamp,
+        postalEntityId: "second-user-postal-entity",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await prisma.stampInventoryEntry.count()).toBe(0);
+  });
+
   it("lists only the authenticated user's stamps", async () => {
     await createActiveSetting("first-user");
     await createActiveSetting("second-user");
     auth.userId = "first-user";
     await POST(request("POST", { ...validStamp, name: "First stamp" }));
     auth.userId = "second-user";
-    await POST(request("POST", { ...validStamp, name: "Second stamp" }));
+    await POST(
+      request("POST", {
+        ...validStamp,
+        postalEntityId: "second-user-postal-entity",
+        name: "Second stamp",
+      }),
+    );
 
     auth.userId = "first-user";
     const response = await GET(request("GET"));

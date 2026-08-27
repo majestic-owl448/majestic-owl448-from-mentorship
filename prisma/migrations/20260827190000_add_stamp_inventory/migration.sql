@@ -3,6 +3,7 @@ CREATE TABLE "stamp_inventory_entries" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "user_id" TEXT NOT NULL,
     "country_code" TEXT NOT NULL,
+    "postal_entity_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "year_of_issue" INTEGER,
     "face_amount" TEXT NOT NULL CHECK (
@@ -29,10 +30,14 @@ CREATE TABLE "stamp_inventory_entries" (
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" DATETIME NOT NULL,
     CONSTRAINT "stamp_inventory_entries_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user_profiles" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "stamp_inventory_entries_postal_entity_id_country_code_fkey" FOREIGN KEY ("postal_entity_id", "country_code") REFERENCES "postal_entities" ("id", "country_code") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "stamp_inventory_entries_manual_postage_pair_check" CHECK (
         ("manual_postage_amount" IS NULL) = ("manual_postage_currency_code" IS NULL)
     )
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "postal_entities_id_country_code_key" ON "postal_entities"("id", "country_code");
 
 -- CreateIndex
 CREATE INDEX "stamp_inventory_entries_user_id_created_at_idx" ON "stamp_inventory_entries"("user_id", "created_at");

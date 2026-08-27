@@ -20,6 +20,17 @@ type ResolvedValue = {
     | "OUTSIDE_ACTIVE_COUNTRY";
 };
 
+type StampWithPostalEntity = Prisma.StampInventoryEntryGetPayload<{
+  include: { postalEntity: true };
+}>;
+
+export class StampPostalEntityError extends Error {
+  constructor() {
+    super("Select a postal entity that belongs to the stamp country.");
+    this.name = "StampPostalEntityError";
+  }
+}
+
 async function resolveUnitPostageValue(
   stamp: StampInventoryEntry,
   activeCountry: ActiveCountry,
@@ -72,7 +83,7 @@ async function resolveUnitPostageValue(
 }
 
 async function presentStamp(
-  stamp: StampInventoryEntry,
+  stamp: StampWithPostalEntity,
   activeCountry: ActiveCountry,
 ) {
   const unitPostageValue = await resolveUnitPostageValue(stamp, activeCountry);
@@ -97,6 +108,12 @@ async function presentStamp(
   return {
     id: stamp.id,
     countryCode: stamp.countryCode,
+    postalEntityId: stamp.postalEntityId,
+    postalEntity: {
+      id: stamp.postalEntity.id,
+      name: stamp.postalEntity.name,
+      countryCode: stamp.postalEntity.countryCode,
+    },
     name: stamp.name,
     yearOfIssue: stamp.yearOfIssue,
     faceAmount: stamp.faceAmount,
@@ -118,8 +135,25 @@ export async function createMonetaryStamp(
   userId: string,
   input: NewMonetaryStampInput,
 ) {
+  const availableEntity = await prisma.userPostalEntitySetting.findFirst({
+    where: {
+      userId,
+      postalEntityId: input.postalEntityId,
+      postalEntity: {
+        countryCode: input.countryCode,
+        status: "PENDING",
+        submittedById: userId,
+      },
+    },
+    select: { id: true },
+  });
+  if (!availableEntity) {
+    throw new StampPostalEntityError();
+  }
+
   return prisma.stampInventoryEntry.create({
     data: { userId, ...input },
+    include: { postalEntity: true },
   });
 }
 
@@ -129,6 +163,7 @@ export async function listMonetaryStamps(
 ) {
   const stamps = await prisma.stampInventoryEntry.findMany({
     where: { userId },
+    include: { postalEntity: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 
@@ -136,7 +171,7 @@ export async function listMonetaryStamps(
 }
 
 export async function presentMonetaryStamp(
-  stamp: StampInventoryEntry,
+  stamp: StampWithPostalEntity,
   activeCountry: ActiveCountry,
 ) {
   return presentStamp(stamp, activeCountry);

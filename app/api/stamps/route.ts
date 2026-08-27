@@ -10,6 +10,7 @@ import {
   createMonetaryStamp,
   listMonetaryStamps,
   presentMonetaryStamp,
+  StampPostalEntityError,
 } from "@/lib/stampInventory";
 import { validateNewMonetaryStamp } from "@/lib/stampValidation";
 import { upsertUserProfile } from "@/lib/userProfile";
@@ -109,6 +110,12 @@ export async function POST(request: NextRequest) {
     } catch (caught) {
       if (caught instanceof PostalEntitySettingRequiredError) {
         return settingsRequiredResponse(caught);
+      }
+      if (caught instanceof StampPostalEntityError) {
+        return NextResponse.json(
+          { errors: { postalEntityId: caught.message } },
+          { status: 400 },
+        );
       }
       throw caught;
     }

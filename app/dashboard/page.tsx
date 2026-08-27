@@ -161,8 +161,14 @@ function DashboardContent() {
           activeDisplayCurrencyCode={
             settings.activePostalEntitySetting.displayCurrencyCode
           }
+          activePostalEntityId={
+            settings.activePostalEntitySetting.postalEntity.id
+          }
           countries={settings.options.countries}
           currencies={settings.options.currencies}
+          postalEntities={settings.postalEntitySettings.map(
+            (setting) => setting.postalEntity,
+          )}
         />
       )}
 

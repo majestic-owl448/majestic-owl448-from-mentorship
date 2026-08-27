@@ -10,13 +10,18 @@ describe("stamp inventory interface", () => {
       <StampInventory
         activeCountryCode="IT"
         activeDisplayCurrencyCode="EUR"
+        activePostalEntityId="italy-post"
         countries={[{ value: "IT", label: "Italy" }]}
         currencies={[{ value: "EUR", label: "Euro" }]}
+        postalEntities={[
+          { id: "italy-post", name: "Poste Italiane", countryCode: "IT" },
+        ]}
       />,
     );
 
     for (const [label, id] of [
       ["Country", "stamp-country"],
+      ["Postal entity", "stamp-postal-entity"],
       ["Stamp name", "stamp-name"],
       ["Year of issue (optional)", "stamp-year"],
       ["Monetary face amount", "face-amount"],

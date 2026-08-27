@@ -37,38 +37,42 @@ model UserProfile {
 }
 
 model StampInventoryEntry {
-  id                        String      @id @default(cuid())
-  userId                    String      @map("user_id")
-  countryCode               String      @map("country_code")
+  id                        String       @id @default(cuid())
+  userId                    String       @map("user_id")
+  countryCode               String       @map("country_code")
+  postalEntityId            String       @map("postal_entity_id")
   name                      String
-  yearOfIssue               Int?        @map("year_of_issue")
-  faceAmount                String      @map("face_amount")
-  faceCurrencyCode          String      @map("face_currency_code")
-  manualPostageAmount       String?     @map("manual_postage_amount")
-  manualPostageCurrencyCode String?     @map("manual_postage_currency_code")
-  quantityOwned             Int         @map("quantity_owned")
-  quantityAnnulled          Int         @default(0) @map("quantity_annulled")
-  expired                   Boolean     @default(false)
-  user                      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt                 DateTime    @default(now()) @map("created_at")
-  updatedAt                 DateTime    @updatedAt @map("updated_at")
+  yearOfIssue               Int?         @map("year_of_issue")
+  faceAmount                String       @map("face_amount")
+  faceCurrencyCode          String       @map("face_currency_code")
+  manualPostageAmount       String?      @map("manual_postage_amount")
+  manualPostageCurrencyCode String?      @map("manual_postage_currency_code")
+  quantityOwned             Int          @map("quantity_owned")
+  quantityAnnulled          Int          @default(0) @map("quantity_annulled")
+  expired                   Boolean      @default(false)
+  user                      UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postalEntity              PostalEntity @relation(fields: [postalEntityId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  createdAt                 DateTime     @default(now()) @map("created_at")
+  updatedAt                 DateTime     @updatedAt @map("updated_at")
 
   @@index([userId, createdAt])
   @@map("stamp_inventory_entries")
 }
 
 model PostalEntity {
-  id             String                    @id @default(cuid())
-  name           String
-  normalizedName String                    @map("normalized_name")
-  countryCode    String                    @map("country_code")
-  status         PostalEntityStatus        @default(PENDING)
-  submittedById  String?                   @map("submitted_by_id")
-  submittedBy    UserProfile?              @relation("SubmittedPostalEntities", fields: [submittedById], references: [id], onDelete: SetNull)
-  userSettings   UserPostalEntitySetting[]
-  createdAt      DateTime                  @default(now()) @map("created_at")
-  updatedAt      DateTime                  @updatedAt @map("updated_at")
+  id                    String                    @id @default(cuid())
+  name                  String
+  normalizedName        String                    @map("normalized_name")
+  countryCode           String                    @map("country_code")
+  status                PostalEntityStatus        @default(PENDING)
+  submittedById         String?                   @map("submitted_by_id")
+  submittedBy           UserProfile?              @relation("SubmittedPostalEntities", fields: [submittedById], references: [id], onDelete: SetNull)
+  userSettings          UserPostalEntitySetting[]
+  stampInventoryEntries StampInventoryEntry[]
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
 
+  @@unique([id, countryCode])
   @@index([countryCode, normalizedName])
   @@map("postal_entities")
 }

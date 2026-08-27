@@ -2,6 +2,7 @@ import { validateNewMonetaryStamp } from "@/lib/stampValidation";
 
 const validStamp = {
   countryCode: "IT",
+  postalEntityId: "italy-post",
   name: "Definitive stamp",
   yearOfIssue: "",
   faceAmount: "0.25",
@@ -18,6 +19,7 @@ describe("monetary stamp validation", () => {
     expect(validateNewMonetaryStamp(validStamp)).toEqual({
       data: {
         countryCode: "IT",
+        postalEntityId: "italy-post",
         name: "Definitive stamp",
         yearOfIssue: null,
         faceAmount: "0.25",
@@ -60,6 +62,14 @@ describe("monetary stamp validation", () => {
       validateNewMonetaryStamp({ ...validStamp, countryCode: "" }),
     ).toMatchObject({
       errors: { countryCode: "Select a valid ISO 3166-1 country." },
+    });
+  });
+
+  it("requires a postal entity reference", () => {
+    expect(
+      validateNewMonetaryStamp({ ...validStamp, postalEntityId: "" }),
+    ).toMatchObject({
+      errors: { postalEntityId: "Select a postal entity." },
     });
   });
 

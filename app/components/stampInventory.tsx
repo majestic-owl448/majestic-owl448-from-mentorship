@@ -11,6 +11,8 @@ type StampValue = {
 type SavedStamp = {
   id: string;
   countryCode: string;
+  postalEntityId: string;
+  postalEntity: { id: string; name: string; countryCode: string };
   name: string;
   yearOfIssue: number | null;
   faceAmount: string;
@@ -34,6 +36,7 @@ type InventoryResponse = {
 type StampErrors = Partial<
   Record<
     | "countryCode"
+    | "postalEntityId"
     | "name"
     | "yearOfIssue"
     | "faceAmount"
@@ -74,13 +77,17 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function StampInventory({
   activeCountryCode,
   activeDisplayCurrencyCode,
+  activePostalEntityId,
   countries,
   currencies,
+  postalEntities,
 }: {
   activeCountryCode: string;
   activeDisplayCurrencyCode: string;
+  activePostalEntityId: string;
   countries: SettingOption[];
   currencies: SettingOption[];
+  postalEntities: Array<{ id: string; name: string; countryCode: string }>;
 }) {
   const [inventory, setInventory] = useState<InventoryResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -116,6 +123,7 @@ export function StampInventory({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         countryCode: data.get("countryCode"),
+        postalEntityId: data.get("postalEntityId"),
         name: data.get("name"),
         yearOfIssue: data.get("yearOfIssue"),
         faceAmount: data.get("faceAmount"),
@@ -143,10 +151,14 @@ export function StampInventory({
     );
     form.reset();
     const country = form.elements.namedItem("countryCode") as HTMLSelectElement;
+    const postalEntity = form.elements.namedItem(
+      "postalEntityId",
+    ) as HTMLSelectElement;
     const faceCurrency = form.elements.namedItem(
       "faceCurrencyCode",
     ) as HTMLInputElement;
     country.value = activeCountryCode;
+    postalEntity.value = activePostalEntityId;
     faceCurrency.value = activeDisplayCurrencyCode;
     setStatus("Stamp added to inventory.");
   }
@@ -174,6 +186,13 @@ export function StampInventory({
           <label htmlFor="stamp-name" className="block font-medium">Stamp name</label>
           <input id="stamp-name" name="name" aria-describedby={errors.name ? "stamp-name-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="stamp-name-error" message={errors.name} />
+        </div>
+        <div>
+          <label htmlFor="stamp-postal-entity" className="block font-medium">Postal entity</label>
+          <select id="stamp-postal-entity" name="postalEntityId" defaultValue={activePostalEntityId} aria-describedby={errors.postalEntityId ? "stamp-postal-entity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+            {postalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name} ({entity.countryCode})</option>)}
+          </select>
+          <FieldError id="stamp-postal-entity-error" message={errors.postalEntityId} />
         </div>
         <div>
           <label htmlFor="stamp-year" className="block font-medium">Year of issue (optional)</label>
@@ -232,7 +251,7 @@ export function StampInventory({
           {inventory.stamps.map((stamp) => (
             <li key={stamp.id} className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
               <h3 className="font-semibold">{stamp.name}{stamp.yearOfIssue ? ` (${stamp.yearOfIssue})` : ""}</h3>
-              <p>{stamp.countryCode} · {stamp.faceAmount} {stamp.faceCurrencyCode}</p>
+              <p>{stamp.postalEntity.name} ({stamp.countryCode}) · {stamp.faceAmount} {stamp.faceCurrencyCode}</p>
               <p>Owned: {stamp.quantityOwned}; annulled: {stamp.quantityAnnulled}; usable: {stamp.usableQuantity}</p>
               <p>{stamp.expired ? "Expired" : "Not expired"}</p>
               <p>Unit postage: {stamp.unitPostageValue ? <Money value={stamp.unitPostageValue} /> : "Unresolved"}</p>
