@@ -47,7 +47,7 @@ Set `DATABASE_URL` to a different database for each environment:
 | --- | --- |
 | Development | Copy `sample.env` to `.env`. The default is the ignored `data.db` file. |
 | Test | `pnpm test --run` creates a temporary database, applies every committed migration, and removes the database afterward. |
-| Production | Provision the database independently and store its connection URL in the deployment platform's environment settings. Do not upload a development or test database. |
+| Production | Provision persistent SQLite storage independently and store its file URL in the deployment platform's environment settings. Do not upload a development or test database. |
 
 Initialize an empty database, or apply all pending committed migrations to an
 existing database, with:
@@ -80,10 +80,12 @@ To inspect a development database:
 pnpm prisma studio
 ```
 
-SQLite is for local development only. Production storage must be provisioned
-separately from the application deployment before the migration command runs.
-Local database files match the `data.db*` ignore rule and are not committed or
-included as deployment inputs.
+The current Prisma schema uses SQLite in every environment. A production target
+must provide persistent SQLite storage outside the application deployment before
+the migration command runs. A target that provides PostgreSQL instead requires a
+matching Prisma provider, adapter, and migration set before deployment. Local
+database files match the `data.db*` ignore rule and are not committed or included
+as deployment inputs.
 
 ## Authentication
 
