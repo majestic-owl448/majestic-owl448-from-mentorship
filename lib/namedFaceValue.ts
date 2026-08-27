@@ -42,6 +42,24 @@ export function normalizeNamedFaceValueCode(code: string): string {
   return code.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+export async function searchNamedFaceValues(
+  countryCode: string,
+  query: string,
+) {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedQuery = normalizeNamedFaceValueCode(query);
+
+  return prisma.namedFaceValue.findMany({
+    where: {
+      countryCode: normalizedCountryCode,
+      normalizedCode: { contains: normalizedQuery },
+    },
+    select: { id: true, countryCode: true, displayCode: true },
+    orderBy: [{ normalizedCode: "asc" }, { id: "asc" }],
+    take: 20,
+  });
+}
+
 function calendarDateMilliseconds(value: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new RangeError(`Invalid calendar date: ${value}`);
@@ -62,35 +80,15 @@ function calendarDateMilliseconds(value: string): number {
   return date.getTime();
 }
 
-export async function resolveNamedFaceValue(
-  countryCode: string,
-  code: string,
+type NamedFaceValueWithSchedule = Prisma.NamedFaceValueGetPayload<{
+  include: { valueSchedule: { include: { values: true } } };
+}>;
+
+function resolveNamedFaceValueSchedule(
+  namedFaceValue: NamedFaceValueWithSchedule,
   localDate: string,
-): Promise<NamedFaceValueResolution> {
+): NamedFaceValueResolution {
   const localDateMilliseconds = calendarDateMilliseconds(localDate);
-  const normalizedCountryCode = normalizeCountryCode(countryCode);
-  const normalizedCode = normalizeNamedFaceValueCode(code);
-  const namedFaceValue = await prisma.namedFaceValue.findUnique({
-    where: {
-      countryCode_normalizedCode: {
-        countryCode: normalizedCountryCode,
-        normalizedCode,
-      },
-    },
-    include: {
-      valueSchedule: { include: { values: true } },
-    },
-  });
-
-  if (!namedFaceValue) {
-    return {
-      status: "UNRESOLVED",
-      reason: "MISSING_NAMED_FACE_VALUE",
-      countryCode: normalizedCountryCode,
-      normalizedCode,
-    };
-  }
-
   const datedValues = namedFaceValue.valueSchedule.values.map((value) => ({
     ...value,
     effectiveMilliseconds:
@@ -129,8 +127,8 @@ export async function resolveNamedFaceValue(
     return {
       status: "UNRESOLVED",
       reason: "MISSING_SCHEDULE_VALUE",
-      countryCode: normalizedCountryCode,
-      normalizedCode,
+      countryCode: namedFaceValue.countryCode,
+      normalizedCode: namedFaceValue.normalizedCode,
       nextChange,
       upcoming,
     };
@@ -146,4 +144,61 @@ export async function resolveNamedFaceValue(
     nextChange,
     upcoming,
   };
+}
+
+export async function resolveNamedFaceValue(
+  countryCode: string,
+  code: string,
+  localDate: string,
+): Promise<NamedFaceValueResolution> {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const normalizedCode = normalizeNamedFaceValueCode(code);
+  const namedFaceValue = await prisma.namedFaceValue.findUnique({
+    where: {
+      countryCode_normalizedCode: {
+        countryCode: normalizedCountryCode,
+        normalizedCode,
+      },
+    },
+    include: { valueSchedule: { include: { values: true } } },
+  });
+
+  if (!namedFaceValue) {
+    return {
+      status: "UNRESOLVED",
+      reason: "MISSING_NAMED_FACE_VALUE",
+      countryCode: normalizedCountryCode,
+      normalizedCode,
+    };
+  }
+
+  return resolveNamedFaceValueSchedule(namedFaceValue, localDate);
+}
+
+export async function resolveNamedFaceValueById(
+  namedFaceValueId: string,
+  countryCode: string,
+  localDate: string,
+): Promise<NamedFaceValueResolution> {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const namedFaceValue = await prisma.namedFaceValue.findUnique({
+    where: {
+      id_countryCode: {
+        id: namedFaceValueId,
+        countryCode: normalizedCountryCode,
+      },
+    },
+    include: { valueSchedule: { include: { values: true } } },
+  });
+
+  if (!namedFaceValue) {
+    return {
+      status: "UNRESOLVED",
+      reason: "MISSING_NAMED_FACE_VALUE",
+      countryCode: normalizedCountryCode,
+      normalizedCode: "",
+    };
+  }
+
+  return resolveNamedFaceValueSchedule(namedFaceValue, localDate);
 }

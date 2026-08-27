@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   formatMoney,
+  NamedFaceValueFields,
   StampInventory,
 } from "@/app/components/stampInventory";
 
@@ -24,6 +25,7 @@ describe("stamp inventory interface", () => {
       ["Postal entity", "stamp-postal-entity"],
       ["Stamp name", "stamp-name"],
       ["Year of issue (optional)", "stamp-year"],
+      ["Face value type", "face-value-type"],
       ["Monetary face amount", "face-amount"],
       ["Face currency", "face-currency"],
       ["Owned quantity", "owned-quantity"],
@@ -53,5 +55,27 @@ describe("stamp inventory interface", () => {
         currencyCode: "EUR",
       }),
     ).toContain("0.123456789012345678901");
+  });
+
+  it("labels named search and selection and requires a country first", () => {
+    const markup = renderToStaticMarkup(
+      <NamedFaceValueFields
+        countryCode=""
+        query="zona"
+        onQueryChange={() => undefined}
+        options={[
+          { id: "italy-b-zone-one", countryCode: "IT", displayCode: "B Zona 1" },
+        ]}
+        searchError="Named face values could not be loaded."
+        selectionError="Select a named face value."
+      />,
+    );
+
+    expect(markup).toContain('<label for="named-face-value-search"');
+    expect(markup).toContain('<label for="named-face-value"');
+    expect(markup).toContain('id="named-face-value-search"');
+    expect(markup).toContain('id="named-face-value"');
+    expect(markup.match(/disabled=""/g)).toHaveLength(2);
+    expect(markup).toContain('role="alert"');
   });
 });

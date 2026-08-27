@@ -7,12 +7,13 @@ import {
   requireActivePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
 import {
-  createMonetaryStamp,
-  listMonetaryStamps,
-  presentMonetaryStamp,
+  createStamp,
+  listStamps,
+  presentStamp,
+  StampNamedFaceValueError,
   StampPostalEntityError,
 } from "@/lib/stampInventory";
-import { validateNewMonetaryStamp } from "@/lib/stampValidation";
+import { validateNewStamp } from "@/lib/stampValidation";
 import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     try {
       const { userId, activePostalEntitySetting } =
         await authenticatedContext(session);
-      const stamps = await listMonetaryStamps(
+      const stamps = await listStamps(
         userId,
         activePostalEntitySetting,
       );
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const validation = validateNewMonetaryStamp(body);
+    const validation = validateNewStamp(body);
     if (validation.errors) {
       return NextResponse.json({ errors: validation.errors }, { status: 400 });
     }
@@ -97,10 +98,10 @@ export async function POST(request: NextRequest) {
     try {
       const { userId, activePostalEntitySetting } =
         await authenticatedContext(session);
-      const created = await createMonetaryStamp(userId, validation.data);
+      const created = await createStamp(userId, validation.data);
       return NextResponse.json(
         {
-          stamp: await presentMonetaryStamp(
+          stamp: await presentStamp(
             created,
             activePostalEntitySetting,
           ),
@@ -114,6 +115,12 @@ export async function POST(request: NextRequest) {
       if (caught instanceof StampPostalEntityError) {
         return NextResponse.json(
           { errors: { postalEntityId: caught.message } },
+          { status: 400 },
+        );
+      }
+      if (caught instanceof StampNamedFaceValueError) {
+        return NextResponse.json(
+          { errors: { namedFaceValueId: caught.message } },
           { status: 400 },
         );
       }

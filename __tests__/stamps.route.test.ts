@@ -26,12 +26,14 @@ vi.mock("supertokens-node/nextjs", () => ({
 }));
 
 import { GET, POST } from "@/app/api/stamps/route";
+import { GET as SEARCH_NAMED_FACE_VALUES } from "@/app/api/named-face-values/route";
 
 const validStamp = {
   countryCode: "IT",
   postalEntityId: "first-user-postal-entity",
   name: "Italian monetary stamp",
   yearOfIssue: "",
+  faceValueType: "MONETARY",
   faceAmount: "2.50",
   faceCurrencyCode: "EUR",
   manualPostageAmount: "",
@@ -41,12 +43,28 @@ const validStamp = {
   expired: false,
 };
 
+const validNamedStamp = {
+  ...validStamp,
+  name: "Italian named stamp",
+  faceValueType: "NAMED",
+  faceAmount: "",
+  faceCurrencyCode: "",
+  namedFaceValueId: "italy-b-zone-one",
+};
+
 function request(method: "GET" | "POST", body?: unknown) {
   return new NextRequest("http://localhost/api/stamps", {
     method,
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
   });
+}
+
+function namedFaceValueSearch(countryCode = "", query = "") {
+  const parameters = new URLSearchParams({ countryCode, query });
+  return new NextRequest(
+    `http://localhost/api/named-face-values?${parameters}`,
+  );
 }
 
 async function createActiveSetting(
@@ -79,11 +97,39 @@ async function createActiveSetting(
   });
 }
 
+async function createNamedFaceValue(
+  id: string,
+  countryCode: string,
+  displayCode: string,
+  amount?: string,
+) {
+  return prisma.valueSchedule.create({
+    data: {
+      id: `${id}-schedule`,
+      countryCode,
+      currencyCode: "EUR",
+      values: amount
+        ? { create: { id: `${id}-value`, amount } }
+        : undefined,
+      namedFaceValues: {
+        create: {
+          id,
+          displayCode,
+          normalizedCode: displayCode.toLowerCase(),
+        },
+      },
+    },
+  });
+}
+
 describe("stamp inventory API", () => {
   beforeEach(async () => {
     auth.userId = null;
     await prisma.currencyConversion.deleteMany();
     await prisma.stampInventoryEntry.deleteMany();
+    await prisma.namedFaceValue.deleteMany();
+    await prisma.valueScheduleValue.deleteMany();
+    await prisma.valueSchedule.deleteMany();
     await prisma.userPostalEntitySetting.deleteMany();
     await prisma.postalEntity.deleteMany();
     await prisma.userProfile.deleteMany();
@@ -101,6 +147,40 @@ describe("stamp inventory API", () => {
     expect((await GET(request("GET"))).status).toBe(401);
     expect((await POST(request("POST", validStamp))).status).toBe(401);
     expect(await prisma.stampInventoryEntry.count()).toBe(0);
+  });
+
+  it("requires authentication and a country for named face value search", async () => {
+    expect(
+      (await SEARCH_NAMED_FACE_VALUES(namedFaceValueSearch("IT"))).status,
+    ).toBe(401);
+
+    auth.userId = "first-user";
+    const response = await SEARCH_NAMED_FACE_VALUES(namedFaceValueSearch());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      errors: { countryCode: "Select a country before searching." },
+    });
+  });
+
+  it("searches named face values by country and normalized text", async () => {
+    auth.userId = "first-user";
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1", "1.35");
+    await createNamedFaceValue("swiss-b-zone-one", "CH", "B Zona 1", "2.00");
+
+    const response = await SEARCH_NAMED_FACE_VALUES(
+      namedFaceValueSearch("it", "  B   ZONA "),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      namedFaceValues: [
+        {
+          id: "italy-b-zone-one",
+          countryCode: "IT",
+          displayCode: "B Zona 1",
+        },
+      ],
+    });
   });
 
   it("creates and retrieves a stamp in the active display currency", async () => {
@@ -138,6 +218,131 @@ describe("stamp inventory API", () => {
       displayCurrencyCode: "EUR",
       stamps: [{ name: "Italian monetary stamp" }],
     });
+  });
+
+  it("stores a named face value reference and resolves its schedule", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1", "1.35");
+
+    const response = await POST(request("POST", validNamedStamp));
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        faceValueType: "NAMED",
+        faceAmount: null,
+        faceCurrencyCode: null,
+        namedFaceValueId: "italy-b-zone-one",
+        namedFaceValue: {
+          id: "italy-b-zone-one",
+          countryCode: "IT",
+          displayCode: "B Zona 1",
+        },
+        unitPostageValue: {
+          amount: "1.35",
+          currencyCode: "EUR",
+          source: "NAMED_SCHEDULE",
+        },
+      },
+    });
+    expect(await prisma.stampInventoryEntry.findFirst()).toMatchObject({
+      namedFaceValueId: "italy-b-zone-one",
+      faceAmount: null,
+      faceCurrencyCode: null,
+    });
+  });
+
+  it("recalculates a named stamp after its referenced schedule changes", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1", "1.35");
+    await POST(request("POST", validNamedStamp));
+    const storedBefore = await prisma.stampInventoryEntry.findFirstOrThrow();
+
+    await prisma.valueScheduleValue.update({
+      where: { id: "italy-b-zone-one-value" },
+      data: { amount: "1.40" },
+    });
+    const response = await GET(request("GET"));
+    const storedAfter = await prisma.stampInventoryEntry.findFirstOrThrow();
+
+    expect(await response.json()).toMatchObject({
+      stamps: [
+        {
+          namedFaceValueId: "italy-b-zone-one",
+          unitPostageValue: {
+            amount: "1.4",
+            source: "NAMED_SCHEDULE",
+          },
+        },
+      ],
+    });
+    expect(storedAfter).toEqual(storedBefore);
+  });
+
+  it("uses a manual fallback when a named schedule has no current value", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1");
+
+    const response = await POST(
+      request("POST", {
+        ...validNamedStamp,
+        manualPostageAmount: "1.25",
+        manualPostageCurrencyCode: "EUR",
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: {
+          amount: "1.25",
+          currencyCode: "EUR",
+          source: "MANUAL_FALLBACK",
+        },
+      },
+    });
+  });
+
+  it("prefers an eligible named schedule over the manual fallback", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("italy-b-zone-one", "IT", "B Zona 1", "1.35");
+
+    const response = await POST(
+      request("POST", {
+        ...validNamedStamp,
+        manualPostageAmount: "9.99",
+        manualPostageCurrencyCode: "EUR",
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        unitPostageValue: { amount: "1.35", source: "NAMED_SCHEDULE" },
+      },
+    });
+  });
+
+  it("rejects unavailable and country-mismatched named face values", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+    await createNamedFaceValue("swiss-a-post", "CH", "A Post", "1.20");
+
+    for (const namedFaceValueId of ["unavailable-pending-value", "swiss-a-post"]) {
+      const response = await POST(
+        request("POST", { ...validNamedStamp, namedFaceValueId }),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        errors: {
+          namedFaceValueId:
+            "Select a named face value available for the stamp country.",
+        },
+      });
+    }
+    expect(await prisma.stampInventoryEntry.count()).toBe(0);
   });
 
   it("uses an approved conversion without floating-point artifacts", async () => {
