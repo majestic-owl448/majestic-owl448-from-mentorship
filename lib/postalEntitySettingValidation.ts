@@ -1,6 +1,9 @@
 import countries from "i18n-iso-countries";
 import englishCountries from "i18n-iso-countries/langs/en.json";
-import type { InitialPostalEntitySettingInput } from "@/lib/postalEntitySettings";
+import type {
+  NewPostalEntitySettingInput,
+  PostalEntitySettingValues,
+} from "@/lib/postalEntitySettings";
 
 countries.registerLocale(englishCountries);
 
@@ -16,7 +19,11 @@ export type PostalEntitySettingFieldErrors = Partial<
 >;
 
 type ValidationResult =
-  | { data: InitialPostalEntitySettingInput; errors?: never }
+  | { data: NewPostalEntitySettingInput; errors?: never }
+  | { data?: never; errors: PostalEntitySettingFieldErrors };
+
+type ValuesValidationResult =
+  | { data: PostalEntitySettingValues; errors?: never }
   | { data?: never; errors: PostalEntitySettingFieldErrors };
 
 const supportedCurrencies = new Set(
@@ -117,6 +124,28 @@ export function validateInitialPostalEntitySetting(
       displayCurrencyCode,
       timeZone,
       timeZoneMode: timeZoneMode as "SYSTEM" | "CUSTOM",
+    },
+  };
+}
+
+export function validatePostalEntitySettingValues(
+  input: unknown
+): ValuesValidationResult {
+  const validation = validateInitialPostalEntitySetting({
+    ...(typeof input === "object" && input !== null ? input : {}),
+    postalEntityName: "Existing entity",
+    countryCode: "US",
+  });
+
+  if (validation.errors) {
+    return { errors: validation.errors };
+  }
+
+  return {
+    data: {
+      displayCurrencyCode: validation.data.displayCurrencyCode,
+      timeZone: validation.data.timeZone,
+      timeZoneMode: validation.data.timeZoneMode,
     },
   };
 }

@@ -38,6 +38,8 @@ vi.mock("supertokens-node/nextjs", () => ({
 
 import { GET as GET_SETTINGS } from "@/app/api/settings/route";
 import { POST } from "@/app/api/settings/postal-entities/route";
+import { PATCH as PATCH_SETTING } from "@/app/api/settings/postal-entities/[settingId]/route";
+import { PATCH as PATCH_ACTIVE } from "@/app/api/settings/active-postal-entity/route";
 import { GET as GET_INVENTORY } from "@/app/api/inventory/route";
 
 const validSetting = {
@@ -88,7 +90,7 @@ describe("postal entity settings API", () => {
 
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
-      activePostalEntitySetting: {
+      postalEntitySetting: {
         userId: "first-user",
         displayCurrencyCode: "EUR",
         timeZone: "Europe/Rome",
@@ -172,9 +174,10 @@ describe("postal entity settings API", () => {
     expect(await prisma.userProfile.count()).toBe(0);
   });
 
-  it("does not replace an existing initial setting", async () => {
+  it("adds a second setting without replacing the active setting", async () => {
     auth.userId = "first-user";
-    await POST(postRequest(validSetting));
+    const firstResponse = await POST(postRequest(validSetting));
+    const first = (await firstResponse.json()).postalEntitySetting;
 
     const response = await POST(
       postRequest({
@@ -183,11 +186,13 @@ describe("postal entity settings API", () => {
       })
     );
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(201);
     await expect(
       prisma.userPostalEntitySetting.count({ where: { userId: "first-user" } })
-    ).resolves.toBe(1);
-    await expect(prisma.postalEntity.count()).resolves.toBe(1);
+    ).resolves.toBe(2);
+    await expect(
+      prisma.userProfile.findUniqueOrThrow({ where: { id: "first-user" } })
+    ).resolves.toMatchObject({ activePostalEntitySettingId: first.id });
   });
 
   it("keeps pending submissions isolated by authenticated user", async () => {
@@ -245,5 +250,136 @@ describe("postal entity settings API", () => {
         },
       },
     });
+  });
+
+  it("lists, edits, and activates settings without cross-setting changes", async () => {
+    auth.userId = "first-user";
+    const first = (await (await POST(postRequest(validSetting))).json())
+      .postalEntitySetting;
+    const second = (
+      await (
+        await POST(
+          postRequest({
+            ...validSetting,
+            postalEntityName: "Vatican Post",
+            displayCurrencyCode: "USD",
+          })
+        )
+      ).json()
+    ).postalEntitySetting;
+
+    const editResponse = await PATCH_SETTING(
+      new NextRequest(
+        `http://localhost/api/settings/postal-entities/${second.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            displayCurrencyCode: "CHF",
+            timeZone: "Europe/Zurich",
+            timeZoneMode: "CUSTOM",
+          }),
+        }
+      ),
+      { params: Promise.resolve({ settingId: second.id }) }
+    );
+    expect(editResponse.status).toBe(200);
+
+    const activateResponse = await PATCH_ACTIVE(
+      new NextRequest("http://localhost/api/settings/active-postal-entity", {
+        method: "PATCH",
+        body: JSON.stringify({ settingId: second.id }),
+      })
+    );
+    expect(activateResponse.status).toBe(200);
+
+    const response = await GET_SETTINGS(
+      new NextRequest("http://localhost/api/settings")
+    );
+    expect(await response.json()).toMatchObject({
+      activePostalEntitySetting: {
+        id: second.id,
+        displayCurrencyCode: "CHF",
+        timeZone: "Europe/Zurich",
+      },
+      postalEntitySettings: expect.arrayContaining([
+        expect.objectContaining({
+          id: first.id,
+          displayCurrencyCode: "EUR",
+          timeZone: "Europe/Rome",
+        }),
+        expect.objectContaining({
+          id: second.id,
+          displayCurrencyCode: "CHF",
+          timeZone: "Europe/Zurich",
+        }),
+      ]),
+    });
+  });
+
+  it("rejects duplicate, foreign, and private pending entity selections", async () => {
+    auth.userId = "first-user";
+    const first = (await (await POST(postRequest(validSetting))).json())
+      .postalEntitySetting;
+    const duplicate = await POST(
+      postRequest({
+        postalEntityId: first.postalEntityId,
+        displayCurrencyCode: "USD",
+        timeZone: "America/New_York",
+        timeZoneMode: "CUSTOM",
+      })
+    );
+    expect(duplicate.status).toBe(409);
+
+    auth.userId = "second-user";
+    const second = (await (await POST(postRequest(validSetting))).json())
+      .postalEntitySetting;
+    const privatePending = await POST(
+      postRequest({
+        postalEntityId: first.postalEntityId,
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "SYSTEM",
+      })
+    );
+    expect(privatePending.status).toBe(404);
+
+    const foreignActivation = await PATCH_ACTIVE(
+      new NextRequest("http://localhost/api/settings/active-postal-entity", {
+        method: "PATCH",
+        body: JSON.stringify({ settingId: first.id }),
+      })
+    );
+    expect(foreignActivation.status).toBe(404);
+    await expect(
+      prisma.userProfile.findUniqueOrThrow({ where: { id: "second-user" } })
+    ).resolves.toMatchObject({ activePostalEntitySettingId: second.id });
+  });
+
+  it("uses the active setting timezone for the inventory local date", async () => {
+    auth.userId = "first-user";
+    await POST(
+      postRequest({
+        ...validSetting,
+        timeZone: "America/Los_Angeles",
+        timeZoneMode: "CUSTOM",
+      })
+    );
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:30:00.000Z"));
+    try {
+      const response = await GET_INVENTORY(
+        new NextRequest("http://localhost/api/inventory")
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        localDate: "2025-12-31",
+        activePostalEntitySetting: {
+          timeZone: "America/Los_Angeles",
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

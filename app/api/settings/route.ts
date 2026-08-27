@@ -3,6 +3,8 @@ import supertokens from "supertokens-node";
 import { withSession } from "supertokens-node/nextjs";
 import { ensureSuperTokensInit } from "@/app/config/backend";
 import {
+  listPostalEntitySettings,
+  localDateInTimeZone,
   PostalEntitySettingRequiredError,
   requireActivePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
@@ -39,9 +41,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const postalEntitySettings = await listPostalEntitySettings(userId);
+
     return NextResponse.json({
       complete: activePostalEntitySetting !== null,
       activePostalEntitySetting,
+      activeLocalDate:
+        activePostalEntitySetting === null
+          ? null
+          : localDateInTimeZone(activePostalEntitySetting.timeZone),
+      postalEntitySettings,
       options: {
         countries: countryOptions(),
         currencies: currencyOptions(),
