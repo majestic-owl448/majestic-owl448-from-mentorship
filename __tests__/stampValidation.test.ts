@@ -105,6 +105,81 @@ describe("monetary stamp validation", () => {
     });
   });
 
+  it("accepts zero as the manual value for a stamp without a face value", () => {
+    expect(
+      validateNewStamp({
+        ...validStamp,
+        faceValueType: "NONE",
+        faceAmount: "",
+        faceCurrencyCode: "",
+        manualPostageAmount: "0",
+        manualPostageCurrencyCode: "EUR",
+      }),
+    ).toMatchObject({
+      data: {
+        faceValueType: "NONE",
+        faceAmount: null,
+        faceCurrencyCode: null,
+        namedFaceValueId: null,
+        manualPostageAmount: "0",
+        manualPostageCurrencyCode: "EUR",
+      },
+    });
+  });
+
+  it("requires a manual amount and currency when no face value exists", () => {
+    expect(
+      validateNewStamp({
+        ...validStamp,
+        faceValueType: "NONE",
+        faceAmount: "",
+        faceCurrencyCode: "",
+      }),
+    ).toMatchObject({
+      errors: {
+        manualPostageAmount: "Enter the manual postage amount.",
+        manualPostageCurrencyCode: "Select the manual postage currency.",
+      },
+    });
+  });
+
+  it("rejects a negative manual value", () => {
+    expect(
+      validateNewStamp({
+        ...validStamp,
+        faceValueType: "NONE",
+        faceAmount: "",
+        faceCurrencyCode: "",
+        manualPostageAmount: "-0.01",
+        manualPostageCurrencyCode: "EUR",
+      }),
+    ).toMatchObject({
+      errors: {
+        manualPostageAmount: "Enter a non-negative decimal amount.",
+      },
+    });
+  });
+
+  it("rejects face-value fields when no face value exists", () => {
+    expect(
+      validateNewStamp({
+        ...validStamp,
+        faceValueType: "NONE",
+        namedFaceValueId: "italy-b-zone-one",
+        manualPostageAmount: "1",
+        manualPostageCurrencyCode: "EUR",
+      }),
+    ).toMatchObject({
+      errors: {
+        faceAmount: "Do not enter an amount for a stamp without a face value.",
+        faceCurrencyCode:
+          "Do not enter a currency for a stamp without a face value.",
+        namedFaceValueId:
+          "Do not select a named face value for a stamp without a face value.",
+      },
+    });
+  });
+
   it("accepts a named face value reference without copied monetary fields", () => {
     expect(
       validateNewStamp({

@@ -52,6 +52,16 @@ const validNamedStamp = {
   namedFaceValueId: "italy-b-zone-one",
 };
 
+const validNoFaceValueStamp = {
+  ...validStamp,
+  name: "Italian stamp without a face value",
+  faceValueType: "NONE",
+  faceAmount: "",
+  faceCurrencyCode: "",
+  manualPostageAmount: "0",
+  manualPostageCurrencyCode: "EUR",
+};
+
 function request(method: "GET" | "POST", body?: unknown) {
   return new NextRequest("http://localhost/api/stamps", {
     method,
@@ -250,6 +260,86 @@ describe("stamp inventory API", () => {
       namedFaceValueId: "italy-b-zone-one",
       faceAmount: null,
       faceCurrencyCode: null,
+    });
+  });
+
+  it("stores and resolves a zero manual value for a stamp without a face value", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user");
+
+    const response = await POST(request("POST", validNoFaceValueStamp));
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      stamp: {
+        countryCode: "IT",
+        faceValueType: "NONE",
+        faceAmount: null,
+        faceCurrencyCode: null,
+        namedFaceValueId: null,
+        manualPostageAmount: "0",
+        manualPostageCurrencyCode: "EUR",
+        unitPostageValue: {
+          amount: "0",
+          currencyCode: "EUR",
+          source: "MANUAL_FALLBACK",
+        },
+        totalPostageValue: { amount: "0", currencyCode: "EUR" },
+      },
+    });
+    expect(await prisma.stampInventoryEntry.findFirst()).toMatchObject({
+      faceValueType: "NONE",
+      manualPostageAmount: "0",
+      manualPostageCurrencyCode: "EUR",
+    });
+  });
+
+  it("preserves a manual currency when the display currency changes", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user", "IT", "GBP");
+    await POST(
+      request("POST", {
+        ...validNoFaceValueStamp,
+        manualPostageAmount: "2",
+        manualPostageCurrencyCode: "GBP",
+      }),
+    );
+
+    await prisma.userPostalEntitySetting.updateMany({
+      where: { userId: "first-user" },
+      data: { displayCurrencyCode: "EUR" },
+    });
+    const response = await GET(request("GET"));
+
+    expect(await response.json()).toMatchObject({
+      displayCurrencyCode: "EUR",
+      stamps: [
+        {
+          manualPostageAmount: "2",
+          manualPostageCurrencyCode: "GBP",
+          unitPostageValue: null,
+          totalPostageValue: null,
+        },
+      ],
+    });
+  });
+
+  it("reports an unresolved manual currency separately from a zero value", async () => {
+    auth.userId = "first-user";
+    await createActiveSetting("first-user", "IT", "GBP");
+    await POST(request("POST", validNoFaceValueStamp));
+
+    const response = await GET(request("GET"));
+
+    expect(await response.json()).toMatchObject({
+      stamps: [
+        {
+          manualPostageAmount: "0",
+          manualPostageCurrencyCode: "EUR",
+          unitPostageValue: null,
+          totalPostageValue: null,
+        },
+      ],
     });
   });
 
