@@ -9,6 +9,7 @@ export type StampField =
   | "faceAmount"
   | "faceCurrencyCode"
   | "namedFaceValueId"
+  | "namedFaceValueProposalId"
   | "manualPostageAmount"
   | "manualPostageCurrencyCode"
   | "quantityOwned"
@@ -24,6 +25,7 @@ export type NewStampInput = {
   faceAmount: string | null;
   faceCurrencyCode: string | null;
   namedFaceValueId: string | null;
+  namedFaceValueProposalId: string | null;
   manualPostageAmount: string | null;
   manualPostageCurrencyCode: string | null;
   quantityOwned: number;
@@ -65,6 +67,10 @@ export function validateNewStamp(input: unknown): ValidationResult {
     "faceCurrencyCode",
   ).toUpperCase();
   const namedFaceValueId = stringValue(record, "namedFaceValueId");
+  const namedFaceValueProposalId = stringValue(
+    record,
+    "namedFaceValueProposalId",
+  );
   const manualPostageAmount = stringValue(record, "manualPostageAmount");
   const manualPostageCurrencyCode = stringValue(
     record,
@@ -109,8 +115,12 @@ export function validateNewStamp(input: unknown): ValidationResult {
       errors.namedFaceValueId =
         "Do not select a named face value for a monetary stamp.";
     }
+    if (namedFaceValueProposalId) {
+      errors.namedFaceValueProposalId =
+        "Do not select a pending named definition for a monetary stamp.";
+    }
   } else if (faceValueType === "NAMED") {
-    if (!namedFaceValueId) {
+    if ((namedFaceValueId === "") === (namedFaceValueProposalId === "")) {
       errors.namedFaceValueId = "Select a named face value.";
     }
     if (faceAmount) {
@@ -131,6 +141,10 @@ export function validateNewStamp(input: unknown): ValidationResult {
     if (namedFaceValueId) {
       errors.namedFaceValueId =
         "Do not select a named face value for a stamp without a face value.";
+    }
+    if (namedFaceValueProposalId) {
+      errors.namedFaceValueProposalId =
+        "Do not select a pending named definition for a stamp without a face value.";
     }
   }
 
@@ -201,7 +215,14 @@ export function validateNewStamp(input: unknown): ValidationResult {
       faceValueType: faceValueType as "MONETARY" | "NAMED" | "NONE",
       faceAmount: faceValueType === "MONETARY" ? faceAmount : null,
       faceCurrencyCode: faceValueType === "MONETARY" ? faceCurrencyCode : null,
-      namedFaceValueId: faceValueType === "NAMED" ? namedFaceValueId : null,
+      namedFaceValueId:
+        faceValueType === "NAMED" && namedFaceValueId
+          ? namedFaceValueId
+          : null,
+      namedFaceValueProposalId:
+        faceValueType === "NAMED" && namedFaceValueProposalId
+          ? namedFaceValueProposalId
+          : null,
       manualPostageAmount: hasManualAmount ? manualPostageAmount : null,
       manualPostageCurrencyCode: hasManualCurrency
         ? manualPostageCurrencyCode

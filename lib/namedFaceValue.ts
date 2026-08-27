@@ -45,19 +45,51 @@ export function normalizeNamedFaceValueCode(code: string): string {
 export async function searchNamedFaceValues(
   countryCode: string,
   query: string,
+  userId?: string,
 ) {
   const normalizedCountryCode = normalizeCountryCode(countryCode);
   const normalizedQuery = normalizeNamedFaceValueCode(query);
 
-  return prisma.namedFaceValue.findMany({
-    where: {
-      countryCode: normalizedCountryCode,
-      normalizedCode: { contains: normalizedQuery },
-    },
-    select: { id: true, countryCode: true, displayCode: true },
-    orderBy: [{ normalizedCode: "asc" }, { id: "asc" }],
-    take: 20,
-  });
+  const [approved, pending] = await Promise.all([
+    prisma.namedFaceValue.findMany({
+      where: {
+        countryCode: normalizedCountryCode,
+        normalizedCode: { contains: normalizedQuery },
+      },
+      select: { id: true, countryCode: true, displayCode: true },
+      orderBy: [{ normalizedCode: "asc" }, { id: "asc" }],
+      take: 20,
+    }),
+    userId
+      ? prisma.namedFaceValueDefinitionProposal.findMany({
+          where: {
+            submittedById: userId,
+            status: "PENDING",
+            countryCode: normalizedCountryCode,
+            normalizedCode: { contains: normalizedQuery },
+          },
+          select: {
+            id: true,
+            countryCode: true,
+            displayCode: true,
+            status: true,
+          },
+          orderBy: [{ normalizedCode: "asc" }, { id: "asc" }],
+          take: 20,
+        })
+      : [],
+  ]);
+
+  return [
+    ...approved,
+    ...pending.map((proposal) => ({
+      id: proposal.id,
+      countryCode: proposal.countryCode,
+      displayCode: proposal.displayCode,
+      namedFaceValueProposalId: proposal.id,
+      proposalStatus: proposal.status,
+    })),
+  ];
 }
 
 function calendarDateMilliseconds(value: string): number {
@@ -80,34 +112,58 @@ function calendarDateMilliseconds(value: string): number {
   return date.getTime();
 }
 
-type NamedFaceValueWithSchedule = Prisma.NamedFaceValueGetPayload<{
-  include: { valueSchedule: { include: { values: true } } };
-}>;
+type SchedulableNamedFaceValue = {
+  id: string;
+  countryCode: string;
+  displayCode: string;
+  normalizedCode: string;
+  currencyCode: string;
+  values: Array<{
+    id: string;
+    amount: string;
+    effectiveOn: string | null;
+    eligibleOn: string | null;
+    pending: boolean;
+    createdAt: Date;
+  }>;
+};
 
 function resolveNamedFaceValueSchedule(
-  namedFaceValue: NamedFaceValueWithSchedule,
+  namedFaceValue: SchedulableNamedFaceValue,
   localDate: string,
 ): NamedFaceValueResolution {
   const localDateMilliseconds = calendarDateMilliseconds(localDate);
-  const datedValues = namedFaceValue.valueSchedule.values.map((value) => ({
+  const datedValues = namedFaceValue.values.map((value) => ({
     ...value,
     effectiveMilliseconds:
-      value.effectiveOn === null
+      value.eligibleOn === null
         ? Number.NEGATIVE_INFINITY
-        : calendarDateMilliseconds(value.effectiveOn),
+        : calendarDateMilliseconds(value.eligibleOn),
   }));
+  const precedence = (
+    left: (typeof datedValues)[number],
+    right: (typeof datedValues)[number],
+  ) =>
+    right.effectiveMilliseconds - left.effectiveMilliseconds ||
+    Number(right.pending) - Number(left.pending) ||
+    right.createdAt.getTime() - left.createdAt.getTime() ||
+    right.id.localeCompare(left.id);
   const currentValue = datedValues
     .filter((value) => value.effectiveMilliseconds <= localDateMilliseconds)
-    .sort(
-      (left, right) =>
-        right.effectiveMilliseconds - left.effectiveMilliseconds,
-    )[0];
+    .sort(precedence)[0];
 
   const nextValue = datedValues
-    .filter((value) => value.effectiveMilliseconds > localDateMilliseconds)
+    .filter(
+      (value) =>
+        value.effectiveOn !== null &&
+        value.effectiveMilliseconds > localDateMilliseconds,
+    )
     .sort(
       (left, right) =>
-        left.effectiveMilliseconds - right.effectiveMilliseconds,
+        left.effectiveMilliseconds - right.effectiveMilliseconds ||
+        Number(right.pending) - Number(left.pending) ||
+        right.createdAt.getTime() - left.createdAt.getTime() ||
+        right.id.localeCompare(left.id),
     )[0];
   const daysUntil = nextValue
     ? (nextValue.effectiveMilliseconds - localDateMilliseconds) / 86_400_000
@@ -116,7 +172,7 @@ function resolveNamedFaceValueSchedule(
     nextValue && daysUntil !== null
       ? {
           amount: new Prisma.Decimal(nextValue.amount),
-          currencyCode: namedFaceValue.valueSchedule.currencyCode,
+          currencyCode: namedFaceValue.currencyCode,
           effectiveOn: nextValue.effectiveOn as string,
           daysUntil,
         }
@@ -139,7 +195,7 @@ function resolveNamedFaceValueSchedule(
     namedFaceValueId: namedFaceValue.id,
     displayCode: namedFaceValue.displayCode,
     amount: new Prisma.Decimal(currentValue.amount),
-    currencyCode: namedFaceValue.valueSchedule.currencyCode,
+    currencyCode: namedFaceValue.currencyCode,
     effectiveOn: currentValue.effectiveOn,
     nextChange,
     upcoming,
@@ -150,6 +206,7 @@ export async function resolveNamedFaceValue(
   countryCode: string,
   code: string,
   localDate: string,
+  userId?: string,
 ): Promise<NamedFaceValueResolution> {
   const normalizedCountryCode = normalizeCountryCode(countryCode);
   const normalizedCode = normalizeNamedFaceValueCode(code);
@@ -172,13 +229,17 @@ export async function resolveNamedFaceValue(
     };
   }
 
-  return resolveNamedFaceValueSchedule(namedFaceValue, localDate);
+  return resolveNamedFaceValueSchedule(
+    await schedulableApprovedDefinition(namedFaceValue, userId),
+    localDate,
+  );
 }
 
 export async function resolveNamedFaceValueById(
   namedFaceValueId: string,
   countryCode: string,
   localDate: string,
+  userId?: string,
 ): Promise<NamedFaceValueResolution> {
   const normalizedCountryCode = normalizeCountryCode(countryCode);
   const namedFaceValue = await prisma.namedFaceValue.findUnique({
@@ -200,5 +261,118 @@ export async function resolveNamedFaceValueById(
     };
   }
 
-  return resolveNamedFaceValueSchedule(namedFaceValue, localDate);
+  return resolveNamedFaceValueSchedule(
+    await schedulableApprovedDefinition(namedFaceValue, userId),
+    localDate,
+  );
+}
+
+type ApprovedDefinition = Prisma.NamedFaceValueGetPayload<{
+  include: { valueSchedule: { include: { values: true } } };
+}>;
+
+async function pendingValues(
+  userId: string | undefined,
+  namedFaceValueId: string | null,
+  definitionProposalId: string | null,
+) {
+  if (!userId) {
+    return [];
+  }
+
+  return prisma.namedFaceValueValueProposal.findMany({
+    where: {
+      submittedById: userId,
+      status: "PENDING",
+      OR: [
+        ...(namedFaceValueId ? [{ namedFaceValueId }] : []),
+        ...(definitionProposalId ? [{ definitionProposalId }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      amount: true,
+      effectiveOn: true,
+      eligibleOn: true,
+      createdAt: true,
+    },
+  });
+}
+
+async function schedulableApprovedDefinition(
+  definition: ApprovedDefinition,
+  userId?: string,
+): Promise<SchedulableNamedFaceValue> {
+  const proposals = await pendingValues(userId, definition.id, null);
+  return {
+    id: definition.id,
+    countryCode: definition.countryCode,
+    displayCode: definition.displayCode,
+    normalizedCode: definition.normalizedCode,
+    currencyCode: definition.valueSchedule.currencyCode,
+    values: [
+      ...definition.valueSchedule.values.map((value) => ({
+        ...value,
+        eligibleOn: value.effectiveOn,
+        pending: false,
+      })),
+      ...proposals.map((value) => ({ ...value, pending: true })),
+    ],
+  };
+}
+
+export async function resolveNamedFaceValueProposalById(
+  proposalId: string,
+  countryCode: string,
+  localDate: string,
+  userId: string,
+): Promise<NamedFaceValueResolution> {
+  const normalizedCountryCode = normalizeCountryCode(countryCode);
+  const proposal = await prisma.namedFaceValueDefinitionProposal.findFirst({
+    where: {
+      id: proposalId,
+      countryCode: normalizedCountryCode,
+      submittedById: userId,
+      status: "PENDING",
+    },
+    include: {
+      targetNamedFaceValue: {
+        include: { valueSchedule: { include: { values: true } } },
+      },
+    },
+  });
+  if (!proposal) {
+    return {
+      status: "UNRESOLVED",
+      reason: "MISSING_NAMED_FACE_VALUE",
+      countryCode: normalizedCountryCode,
+      normalizedCode: "",
+    };
+  }
+
+  const proposals = await pendingValues(
+    userId,
+    proposal.targetNamedFaceValueId,
+    proposal.id,
+  );
+  const approvedValues =
+    proposal.targetNamedFaceValue?.valueSchedule.values ?? [];
+  return resolveNamedFaceValueSchedule(
+    {
+      id: proposal.id,
+      countryCode: proposal.countryCode,
+      displayCode: proposal.displayCode,
+      normalizedCode: proposal.normalizedCode,
+      currencyCode: proposal.currencyCode,
+      values: [
+        ...approvedValues.map((value) => ({
+          ...value,
+          eligibleOn: value.effectiveOn,
+          pending: false,
+        })),
+        ...proposals.map((value) => ({ ...value, pending: true })),
+      ],
+    },
+    localDate,
+  );
 }

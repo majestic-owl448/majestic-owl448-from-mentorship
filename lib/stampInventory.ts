@@ -3,7 +3,11 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { prisma } from "@/lib/db";
 import { addExactDecimals, multiplyExactDecimals } from "@/lib/decimal";
-import { resolveNamedFaceValueById } from "@/lib/namedFaceValue";
+import {
+  resolveNamedFaceValueById,
+  resolveNamedFaceValueProposalById,
+  type NamedFaceValueResolution,
+} from "@/lib/namedFaceValue";
 import { localDateInTimeZone } from "@/lib/postalEntitySettings";
 import type { NewStampInput } from "@/lib/stampValidation";
 import type { StampUpdateInput } from "@/lib/stampUpdateValidation";
@@ -27,7 +31,11 @@ type ResolvedValue = {
 };
 
 type StampWithPostalEntity = Prisma.StampInventoryEntryGetPayload<{
-  include: { postalEntity: true; namedFaceValue: true };
+  include: {
+    postalEntity: true;
+    namedFaceValue: true;
+    namedFaceValueProposal: true;
+  };
 }>;
 
 export class StampPostalEntityError extends Error {
@@ -54,6 +62,7 @@ export class StampNotFoundError extends Error {
 async function resolveUnitPostageValue(
   stamp: StampInventoryEntry,
   activeCountry: ActiveCountry,
+  namedValue: NamedFaceValueResolution | null,
 ): Promise<ResolvedValue | null> {
   if (stamp.countryCode !== activeCountry.postalEntity.countryCode) {
     return {
@@ -92,12 +101,7 @@ async function resolveUnitPostageValue(
     }
   }
 
-  if (stamp.faceValueType === "NAMED" && stamp.namedFaceValueId) {
-    const namedValue = await resolveNamedFaceValueById(
-      stamp.namedFaceValueId,
-      stamp.countryCode,
-      localDateInTimeZone(activeCountry.timeZone),
-    );
+  if (stamp.faceValueType === "NAMED" && namedValue) {
     if (namedValue.status === "RESOLVED") {
       const conversion = await resolveCurrencyConversion(
         namedValue.amount.toFixed(),
@@ -136,7 +140,29 @@ async function presentStampRecord(
   stamp: StampWithPostalEntity,
   activeCountry: ActiveCountry,
 ) {
-  const unitPostageValue = await resolveUnitPostageValue(stamp, activeCountry);
+  const namedValue =
+    stamp.faceValueType !== "NAMED"
+      ? null
+      : stamp.namedFaceValueId
+        ? await resolveNamedFaceValueById(
+            stamp.namedFaceValueId,
+            stamp.countryCode,
+            localDateInTimeZone(activeCountry.timeZone),
+            stamp.userId,
+          )
+        : stamp.namedFaceValueProposalId
+          ? await resolveNamedFaceValueProposalById(
+              stamp.namedFaceValueProposalId,
+              stamp.countryCode,
+              localDateInTimeZone(activeCountry.timeZone),
+              stamp.userId,
+            )
+          : null;
+  const unitPostageValue = await resolveUnitPostageValue(
+    stamp,
+    activeCountry,
+    namedValue,
+  );
   const usableQuantity = stamp.expired
     ? 0
     : stamp.quantityOwned - stamp.quantityAnnulled;
@@ -171,13 +197,30 @@ async function presentStampRecord(
     faceCurrencyCode: stamp.faceCurrencyCode,
     faceValueType: stamp.faceValueType,
     namedFaceValueId: stamp.namedFaceValueId,
+    namedFaceValueProposalId: stamp.namedFaceValueProposalId,
     namedFaceValue: stamp.namedFaceValue
       ? {
           id: stamp.namedFaceValue.id,
           countryCode: stamp.namedFaceValue.countryCode,
           displayCode: stamp.namedFaceValue.displayCode,
         }
-      : null,
+      : stamp.namedFaceValueProposal
+        ? {
+            id: stamp.namedFaceValueProposal.id,
+            countryCode: stamp.namedFaceValueProposal.countryCode,
+            displayCode: stamp.namedFaceValueProposal.displayCode,
+            proposalStatus: stamp.namedFaceValueProposal.status,
+          }
+        : null,
+    upcomingNamedFaceValue:
+      namedValue && "upcoming" in namedValue && namedValue.upcoming
+        ? {
+            amount: namedValue.upcoming.amount.toFixed(),
+            currencyCode: namedValue.upcoming.currencyCode,
+            effectiveOn: namedValue.upcoming.effectiveOn,
+            daysUntil: namedValue.upcoming.daysUntil,
+          }
+        : null,
     manualPostageAmount: stamp.manualPostageAmount,
     manualPostageCurrencyCode: stamp.manualPostageCurrencyCode,
     quantityOwned: stamp.quantityOwned,
@@ -231,15 +274,25 @@ export async function createStamp(
   }
 
   if (input.faceValueType === "NAMED") {
-    const availableNamedFaceValue = await prisma.namedFaceValue.findUnique({
-      where: {
-        id_countryCode: {
-          id: input.namedFaceValueId as string,
-          countryCode: input.countryCode,
-        },
-      },
-      select: { id: true },
-    });
+    const availableNamedFaceValue = input.namedFaceValueId
+      ? await prisma.namedFaceValue.findUnique({
+          where: {
+            id_countryCode: {
+              id: input.namedFaceValueId,
+              countryCode: input.countryCode,
+            },
+          },
+          select: { id: true },
+        })
+      : await prisma.namedFaceValueDefinitionProposal.findFirst({
+          where: {
+            id: input.namedFaceValueProposalId as string,
+            countryCode: input.countryCode,
+            submittedById: userId,
+            status: "PENDING",
+          },
+          select: { id: true },
+        });
     if (!availableNamedFaceValue) {
       throw new StampNamedFaceValueError();
     }
@@ -247,7 +300,11 @@ export async function createStamp(
 
   return prisma.stampInventoryEntry.create({
     data: { userId, ...input },
-    include: { postalEntity: true, namedFaceValue: true },
+    include: {
+      postalEntity: true,
+      namedFaceValue: true,
+      namedFaceValueProposal: true,
+    },
   });
 }
 
@@ -257,7 +314,11 @@ export async function listStamps(
 ) {
   const stamps = await prisma.stampInventoryEntry.findMany({
     where: { userId },
-    include: { postalEntity: true, namedFaceValue: true },
+    include: {
+      postalEntity: true,
+      namedFaceValue: true,
+      namedFaceValueProposal: true,
+    },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 
@@ -282,7 +343,11 @@ export async function updateStamp(
   return prisma.stampInventoryEntry.update({
     where: { id: stampId },
     data: input,
-    include: { postalEntity: true, namedFaceValue: true },
+    include: {
+      postalEntity: true,
+      namedFaceValue: true,
+      namedFaceValueProposal: true,
+    },
   });
 }
 
