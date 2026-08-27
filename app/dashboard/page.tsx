@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSessionContext } from "supertokens-auth-react/recipe/session";
 import {
-  InitialCountrySettingForm,
-  type SavedCountrySetting,
+  InitialPostalEntitySettingForm,
+  type SavedPostalEntitySetting,
   type SettingOption,
-} from "@/app/components/initialCountrySettingForm";
+} from "@/app/components/initialPostalEntitySettingForm";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 
 type SettingsResponse = {
   complete: boolean;
-  activeCountrySetting: SavedCountrySetting | null;
+  activePostalEntitySetting: SavedPostalEntitySetting | null;
   options: {
     countries: SettingOption[];
     currencies: SettingOption[];
@@ -42,7 +42,7 @@ function DashboardContent() {
     fetch("/api/settings", { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error("Country settings could not be loaded.");
+          throw new Error("Postal entity settings could not be loaded.");
         }
         return (await response.json()) as SettingsResponse;
       })
@@ -63,7 +63,7 @@ function DashboardContent() {
   if (session.loading || !settings) {
     return (
       <p role={currentLoadError ? "alert" : undefined} className="text-zinc-600 dark:text-zinc-400">
-        {currentLoadError ?? "Loading country settings…"}
+        {currentLoadError ?? "Loading postal entity settings…"}
       </p>
     );
   }
@@ -73,7 +73,7 @@ function DashboardContent() {
     router.push("/auth");
   }
 
-  const activeSetting = settings.activeCountrySetting;
+  const activeSetting = settings.activePostalEntitySetting;
 
   return (
     <div className="flex w-full flex-col gap-8">
@@ -82,19 +82,23 @@ function DashboardContent() {
           Stamp Inventory
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">
-          {activeSetting ? "Active country setting" : "Set up your inventory"}
+          {activeSetting ? "Active postal entity" : "Set up your inventory"}
         </h1>
         <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
           {activeSetting
-            ? "This setting supplies the country, display currency, and local date for inventory valuation."
-            : "Save a country, display currency, and timezone before opening inventory features."}
+            ? "This postal entity controls which stamps and rates can contribute to inventory value."
+            : "Submit a postal entity and save its country, display currency, and timezone before opening inventory features."}
         </p>
       </div>
 
       {activeSetting ? (
         <dl className="grid max-w-lg grid-cols-[max-content_1fr] gap-x-5 gap-y-3">
+          <dt className="font-medium">Postal entity</dt>
+          <dd>{activeSetting.postalEntity.name}</dd>
           <dt className="font-medium">Country</dt>
-          <dd>{activeSetting.countryCode}</dd>
+          <dd>{activeSetting.postalEntity.countryCode}</dd>
+          <dt className="font-medium">Registry status</dt>
+          <dd className="lowercase">{activeSetting.postalEntity.status}</dd>
           <dt className="font-medium">Display currency</dt>
           <dd>{activeSetting.displayCurrencyCode}</dd>
           <dt className="font-medium">Timezone</dt>
@@ -103,7 +107,7 @@ function DashboardContent() {
           <dd className="lowercase">{activeSetting.timeZoneMode}</dd>
         </dl>
       ) : (
-        <InitialCountrySettingForm
+        <InitialPostalEntitySettingForm
           countries={settings.options.countries}
           currencies={settings.options.currencies}
           onSaved={(savedSetting) =>
@@ -114,7 +118,7 @@ function DashboardContent() {
                     data: {
                       ...current.data,
                       complete: true,
-                      activeCountrySetting: savedSetting,
+                      activePostalEntitySetting: savedSetting,
                     },
                   }
                 : current

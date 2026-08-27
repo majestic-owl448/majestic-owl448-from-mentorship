@@ -36,10 +36,12 @@ vi.mock("supertokens-node/nextjs", () => ({
   ),
 }));
 
-import { GET } from "@/app/api/settings/route";
-import { POST } from "@/app/api/settings/countries/route";
+import { GET as GET_SETTINGS } from "@/app/api/settings/route";
+import { POST } from "@/app/api/settings/postal-entities/route";
+import { GET as GET_INVENTORY } from "@/app/api/inventory/route";
 
 const validSetting = {
+  postalEntityName: "Poste Italiane",
   countryCode: "IT",
   displayCurrencyCode: "EUR",
   timeZone: "Europe/Rome",
@@ -47,33 +49,38 @@ const validSetting = {
 };
 
 function postRequest(body: unknown) {
-  return new NextRequest("http://localhost/api/settings/countries", {
+  return new NextRequest("http://localhost/api/settings/postal-entities", {
     method: "POST",
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
   });
 }
 
-describe("country settings API", () => {
+describe("postal entity settings API", () => {
   beforeEach(async () => {
     auth.userId = null;
     auth.email = null;
-    await prisma.userCountrySetting.deleteMany();
+    await prisma.userPostalEntitySetting.deleteMany();
+    await prisma.postalEntity.deleteMany();
     await prisma.userProfile.deleteMany();
   });
 
   it("returns 401 without an authenticated session", async () => {
-    const getResponse = await GET(
+    const getResponse = await GET_SETTINGS(
       new NextRequest("http://localhost/api/settings")
     );
     const postResponse = await POST(postRequest(validSetting));
+    const inventoryResponse = await GET_INVENTORY(
+      new NextRequest("http://localhost/api/inventory")
+    );
 
     expect(getResponse.status).toBe(401);
     expect(postResponse.status).toBe(401);
-    expect(await prisma.userCountrySetting.count()).toBe(0);
+    expect(inventoryResponse.status).toBe(401);
+    expect(await prisma.postalEntity.count()).toBe(0);
   });
 
-  it("saves the browser timezone and activates the first setting", async () => {
+  it("submits a pending entity and activates its first setting", async () => {
     auth.userId = "first-user";
     auth.email = "first@example.com";
 
@@ -81,15 +88,24 @@ describe("country settings API", () => {
 
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({
-      activeCountrySetting: {
+      activePostalEntitySetting: {
         userId: "first-user",
-        ...validSetting,
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "SYSTEM",
+        postalEntity: {
+          name: "Poste Italiane",
+          normalizedName: "poste italiane",
+          countryCode: "IT",
+          status: "PENDING",
+          submittedById: "first-user",
+        },
       },
     });
     await expect(
       prisma.userProfile.findUniqueOrThrow({ where: { id: "first-user" } })
     ).resolves.toMatchObject({
-      activeCountrySettingId: expect.any(String),
+      activePostalEntitySettingId: expect.any(String),
     });
   });
 
@@ -106,20 +122,25 @@ describe("country settings API", () => {
 
     auth.userId = null;
     expect(
-      await GET(new NextRequest("http://localhost/api/settings"))
+      await GET_SETTINGS(new NextRequest("http://localhost/api/settings"))
     ).toMatchObject({ status: 401 });
 
     auth.userId = "first-user";
-    const response = await GET(
+    const response = await GET_SETTINGS(
       new NextRequest("http://localhost/api/settings")
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       complete: true,
-      activeCountrySetting: {
+      activePostalEntitySetting: {
         userId: "first-user",
         timeZone: "America/New_York",
         timeZoneMode: "CUSTOM",
+        postalEntity: {
+          name: "Poste Italiane",
+          countryCode: "IT",
+          status: "PENDING",
+        },
       },
     });
   });
@@ -129,6 +150,7 @@ describe("country settings API", () => {
 
     const response = await POST(
       postRequest({
+        postalEntityName: " ",
         countryCode: "XX",
         displayCurrencyCode: "XXX",
         timeZone: "Mars/Olympus",
@@ -139,6 +161,7 @@ describe("country settings API", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       errors: {
+        postalEntityName: "Enter the postal entity name.",
         countryCode: "Select a valid ISO 3166-1 country.",
         displayCurrencyCode:
           "Select a currency supported by this application.",
@@ -156,40 +179,71 @@ describe("country settings API", () => {
     const response = await POST(
       postRequest({
         ...validSetting,
-        countryCode: "US",
-        displayCurrencyCode: "USD",
+        postalEntityName: "Friend Post",
       })
     );
 
     expect(response.status).toBe(409);
     await expect(
-      prisma.userCountrySetting.findMany({ where: { userId: "first-user" } })
-    ).resolves.toMatchObject([validSetting]);
+      prisma.userPostalEntitySetting.count({ where: { userId: "first-user" } })
+    ).resolves.toBe(1);
+    await expect(prisma.postalEntity.count()).resolves.toBe(1);
   });
 
-  it("keeps settings isolated by authenticated user", async () => {
+  it("keeps pending submissions isolated by authenticated user", async () => {
     auth.userId = "first-user";
     await POST(postRequest(validSetting));
     auth.userId = "second-user";
-    await POST(
-      postRequest({
-        ...validSetting,
-        countryCode: "US",
-        displayCurrencyCode: "USD",
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
-      })
-    );
+    await POST(postRequest(validSetting));
 
-    const response = await GET(
+    const response = await GET_SETTINGS(
       new NextRequest("http://localhost/api/settings")
     );
     expect(await response.json()).toMatchObject({
-      activeCountrySetting: {
+      activePostalEntitySetting: {
         userId: "second-user",
-        countryCode: "US",
+        postalEntity: {
+          name: "Poste Italiane",
+          submittedById: "second-user",
+        },
       },
     });
-    await expect(prisma.userCountrySetting.count()).resolves.toBe(2);
+    const submissions = await prisma.postalEntity.findMany({
+      orderBy: { submittedById: "asc" },
+    });
+    expect(submissions).toMatchObject([
+      { submittedById: "first-user", status: "PENDING" },
+      { submittedById: "second-user", status: "PENDING" },
+    ]);
+    expect(submissions[0].id).not.toBe(submissions[1].id);
+  });
+
+  it("rejects inventory until an eligible setting is active", async () => {
+    auth.userId = "first-user";
+
+    const incomplete = await GET_INVENTORY(
+      new NextRequest("http://localhost/api/inventory")
+    );
+    expect(incomplete.status).toBe(409);
+    expect(await incomplete.json()).toEqual({
+      error: "Complete the required postal entity settings before using inventory.",
+      settingsUrl: "/dashboard",
+    });
+
+    await POST(postRequest(validSetting));
+    const complete = await GET_INVENTORY(
+      new NextRequest("http://localhost/api/inventory")
+    );
+    expect(complete.status).toBe(200);
+    expect(await complete.json()).toMatchObject({
+      activePostalEntitySetting: {
+        userId: "first-user",
+        postalEntity: {
+          name: "Poste Italiane",
+          status: "PENDING",
+          submittedById: "first-user",
+        },
+      },
+    });
   });
 });

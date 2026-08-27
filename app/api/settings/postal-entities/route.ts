@@ -3,10 +3,10 @@ import supertokens from "supertokens-node";
 import { withSession } from "supertokens-node/nextjs";
 import { ensureSuperTokensInit } from "@/app/config/backend";
 import {
-  CountrySettingAlreadyExistsError,
-  createInitialCountrySetting,
-} from "@/lib/countrySettings";
-import { validateInitialCountrySetting } from "@/lib/countrySettingValidation";
+  PostalEntitySettingAlreadyExistsError,
+  createInitialPostalEntitySetting,
+} from "@/lib/postalEntitySettings";
+import { validateInitialPostalEntitySetting } from "@/lib/postalEntitySettingValidation";
 import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validation = validateInitialCountrySetting(body);
+    const validation = validateInitialPostalEntitySetting(body);
     if (validation.errors) {
       return NextResponse.json(
         { errors: validation.errors },
@@ -46,13 +46,14 @@ export async function POST(request: NextRequest) {
     await upsertUserProfile(userId, user?.emails[0] ?? null);
 
     try {
-      const activeCountrySetting = await createInitialCountrySetting(
-        userId,
-        validation.data
+      const activePostalEntitySetting =
+        await createInitialPostalEntitySetting(userId, validation.data);
+      return NextResponse.json(
+        { activePostalEntitySetting },
+        { status: 201 }
       );
-      return NextResponse.json({ activeCountrySetting }, { status: 201 });
     } catch (caught) {
-      if (caught instanceof CountrySettingAlreadyExistsError) {
+      if (caught instanceof PostalEntitySettingAlreadyExistsError) {
         return NextResponse.json(
           { error: caught.message },
           { status: 409 }

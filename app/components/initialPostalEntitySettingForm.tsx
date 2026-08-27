@@ -3,34 +3,39 @@
 import { FormEvent, useState } from "react";
 import { useIsMounted } from "@/app/hooks/useIsMounted";
 import type {
-  CountrySettingField,
-  CountrySettingFieldErrors,
-} from "@/lib/countrySettingValidation";
+  PostalEntitySettingField,
+  PostalEntitySettingFieldErrors,
+} from "@/lib/postalEntitySettingValidation";
 
 export type SettingOption = {
   value: string;
   label: string;
 };
 
-export type SavedCountrySetting = {
+export type SavedPostalEntitySetting = {
   id: string;
   userId: string;
-  countryCode: string;
   displayCurrencyCode: string;
   timeZone: string;
   timeZoneMode: "SYSTEM" | "CUSTOM";
+  postalEntity: {
+    id: string;
+    name: string;
+    countryCode: string;
+    status: "PENDING";
+  };
 };
 
 type Props = {
   countries: SettingOption[];
   currencies: SettingOption[];
-  onSaved: (setting: SavedCountrySetting) => void;
+  onSaved: (setting: SavedPostalEntitySetting) => void;
 };
 
 const inputClass =
   "h-11 rounded-lg border border-zinc-300 bg-white px-3 text-zinc-950 disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900";
 
-function describedBy(field: CountrySettingField, hasError: boolean) {
+function describedBy(field: PostalEntitySettingField, hasError: boolean) {
   const ids = [`${field}-hint`];
   if (hasError) {
     ids.push(`${field}-error`);
@@ -42,8 +47,8 @@ function FieldError({
   field,
   errors,
 }: {
-  field: CountrySettingField;
-  errors: CountrySettingFieldErrors;
+  field: PostalEntitySettingField;
+  errors: PostalEntitySettingFieldErrors;
 }) {
   const message = errors[field];
   if (!message) {
@@ -57,7 +62,7 @@ function FieldError({
   );
 }
 
-export function InitialCountrySettingForm({
+export function InitialPostalEntitySettingForm({
   countries,
   currencies,
   onSaved,
@@ -66,13 +71,14 @@ export function InitialCountrySettingForm({
   const systemTimeZone = isMounted
     ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     : "UTC";
+  const [postalEntityName, setPostalEntityName] = useState("");
   const [countryCode, setCountryCode] = useState("");
   const [displayCurrencyCode, setDisplayCurrencyCode] = useState("");
   const [timeZoneMode, setTimeZoneMode] = useState<"SYSTEM" | "CUSTOM">(
     "SYSTEM"
   );
   const [customTimeZone, setCustomTimeZone] = useState("");
-  const [errors, setErrors] = useState<CountrySettingFieldErrors>({});
+  const [errors, setErrors] = useState<PostalEntitySettingFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -83,10 +89,11 @@ export function InitialCountrySettingForm({
     setSubmitError(null);
 
     try {
-      const response = await fetch("/api/settings/countries", {
+      const response = await fetch("/api/settings/postal-entities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          postalEntityName,
           countryCode,
           displayCurrencyCode,
           timeZoneMode,
@@ -100,27 +107,60 @@ export function InitialCountrySettingForm({
         if (result.errors) {
           setErrors(result.errors);
         } else {
-          setSubmitError(result.error ?? "The country setting could not be saved.");
+          setSubmitError(
+            result.error ?? "The postal entity setting could not be saved."
+          );
         }
         return;
       }
 
-      onSaved(result.activeCountrySetting);
+      onSaved(result.activePostalEntitySetting);
     } catch {
-      setSubmitError("The country setting could not be saved.");
+      setSubmitError("The postal entity setting could not be saved.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full max-w-lg flex-col gap-5" noValidate>
+    <form
+      onSubmit={onSubmit}
+      className="flex w-full max-w-lg flex-col gap-5"
+      noValidate
+    >
+      <div className="flex flex-col gap-2">
+        <label htmlFor="postalEntityName" className="font-medium">
+          Postal entity
+        </label>
+        <p
+          id="postalEntityName-hint"
+          className="text-sm text-zinc-600 dark:text-zinc-400"
+        >
+          Enter the organization whose stamps you want to value first.
+        </p>
+        <input
+          id="postalEntityName"
+          name="postalEntityName"
+          type="text"
+          value={postalEntityName}
+          onChange={(event) => setPostalEntityName(event.target.value)}
+          aria-invalid={Boolean(errors.postalEntityName)}
+          aria-describedby={describedBy(
+            "postalEntityName",
+            Boolean(errors.postalEntityName)
+          )}
+          className={inputClass}
+          required
+        />
+        <FieldError field="postalEntityName" errors={errors} />
+      </div>
+
       <div className="flex flex-col gap-2">
         <label htmlFor="countryCode" className="font-medium">
           Country
         </label>
         <p id="countryCode-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Choose the country whose stamps you want to value first.
+          Choose the country where this postal entity operates.
         </p>
         <select
           id="countryCode"
@@ -243,7 +283,7 @@ export function InitialCountrySettingForm({
         disabled={submitting}
         className="h-11 rounded-full bg-foreground px-5 text-sm font-medium text-background disabled:opacity-60"
       >
-        {submitting ? "Saving…" : "Save country setting"}
+        {submitting ? "Saving…" : "Save postal entity setting"}
       </button>
     </form>
   );

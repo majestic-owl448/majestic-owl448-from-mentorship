@@ -1,41 +1,49 @@
 import {
   countryOptions,
   currencyOptions,
-  validateInitialCountrySetting,
-} from "@/lib/countrySettingValidation";
+  validateInitialPostalEntitySetting,
+} from "@/lib/postalEntitySettingValidation";
 
 const validInput = {
+  postalEntityName: "Poste Italiane",
   countryCode: "IT",
   displayCurrencyCode: "EUR",
   timeZone: "Europe/Rome",
   timeZoneMode: "SYSTEM",
 };
 
-describe("country setting validation", () => {
+const validData = {
+  ...validInput,
+  normalizedPostalEntityName: "poste italiane",
+};
+
+describe("postal entity setting validation", () => {
   it("accepts every currency supported by Intl", () => {
     for (const displayCurrencyCode of Intl.supportedValuesOf("currency")) {
       expect(
-        validateInitialCountrySetting({
+        validateInitialPostalEntitySetting({
           ...validInput,
           displayCurrencyCode,
         })
       ).toEqual({
-        data: { ...validInput, displayCurrencyCode },
+        data: { ...validData, displayCurrencyCode },
       });
     }
   });
 
-  it("normalizes country and currency codes", () => {
+  it("normalizes the entity name, country, and currency", () => {
     expect(
-      validateInitialCountrySetting({
+      validateInitialPostalEntitySetting({
         ...validInput,
+        postalEntityName: "  Poste   Italiane  ",
         countryCode: " it ",
         displayCurrencyCode: " eur ",
       })
-    ).toEqual({ data: validInput });
+    ).toEqual({ data: validData });
   });
 
   it.each([
+    ["postalEntityName", "  ", "Enter the postal entity name."],
     ["countryCode", "XX", "Select a valid ISO 3166-1 country."],
     [
       "displayCurrencyCode",
@@ -51,16 +59,13 @@ describe("country setting validation", () => {
     ],
   ])("returns a field error for invalid %s", (field, value, message) => {
     expect(
-      validateInitialCountrySetting({ ...validInput, [field]: value })
+      validateInitialPostalEntitySetting({ ...validInput, [field]: value })
     ).toEqual({ errors: { [field]: message } });
   });
 
   it("provides valid country and runtime currency options", () => {
     expect(countryOptions()).toContainEqual({ value: "IT", label: "Italy" });
     expect(countryOptions().some(({ value }) => value === "EU")).toBe(false);
-    expect(countryOptions().some(({ value }) => value.startsWith("UN-"))).toBe(
-      false
-    );
     expect(currencyOptions()).toContainEqual({
       value: "EUR",
       label: "EUR - Euro",

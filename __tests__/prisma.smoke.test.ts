@@ -19,14 +19,22 @@ describe("prisma smoke", () => {
     expect(found.some((u) => u.id === created.id)).toBe(true);
   });
 
-  it("associates a country setting with its user profile", async () => {
+  it("associates a pending postal entity setting with its user profile", async () => {
     const profile = await prisma.userProfile.create({
-      data: { id: "country-setting-profile" },
+      data: { id: "postal-entity-setting-profile" },
     });
-    const setting = await prisma.userCountrySetting.create({
+    const postalEntity = await prisma.postalEntity.create({
+      data: {
+        name: "Poste Italiane",
+        normalizedName: "poste italiane",
+        countryCode: "IT",
+        submittedById: profile.id,
+      },
+    });
+    const setting = await prisma.userPostalEntitySetting.create({
       data: {
         userId: profile.id,
-        countryCode: "IT",
+        postalEntityId: postalEntity.id,
         displayCurrencyCode: "EUR",
         timeZone: "Europe/Rome",
         timeZoneMode: "SYSTEM",
@@ -35,17 +43,25 @@ describe("prisma smoke", () => {
 
     const updated = await prisma.userProfile.update({
       where: { id: profile.id },
-      data: { activeCountrySettingId: setting.id },
-      include: { activeCountrySetting: true, countrySettings: true },
+      data: { activePostalEntitySettingId: setting.id },
+      include: {
+        activePostalEntitySetting: { include: { postalEntity: true } },
+        postalEntitySettings: true,
+      },
     });
 
-    expect(updated.activeCountrySetting).toMatchObject({
+    expect(updated.activePostalEntitySetting).toMatchObject({
       id: setting.id,
-      countryCode: "IT",
       displayCurrencyCode: "EUR",
       timeZone: "Europe/Rome",
       timeZoneMode: "SYSTEM",
+      postalEntity: {
+        id: postalEntity.id,
+        name: "Poste Italiane",
+        countryCode: "IT",
+        status: "PENDING",
+      },
     });
-    expect(updated.countrySettings).toHaveLength(1);
+    expect(updated.postalEntitySettings).toHaveLength(1);
   });
 });

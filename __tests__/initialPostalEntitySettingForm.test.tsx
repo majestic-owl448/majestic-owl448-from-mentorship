@@ -1,16 +1,19 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { InitialCountrySettingForm } from "@/app/components/initialCountrySettingForm";
+import { InitialPostalEntitySettingForm } from "@/app/components/initialPostalEntitySettingForm";
 
-describe("initial country setting form", () => {
+describe("initial postal entity setting form", () => {
   it("renders labelled keyboard controls with described validation fields", () => {
     const markup = renderToStaticMarkup(
-      <InitialCountrySettingForm
+      <InitialPostalEntitySettingForm
         countries={[{ value: "IT", label: "Italy" }]}
         currencies={[{ value: "EUR", label: "EUR - Euro" }]}
         onSaved={() => undefined}
       />
     );
 
+    expect(markup).toMatch(/<label[^>]+for="postalEntityName"/);
+    expect(markup).toContain('id="postalEntityName"');
+    expect(markup).toContain('aria-describedby="postalEntityName-hint"');
     expect(markup).toMatch(/<label[^>]+for="countryCode"/);
     expect(markup).toContain('id="countryCode"');
     expect(markup).toContain('aria-describedby="countryCode-hint"');

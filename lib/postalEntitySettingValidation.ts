@@ -1,22 +1,23 @@
 import countries from "i18n-iso-countries";
 import englishCountries from "i18n-iso-countries/langs/en.json";
-import type { InitialCountrySettingInput } from "@/lib/countrySettings";
+import type { InitialPostalEntitySettingInput } from "@/lib/postalEntitySettings";
 
 countries.registerLocale(englishCountries);
 
-export type CountrySettingField =
+export type PostalEntitySettingField =
+  | "postalEntityName"
   | "countryCode"
   | "displayCurrencyCode"
   | "timeZoneMode"
   | "timeZone";
 
-export type CountrySettingFieldErrors = Partial<
-  Record<CountrySettingField, string>
+export type PostalEntitySettingFieldErrors = Partial<
+  Record<PostalEntitySettingField, string>
 >;
 
 type ValidationResult =
-  | { data: InitialCountrySettingInput; errors?: never }
-  | { data?: never; errors: CountrySettingFieldErrors };
+  | { data: InitialPostalEntitySettingInput; errors?: never }
+  | { data?: never; errors: PostalEntitySettingFieldErrors };
 
 const supportedCurrencies = new Set(
   Intl.supportedValuesOf("currency").map((code) => code.toUpperCase())
@@ -36,11 +37,8 @@ function isTimeZone(value: string) {
 }
 
 export function countryOptions() {
-  return [
-    ...Object.entries(countries.getNames("en", { select: "official" })).map(
-      ([value, label]) => ({ value, label })
-    ),
-  ]
+  return Object.entries(countries.getNames("en", { select: "official" }))
+    .map(([value, label]) => ({ value, label }))
     .filter(({ value }) => value !== "XK")
     .sort((left, right) => left.label.localeCompare(right.label));
 }
@@ -56,11 +54,20 @@ export function currencyOptions() {
     .sort((left, right) => left.label.localeCompare(right.label));
 }
 
-export function validateInitialCountrySetting(input: unknown): ValidationResult {
+export function validateInitialPostalEntitySetting(
+  input: unknown
+): ValidationResult {
   const record =
     typeof input === "object" && input !== null
       ? (input as Record<string, unknown>)
       : {};
+  const postalEntityName =
+    typeof record.postalEntityName === "string"
+      ? record.postalEntityName.trim().replace(/\s+/g, " ")
+      : "";
+  const normalizedPostalEntityName = postalEntityName
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US");
   const countryCode =
     typeof record.countryCode === "string"
       ? record.countryCode.trim().toUpperCase()
@@ -75,8 +82,11 @@ export function validateInitialCountrySetting(input: unknown): ValidationResult 
       : "";
   const timeZone =
     typeof record.timeZone === "string" ? record.timeZone.trim() : "";
-  const errors: CountrySettingFieldErrors = {};
+  const errors: PostalEntitySettingFieldErrors = {};
 
+  if (!postalEntityName) {
+    errors.postalEntityName = "Enter the postal entity name.";
+  }
   const isIsoCountry =
     /^[A-Z]{2}$/.test(countryCode) &&
     countryCode !== "XK" &&
@@ -101,6 +111,8 @@ export function validateInitialCountrySetting(input: unknown): ValidationResult 
 
   return {
     data: {
+      postalEntityName,
+      normalizedPostalEntityName,
       countryCode,
       displayCurrencyCode,
       timeZone,

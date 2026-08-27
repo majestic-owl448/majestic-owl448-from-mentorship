@@ -6,10 +6,6 @@ import {
   PostalEntitySettingRequiredError,
   requireActivePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
-import {
-  countryOptions,
-  currencyOptions,
-} from "@/lib/postalEntitySettingValidation";
 import { upsertUserProfile } from "@/lib/userProfile";
 
 ensureSuperTokensInit();
@@ -30,22 +26,18 @@ export async function GET(request: NextRequest) {
     const user = await supertokens.getUser(userId);
     await upsertUserProfile(userId, user?.emails[0] ?? null);
 
-    let activePostalEntitySetting = null;
     try {
-      activePostalEntitySetting = await requireActivePostalEntitySetting(userId);
+      const activePostalEntitySetting =
+        await requireActivePostalEntitySetting(userId);
+      return NextResponse.json({ activePostalEntitySetting });
     } catch (caught) {
-      if (!(caught instanceof PostalEntitySettingRequiredError)) {
-        throw caught;
+      if (caught instanceof PostalEntitySettingRequiredError) {
+        return NextResponse.json(
+          { error: caught.message, settingsUrl: "/dashboard" },
+          { status: 409 }
+        );
       }
+      throw caught;
     }
-
-    return NextResponse.json({
-      complete: activePostalEntitySetting !== null,
-      activePostalEntitySetting,
-      options: {
-        countries: countryOptions(),
-        currencies: currencyOptions(),
-      },
-    });
   });
 }
