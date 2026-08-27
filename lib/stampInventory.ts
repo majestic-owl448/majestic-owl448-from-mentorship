@@ -6,6 +6,7 @@ import { addExactDecimals, multiplyExactDecimals } from "@/lib/decimal";
 import { resolveNamedFaceValueById } from "@/lib/namedFaceValue";
 import { localDateInTimeZone } from "@/lib/postalEntitySettings";
 import type { NewStampInput } from "@/lib/stampValidation";
+import type { StampQuantityInput } from "@/lib/stampQuantityValidation";
 
 type ActiveCountry = {
   displayCurrencyCode: string;
@@ -40,6 +41,13 @@ export class StampNamedFaceValueError extends Error {
   constructor() {
     super("Select a named face value available for the stamp country.");
     this.name = "StampNamedFaceValueError";
+  }
+}
+
+export class StampNotFoundError extends Error {
+  constructor() {
+    super("Stamp not found.");
+    this.name = "StampNotFoundError";
   }
 }
 
@@ -256,6 +264,26 @@ export async function listStamps(
   return Promise.all(
     stamps.map((stamp) => presentStampRecord(stamp, activeCountry)),
   );
+}
+
+export async function updateStampQuantities(
+  userId: string,
+  stampId: string,
+  input: StampQuantityInput,
+) {
+  const stamp = await prisma.stampInventoryEntry.findFirst({
+    where: { id: stampId, userId },
+    select: { id: true },
+  });
+  if (!stamp) {
+    throw new StampNotFoundError();
+  }
+
+  return prisma.stampInventoryEntry.update({
+    where: { id: stampId },
+    data: input,
+    include: { postalEntity: true, namedFaceValue: true },
+  });
 }
 
 export async function presentStamp(

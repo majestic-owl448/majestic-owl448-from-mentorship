@@ -113,16 +113,148 @@ function Money({ value }: { value: StampValue }) {
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   return message ? (
-    <p id={id} className="text-sm text-red-700 dark:text-red-300">
+    <p
+      id={id}
+      role="alert"
+      className="text-sm text-red-700 dark:text-red-300"
+    >
       {message}
     </p>
   ) : null;
 }
 
+export function applyStampQuantityUpdate(
+  inventory: InventoryResponse,
+  stamp: SavedStamp,
+  inventoryTotal: StampValue,
+): InventoryResponse {
+  return {
+    ...inventory,
+    stamps: inventory.stamps.map((current) =>
+      current.id === stamp.id ? stamp : current,
+    ),
+    inventoryTotal,
+  };
+}
+
+function StampQuantityEditor({
+  stamp,
+  onUpdated,
+}: {
+  stamp: SavedStamp;
+  onUpdated(stamp: SavedStamp, inventoryTotal: StampValue): void;
+}) {
+  const [errors, setErrors] = useState<StampErrors>({});
+  const [status, setStatus] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const ownedId = `stamp-${stamp.id}-owned-quantity`;
+  const annulledId = `stamp-${stamp.id}-annulled-quantity`;
+  const ownedErrorId = `${ownedId}-error`;
+  const annulledErrorId = `${annulledId}-error`;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrors({});
+    setStatus(null);
+    setSaving(true);
+    const data = new FormData(event.currentTarget);
+
+    try {
+      const response = await fetch(`/api/stamps/${stamp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantityOwned: data.get("quantityOwned"),
+          quantityAnnulled: data.get("quantityAnnulled"),
+        }),
+      });
+      const result = (await response.json()) as {
+        stamp?: SavedStamp;
+        inventoryTotal?: StampValue;
+        errors?: StampErrors;
+        error?: string;
+      };
+      if (!response.ok || !result.stamp || !result.inventoryTotal) {
+        setErrors(result.errors ?? {});
+        setStatus(result.error ?? "Correct the quantity fields.");
+        return;
+      }
+
+      onUpdated(result.stamp, result.inventoryTotal);
+      setStatus("Quantities updated.");
+    } catch {
+      setStatus("Quantities could not be updated.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mt-3 grid gap-3 border-t border-zinc-300 pt-3 sm:grid-cols-2 dark:border-zinc-700"
+      noValidate
+    >
+      <div>
+        <label htmlFor={ownedId} className="block font-medium">
+          Owned quantity
+        </label>
+        <input
+          id={ownedId}
+          name="quantityOwned"
+          type="number"
+          min="1"
+          max="2147483647"
+          step="1"
+          defaultValue={stamp.quantityOwned}
+          aria-describedby={errors.quantityOwned ? ownedErrorId : undefined}
+          className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2"
+        />
+        <FieldError id={ownedErrorId} message={errors.quantityOwned} />
+      </div>
+      <div>
+        <label htmlFor={annulledId} className="block font-medium">
+          Annulled quantity
+        </label>
+        <input
+          id={annulledId}
+          name="quantityAnnulled"
+          type="number"
+          min="0"
+          max="2147483647"
+          step="1"
+          defaultValue={stamp.quantityAnnulled}
+          aria-describedby={
+            errors.quantityAnnulled ? annulledErrorId : undefined
+          }
+          className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2"
+        />
+        <FieldError
+          id={annulledErrorId}
+          message={errors.quantityAnnulled}
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={saving}
+        className="h-10 rounded-full bg-foreground px-5 font-medium text-background disabled:opacity-60 sm:w-fit"
+      >
+        {saving ? "Saving…" : "Save quantities"}
+      </button>
+      {status && <p role="status">{status}</p>}
+    </form>
+  );
+}
+
 export function StampInventoryResults({
   inventory,
+  onQuantityUpdated,
 }: {
   inventory: InventoryResponse;
+  onQuantityUpdated?: (
+    stamp: SavedStamp,
+    inventoryTotal: StampValue,
+  ) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -189,6 +321,12 @@ export function StampInventoryResults({
                   : valuationSourceLabels[stamp.valuation.source] ??
                     stamp.valuation.source}
               </p>
+              {onQuantityUpdated && (
+                <StampQuantityEditor
+                  stamp={stamp}
+                  onUpdated={onQuantityUpdated}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -485,7 +623,18 @@ export function StampInventory({
       {status && <p role="status">{status}</p>}
       {loadError && <p role="alert">{loadError}</p>}
       {!inventory && !loadError && <p>Loading stamp inventory…</p>}
-      {inventory && <StampInventoryResults inventory={inventory} />}
+      {inventory && (
+        <StampInventoryResults
+          inventory={inventory}
+          onQuantityUpdated={(stamp, inventoryTotal) =>
+            setInventory((current) =>
+              current
+                ? applyStampQuantityUpdate(current, stamp, inventoryTotal)
+                : current,
+            )
+          }
+        />
+      )}
     </section>
   );
 }

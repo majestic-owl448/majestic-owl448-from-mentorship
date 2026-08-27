@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  applyStampQuantityUpdate,
   formatInventoryDate,
   formatMoney,
   NamedFaceValueFields,
@@ -141,6 +142,63 @@ describe("stamp inventory interface", () => {
       "Unresolved entries are excluded from the inventory total.",
     );
     expect(markup).toContain("Added:");
+  });
+
+  it("renders labelled keyboard-operable quantity editors for inventory lines", () => {
+    const stamp = savedStamp("editable", "FACE_AMOUNT");
+    const markup = renderToStaticMarkup(
+      <StampInventoryResults
+        inventory={{
+          activeCountryCode: "IT",
+          displayCurrencyCode: "EUR",
+          inventoryTotal: { amount: "1", currencyCode: "EUR" },
+          stamps: [stamp],
+        }}
+        onQuantityUpdated={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain(
+      '<label for="stamp-editable-owned-quantity"',
+    );
+    expect(markup).toContain(
+      '<label for="stamp-editable-annulled-quantity"',
+    );
+    expect(markup).toMatch(/<input[^>]+type="number"[^>]+name="quantityOwned"/);
+    expect(markup).toMatch(
+      /<input[^>]+type="number"[^>]+name="quantityAnnulled"/,
+    );
+    expect(markup).toContain("Save quantities");
+    expect(markup).not.toContain("onKeyDown");
+  });
+
+  it("replaces the updated line and inventory total from an update response", () => {
+    const original = savedStamp("editable", "FACE_AMOUNT");
+    const unchanged = savedStamp("unchanged", "FACE_AMOUNT");
+    const updated: SavedStamp = {
+      ...original,
+      quantityOwned: 4,
+      quantityAnnulled: 1,
+      usableQuantity: 3,
+      totalPostageValue: { amount: "3", currencyCode: "EUR" },
+    };
+    const inventory = {
+      activeCountryCode: "IT",
+      displayCurrencyCode: "EUR",
+      inventoryTotal: { amount: "2", currencyCode: "EUR" },
+      stamps: [original, unchanged],
+    };
+
+    expect(
+      applyStampQuantityUpdate(inventory, updated, {
+        amount: "4",
+        currencyCode: "EUR",
+      }),
+    ).toEqual({
+      ...inventory,
+      inventoryTotal: { amount: "4", currencyCode: "EUR" },
+      stamps: [updated, unchanged],
+    });
   });
 
   it("labels named search and selection and requires a country first", () => {
