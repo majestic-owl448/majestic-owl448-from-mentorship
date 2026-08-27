@@ -69,10 +69,11 @@ model UserPostalEntitySetting {
 }
 
 model Currency {
-  code            String               @id
-  displayName     String               @map("display_name")
-  conversionsFrom CurrencyConversion[] @relation("ConversionSourceCurrency")
-  conversionsTo   CurrencyConversion[] @relation("ConversionTargetCurrency")
+  code             String               @id
+  displayName      String               @map("display_name")
+  conversionsFrom  CurrencyConversion[] @relation("ConversionSourceCurrency")
+  conversionsTo    CurrencyConversion[] @relation("ConversionTargetCurrency")
+  valueSchedules   ValueSchedule[]
 
   @@map("currencies")
 }
@@ -89,4 +90,43 @@ model CurrencyConversion {
 
   @@unique([fromCurrencyCode, toCurrencyCode])
   @@map("currency_conversions")
+}
+
+model ValueSchedule {
+  id              String                 @id @default(cuid())
+  countryCode     String                 @map("country_code")
+  currencyCode    String                 @map("currency_code")
+  currency        Currency               @relation(fields: [currencyCode], references: [code], onDelete: Restrict)
+  currentValue    ValueScheduleValue?
+  namedFaceValues NamedFaceValue[]
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  @@unique([id, countryCode])
+  @@map("value_schedules")
+}
+
+model ValueScheduleValue {
+  id              String        @id @default(cuid())
+  valueScheduleId String        @unique @map("value_schedule_id")
+  amount          String
+  valueSchedule   ValueSchedule @relation(fields: [valueScheduleId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@map("value_schedule_values")
+}
+
+model NamedFaceValue {
+  id              String        @id @default(cuid())
+  countryCode     String        @map("country_code")
+  displayCode     String        @map("display_code")
+  normalizedCode  String        @map("normalized_code")
+  valueScheduleId String        @map("value_schedule_id")
+  valueSchedule   ValueSchedule @relation(fields: [valueScheduleId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@unique([countryCode, normalizedCode])
+  @@map("named_face_values")
 }
