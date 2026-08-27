@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
 import {
   CountrySettingAlreadyExistsError,
+  CountrySettingRequiredError,
   createInitialCountrySetting,
+  requireActiveCountrySetting,
 } from "@/lib/countrySettings";
 
 describe("initial country settings", () => {
@@ -90,5 +92,41 @@ describe("initial country settings", () => {
       { id: "first-user", activeCountrySettingId: firstSetting.id },
       { id: "second-user", activeCountrySettingId: secondSetting.id },
     ]);
+  });
+
+  it("rejects inventory access without an active owned setting", async () => {
+    await prisma.userProfile.createMany({
+      data: [{ id: "first-user" }, { id: "second-user" }],
+    });
+    const secondSetting = await createInitialCountrySetting("second-user", {
+      countryCode: "US",
+      displayCurrencyCode: "USD",
+      timeZone: "America/New_York",
+      timeZoneMode: "CUSTOM",
+    });
+    await prisma.userProfile.update({
+      where: { id: "second-user" },
+      data: { activeCountrySettingId: null },
+    });
+    await prisma.userProfile.update({
+      where: { id: "first-user" },
+      data: { activeCountrySettingId: secondSetting.id },
+    });
+
+    await expect(requireActiveCountrySetting("first-user")).rejects.toBeInstanceOf(
+      CountrySettingRequiredError
+    );
+    await prisma.userProfile.update({
+      where: { id: "first-user" },
+      data: { activeCountrySettingId: null },
+    });
+    await prisma.userProfile.update({
+      where: { id: "second-user" },
+      data: { activeCountrySettingId: secondSetting.id },
+    });
+    await expect(requireActiveCountrySetting("second-user")).resolves.toMatchObject({
+      id: secondSetting.id,
+      userId: "second-user",
+    });
   });
 });

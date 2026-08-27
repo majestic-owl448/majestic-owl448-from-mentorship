@@ -14,6 +14,29 @@ export class CountrySettingAlreadyExistsError extends Error {
   }
 }
 
+export class CountrySettingRequiredError extends Error {
+  constructor() {
+    super("Complete the required country settings before using inventory.");
+    this.name = "CountrySettingRequiredError";
+  }
+}
+
+export async function requireActiveCountrySetting(userId: string) {
+  const profile = await prisma.userProfile.findFirst({
+    where: {
+      id: userId,
+      activeCountrySetting: { userId },
+    },
+    select: { activeCountrySetting: true },
+  });
+
+  if (!profile?.activeCountrySetting) {
+    throw new CountrySettingRequiredError();
+  }
+
+  return profile.activeCountrySetting;
+}
+
 export async function createInitialCountrySetting(
   userId: string,
   input: InitialCountrySettingInput
@@ -24,7 +47,11 @@ export async function createInitialCountrySetting(
       select: { activeCountrySettingId: true },
     });
 
-    if (profile.activeCountrySettingId !== null) {
+    const settingCount = await transaction.userCountrySetting.count({
+      where: { userId },
+    });
+
+    if (profile.activeCountrySettingId !== null || settingCount > 0) {
       throw new CountrySettingAlreadyExistsError();
     }
 
