@@ -1,20 +1,17 @@
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Tests that touch the database need DATABASE_URL, same as the app.
-dotenv.config({ quiet: true });
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import path from "path";
 
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: 'node',
+    environment: "node",
     globals: true,
+    setupFiles: ["./__tests__/setup.ts"],
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './'),
+      "@": path.resolve(__dirname, "./"),
     },
   },
 });

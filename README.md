@@ -1,92 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stamp Inventory
 
-## Getting Started
+Stamp Inventory is a web application for recording owned stamps and calculating
+their current postage value for a selected country. The first release is under
+development; its requirements and implementation sequence are in [`docs/`](docs/).
 
-First, run the development server:
+## Local setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Database
-
-[Prisma 7](https://www.prisma.io/docs) against a local SQLite file (`data.db`, gitignored),
-through the `better-sqlite3` driver adapter. The connection string lives in `DATABASE_URL`.
-
-```bash
-npx prisma migrate dev     # apply/create migrations
-npx prisma generate        # regenerate the client (also runs on install)
-npx prisma studio          # browse the data
-```
-
-The client is generated into `lib/generated/prisma` (gitignored) and re-exported as a
-singleton from `lib/db.ts`. Schema and migrations live in `prisma/`.
-
-SQLite is local-only: a Vercel deployment has an ephemeral, read-only filesystem, so
-moving off the file means switching the datasource provider to Postgres and pointing
-`DATABASE_URL` at a hosted database.
-
-## Authentication
-
-Auth is handled by [SuperTokens](https://supertokens.com) against a managed cloud core,
-using the ThirdParty recipe (Google, Apple) with the prebuilt React UI.
-
-Email-based login (Passwordless OTP / magic link) is intentionally not enabled — it
-needs an email delivery service configured first.
-
-Setup:
+Create the local environment file before installing dependencies. Prisma reads
+`DATABASE_URL` during its post-install client generation.
 
 ```bash
 cp sample.env .env
+pnpm install
+pnpm prisma migrate dev
+pnpm dev
 ```
 
-Fill in `SUPERTOKENS_CONNECTION_URI` and `SUPERTOKENS_API_KEY` from your app on the
-[SuperTokens dashboard](https://supertokens.com/dashboard), plus the OAuth client
-credentials for each social provider.
+Replace the placeholder SuperTokens and social login credentials in `.env` with
+values for your own development apps. The local site runs at
+[http://localhost:3000](http://localhost:3000).
 
-Layout:
+## Project checks
+
+Run all three checks before committing a functional change:
+
+```bash
+pnpm lint
+pnpm test --run
+pnpm build
+```
+
+The test setup creates a temporary SQLite database, applies the committed Prisma
+migrations, and deletes the database after the test run. Tests do not write to
+the development database configured in `.env`.
+
+## Database
+
+Local development uses [Prisma 7](https://www.prisma.io/docs) with SQLite through
+the `better-sqlite3` driver adapter. The schema and migrations live in `prisma/`.
+The generated client is written to `lib/generated/prisma` and re-exported as a
+singleton from `lib/db.ts`.
+
+```bash
+pnpm prisma migrate dev
+pnpm prisma generate
+pnpm prisma studio
+```
+
+SQLite is for local development only. A Vercel deployment has an ephemeral,
+read-only filesystem, so production storage requires a hosted database.
+
+## Authentication
+
+[SuperTokens](https://supertokens.com) provides Google and Apple authentication
+through its managed cloud core and prebuilt React interface. Copy `sample.env` to
+`.env`, then add the core connection and OAuth credentials before running the app.
+
+The authentication code is organized as follows:
 
 | Path | Purpose |
 | --- | --- |
 | `app/config/appInfo.ts` | Domains and base paths shared by frontend and backend |
-| `app/config/backend.ts` | Recipe list, core connection, `ensureSuperTokensInit()` |
-| `app/config/frontend.tsx` | Client recipe list, prebuilt UI list, Next router wiring |
-| `app/api/auth/[[...path]]/route.ts` | All auth APIs |
-| `app/auth/[[...path]]/page.tsx` | Prebuilt sign-in/sign-up UI |
-| `app/components/supertokensProvider.tsx` | Client-side `SuperTokens.init` + wrapper |
-| `app/components/sessionAuthForNextJS.tsx` | SSR-safe `SessionAuth` guard |
+| `app/config/backend.ts` | Server recipes and SuperTokens initialization |
+| `app/config/frontend.tsx` | Client recipes and Next.js router integration |
+| `app/api/auth/[[...path]]/route.ts` | Authentication API routes |
+| `app/auth/[[...path]]/page.tsx` | Prebuilt sign-in and sign-up interface |
+| `app/components/supertokensProvider.tsx` | Client initialization and provider |
+| `app/components/sessionAuthForNextJS.tsx` | Server-rendering-safe session guard |
 | `app/dashboard/page.tsx` | Example protected page |
 
-Route handlers are protected with `withSession` from `supertokens-node/nextjs` — see
-`app/api/data/route.ts`, which returns 401 without a valid session.
-
-The social credentials in `sample.env` are SuperTokens' public demo OAuth apps. Replace
-them with your own before deploying anywhere real, and update `NEXT_PUBLIC_API_DOMAIN`
-and `NEXT_PUBLIC_WEBSITE_DOMAIN` to the deployed origin.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Email login is not enabled because the project does not yet have an email delivery
+service. The credentials in `sample.env` are placeholders and must be replaced
+before deployment.
