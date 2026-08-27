@@ -34,7 +34,11 @@ export async function GET(request: NextRequest) {
 
     const query = request.nextUrl.searchParams.get("query") ?? "";
     return NextResponse.json({
-      namedFaceValues: await searchNamedFaceValues(countryCode, query),
+      namedFaceValues: await searchNamedFaceValues(
+        countryCode,
+        query,
+        session.getUserId(),
+      ),
     });
   });
 }

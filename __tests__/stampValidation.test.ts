@@ -27,6 +27,7 @@ describe("monetary stamp validation", () => {
         faceAmount: "0.25",
         faceCurrencyCode: "EUR",
         namedFaceValueId: null,
+        namedFaceValueProposalId: null,
         manualPostageAmount: null,
         manualPostageCurrencyCode: null,
         quantityOwned: 2,
