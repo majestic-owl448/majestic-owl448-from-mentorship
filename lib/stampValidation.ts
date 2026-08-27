@@ -5,21 +5,25 @@ export type StampField =
   | "postalEntityId"
   | "name"
   | "yearOfIssue"
+  | "faceValueType"
   | "faceAmount"
   | "faceCurrencyCode"
+  | "namedFaceValueId"
   | "manualPostageAmount"
   | "manualPostageCurrencyCode"
   | "quantityOwned"
   | "quantityAnnulled"
   | "expired";
 
-export type NewMonetaryStampInput = {
+export type NewStampInput = {
   countryCode: string;
   postalEntityId: string;
   name: string;
   yearOfIssue: number | null;
-  faceAmount: string;
-  faceCurrencyCode: string;
+  faceValueType: "MONETARY" | "NAMED";
+  faceAmount: string | null;
+  faceCurrencyCode: string | null;
+  namedFaceValueId: string | null;
   manualPostageAmount: string | null;
   manualPostageCurrencyCode: string | null;
   quantityOwned: number;
@@ -28,7 +32,7 @@ export type NewMonetaryStampInput = {
 };
 
 type ValidationResult =
-  | { data: NewMonetaryStampInput; errors?: never }
+  | { data: NewStampInput; errors?: never }
   | { data?: never; errors: Partial<Record<StampField, string>> };
 
 const countryCodes = new Set(countryOptions().map(({ value }) => value));
@@ -45,7 +49,7 @@ function isDecimal(value: string) {
   return decimalPattern.test(value);
 }
 
-export function validateNewMonetaryStamp(input: unknown): ValidationResult {
+export function validateNewStamp(input: unknown): ValidationResult {
   const record =
     typeof input === "object" && input !== null
       ? (input as Record<string, unknown>)
@@ -54,11 +58,13 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
   const postalEntityId = stringValue(record, "postalEntityId");
   const name = stringValue(record, "name").replace(/\s+/g, " ");
   const yearValue = stringValue(record, "yearOfIssue");
+  const faceValueType = stringValue(record, "faceValueType");
   const faceAmount = stringValue(record, "faceAmount");
   const faceCurrencyCode = stringValue(
     record,
     "faceCurrencyCode",
   ).toUpperCase();
+  const namedFaceValueId = stringValue(record, "namedFaceValueId");
   const manualPostageAmount = stringValue(record, "manualPostageAmount");
   const manualPostageCurrencyCode = stringValue(
     record,
@@ -86,11 +92,29 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
   ) {
     errors.yearOfIssue = "Enter a year from 1 to 9999, or leave it blank.";
   }
-  if (!isDecimal(faceAmount)) {
-    errors.faceAmount = "Enter a non-negative decimal amount.";
-  }
-  if (!currencyCodePattern.test(faceCurrencyCode)) {
-    errors.faceCurrencyCode = "Enter a three-letter face currency code.";
+  if (faceValueType !== "MONETARY" && faceValueType !== "NAMED") {
+    errors.faceValueType = "Select a face value type.";
+  } else if (faceValueType === "MONETARY") {
+    if (!isDecimal(faceAmount)) {
+      errors.faceAmount = "Enter a non-negative decimal amount.";
+    }
+    if (!currencyCodePattern.test(faceCurrencyCode)) {
+      errors.faceCurrencyCode = "Enter a three-letter face currency code.";
+    }
+    if (namedFaceValueId) {
+      errors.namedFaceValueId =
+        "Do not select a named face value for a monetary stamp.";
+    }
+  } else {
+    if (!namedFaceValueId) {
+      errors.namedFaceValueId = "Select a named face value.";
+    }
+    if (faceAmount) {
+      errors.faceAmount = "Do not enter an amount for a named stamp.";
+    }
+    if (faceCurrencyCode) {
+      errors.faceCurrencyCode = "Do not enter a currency for a named stamp.";
+    }
   }
 
   const hasManualAmount = manualPostageAmount !== "";
@@ -149,8 +173,10 @@ export function validateNewMonetaryStamp(input: unknown): ValidationResult {
       postalEntityId,
       name,
       yearOfIssue,
-      faceAmount,
-      faceCurrencyCode,
+      faceValueType: faceValueType as "MONETARY" | "NAMED",
+      faceAmount: faceValueType === "MONETARY" ? faceAmount : null,
+      faceCurrencyCode: faceValueType === "MONETARY" ? faceCurrencyCode : null,
+      namedFaceValueId: faceValueType === "NAMED" ? namedFaceValueId : null,
       manualPostageAmount: hasManualAmount ? manualPostageAmount : null,
       manualPostageCurrencyCode: hasManualCurrency
         ? manualPostageCurrencyCode

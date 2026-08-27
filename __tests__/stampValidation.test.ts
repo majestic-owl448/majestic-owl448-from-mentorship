@@ -1,10 +1,11 @@
-import { validateNewMonetaryStamp } from "@/lib/stampValidation";
+import { validateNewStamp } from "@/lib/stampValidation";
 
 const validStamp = {
   countryCode: "IT",
   postalEntityId: "italy-post",
   name: "Definitive stamp",
   yearOfIssue: "",
+  faceValueType: "MONETARY",
   faceAmount: "0.25",
   faceCurrencyCode: "EUR",
   manualPostageAmount: "",
@@ -16,14 +17,16 @@ const validStamp = {
 
 describe("monetary stamp validation", () => {
   it("accepts an absent year and exact decimal strings", () => {
-    expect(validateNewMonetaryStamp(validStamp)).toEqual({
+    expect(validateNewStamp(validStamp)).toEqual({
       data: {
         countryCode: "IT",
         postalEntityId: "italy-post",
         name: "Definitive stamp",
         yearOfIssue: null,
+        faceValueType: "MONETARY",
         faceAmount: "0.25",
         faceCurrencyCode: "EUR",
+        namedFaceValueId: null,
         manualPostageAmount: null,
         manualPostageCurrencyCode: null,
         quantityOwned: 2,
@@ -37,7 +40,7 @@ describe("monetary stamp validation", () => {
     "rejects the invalid face decimal %s",
     (faceAmount) => {
       expect(
-        validateNewMonetaryStamp({ ...validStamp, faceAmount }),
+        validateNewStamp({ ...validStamp, faceAmount }),
       ).toMatchObject({
         errors: { faceAmount: "Enter a non-negative decimal amount." },
       });
@@ -48,7 +51,7 @@ describe("monetary stamp validation", () => {
     "rejects the non-positive whole owned quantity %s",
     (quantityOwned) => {
       expect(
-        validateNewMonetaryStamp({ ...validStamp, quantityOwned }),
+        validateNewStamp({ ...validStamp, quantityOwned }),
       ).toMatchObject({
         errors: {
           quantityOwned: "Enter an owned quantity from 1 to 2,147,483,647.",
@@ -59,7 +62,7 @@ describe("monetary stamp validation", () => {
 
   it("rejects quantities outside the database integer range", () => {
     expect(
-      validateNewMonetaryStamp({
+      validateNewStamp({
         ...validStamp,
         quantityOwned: "2147483648",
         quantityAnnulled: "2147483648",
@@ -75,7 +78,7 @@ describe("monetary stamp validation", () => {
 
   it("requires a country even when face and display currencies can match", () => {
     expect(
-      validateNewMonetaryStamp({ ...validStamp, countryCode: "" }),
+      validateNewStamp({ ...validStamp, countryCode: "" }),
     ).toMatchObject({
       errors: { countryCode: "Select a valid ISO 3166-1 country." },
     });
@@ -83,7 +86,7 @@ describe("monetary stamp validation", () => {
 
   it("requires a postal entity reference", () => {
     expect(
-      validateNewMonetaryStamp({ ...validStamp, postalEntityId: "" }),
+      validateNewStamp({ ...validStamp, postalEntityId: "" }),
     ).toMatchObject({
       errors: { postalEntityId: "Select a postal entity." },
     });
@@ -91,13 +94,48 @@ describe("monetary stamp validation", () => {
 
   it("requires manual fallback fields as a pair", () => {
     expect(
-      validateNewMonetaryStamp({
+      validateNewStamp({
         ...validStamp,
         manualPostageAmount: "0.30",
       }),
     ).toMatchObject({
       errors: {
         manualPostageCurrencyCode: "Select the manual postage currency.",
+      },
+    });
+  });
+
+  it("accepts a named face value reference without copied monetary fields", () => {
+    expect(
+      validateNewStamp({
+        ...validStamp,
+        faceValueType: "NAMED",
+        faceAmount: "",
+        faceCurrencyCode: "",
+        namedFaceValueId: "italy-b-zone-one",
+      }),
+    ).toMatchObject({
+      data: {
+        faceValueType: "NAMED",
+        faceAmount: null,
+        faceCurrencyCode: null,
+        namedFaceValueId: "italy-b-zone-one",
+      },
+    });
+  });
+
+  it("rejects missing and mixed named face value fields", () => {
+    expect(
+      validateNewStamp({
+        ...validStamp,
+        faceValueType: "NAMED",
+        namedFaceValueId: "",
+      }),
+    ).toMatchObject({
+      errors: {
+        faceAmount: "Do not enter an amount for a named stamp.",
+        faceCurrencyCode: "Do not enter a currency for a named stamp.",
+        namedFaceValueId: "Select a named face value.",
       },
     });
   });

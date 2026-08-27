@@ -15,8 +15,15 @@ type SavedStamp = {
   postalEntity: { id: string; name: string; countryCode: string };
   name: string;
   yearOfIssue: number | null;
-  faceAmount: string;
-  faceCurrencyCode: string;
+  faceValueType: "MONETARY" | "NAMED";
+  faceAmount: string | null;
+  faceCurrencyCode: string | null;
+  namedFaceValueId: string | null;
+  namedFaceValue: {
+    id: string;
+    countryCode: string;
+    displayCode: string;
+  } | null;
   manualPostageAmount: string | null;
   manualPostageCurrencyCode: string | null;
   quantityOwned: number;
@@ -39,8 +46,10 @@ type StampErrors = Partial<
     | "postalEntityId"
     | "name"
     | "yearOfIssue"
+    | "faceValueType"
     | "faceAmount"
     | "faceCurrencyCode"
+    | "namedFaceValueId"
     | "manualPostageAmount"
     | "manualPostageCurrencyCode"
     | "quantityOwned"
@@ -48,6 +57,12 @@ type StampErrors = Partial<
     string
   >
 >;
+
+type NamedFaceValueOption = {
+  id: string;
+  countryCode: string;
+  displayCode: string;
+};
 
 export function formatMoney(value: StampValue) {
   try {
@@ -86,6 +101,41 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   ) : null;
 }
 
+export function NamedFaceValueFields({
+  countryCode,
+  query,
+  onQueryChange,
+  options,
+  searchError,
+  selectionError,
+}: {
+  countryCode: string;
+  query: string;
+  onQueryChange(value: string): void;
+  options: NamedFaceValueOption[];
+  searchError: string | null;
+  selectionError?: string;
+}) {
+  return (
+    <fieldset className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+      <legend className="font-medium">Named face value</legend>
+      <div>
+        <label htmlFor="named-face-value-search" className="block font-medium">Search names and codes</label>
+        <input id="named-face-value-search" type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} disabled={!countryCode} aria-describedby={searchError ? "named-face-value-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+        {searchError && <p id="named-face-value-search-error" role="alert" className="text-sm text-red-700 dark:text-red-300">{searchError}</p>}
+      </div>
+      <div>
+        <label htmlFor="named-face-value" className="block font-medium">Name or code</label>
+        <select id="named-face-value" name="namedFaceValueId" defaultValue="" disabled={!countryCode} aria-describedby={selectionError ? "named-face-value-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <option value="">Select a named face value</option>
+          {options.map((option) => <option key={option.id} value={option.id}>{option.displayCode}</option>)}
+        </select>
+        <FieldError id="named-face-value-error" message={selectionError} />
+      </div>
+    </fieldset>
+  );
+}
+
 export function StampInventory({
   activeCountryCode,
   activeDisplayCurrencyCode,
@@ -105,6 +155,13 @@ export function StampInventory({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<StampErrors>({});
   const [status, setStatus] = useState<string | null>(null);
+  const [countryCode, setCountryCode] = useState(activeCountryCode);
+  const [faceValueType, setFaceValueType] = useState<"MONETARY" | "NAMED">(
+    "MONETARY",
+  );
+  const [namedQuery, setNamedQuery] = useState("");
+  const [namedOptions, setNamedOptions] = useState<NamedFaceValueOption[]>([]);
+  const [namedSearchError, setNamedSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -124,6 +181,42 @@ export function StampInventory({
     return () => controller.abort();
   }, [activeCountryCode, activeDisplayCurrencyCode]);
 
+  useEffect(() => {
+    setCountryCode(activeCountryCode);
+  }, [activeCountryCode]);
+
+  useEffect(() => {
+    if (faceValueType !== "NAMED" || !countryCode) {
+      setNamedOptions([]);
+      setNamedSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const parameters = new URLSearchParams({ countryCode, query: namedQuery });
+    fetch(`/api/named-face-values?${parameters}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Named face values could not be loaded.");
+        }
+        return (await response.json()) as {
+          namedFaceValues: NamedFaceValueOption[];
+        };
+      })
+      .then(({ namedFaceValues }) => {
+        setNamedOptions(namedFaceValues);
+        setNamedSearchError(null);
+      })
+      .catch((caught: unknown) => {
+        if (caught instanceof Error && caught.name !== "AbortError") {
+          setNamedSearchError(caught.message);
+        }
+      });
+    return () => controller.abort();
+  }, [countryCode, faceValueType, namedQuery]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrors({});
@@ -138,8 +231,10 @@ export function StampInventory({
         postalEntityId: data.get("postalEntityId"),
         name: data.get("name"),
         yearOfIssue: data.get("yearOfIssue"),
+        faceValueType: data.get("faceValueType"),
         faceAmount: data.get("faceAmount"),
         faceCurrencyCode: data.get("faceCurrencyCode"),
+        namedFaceValueId: data.get("namedFaceValueId"),
         manualPostageAmount: data.get("manualPostageAmount"),
         manualPostageCurrencyCode: data.get("manualPostageCurrencyCode"),
         quantityOwned: data.get("quantityOwned"),
@@ -162,16 +257,20 @@ export function StampInventory({
       current ? { ...current, stamps: [...current.stamps, result.stamp!] } : current,
     );
     form.reset();
-    const country = form.elements.namedItem("countryCode") as HTMLSelectElement;
+    setCountryCode(activeCountryCode);
+    setFaceValueType("MONETARY");
+    setNamedQuery("");
+    setNamedOptions([]);
     const postalEntity = form.elements.namedItem(
       "postalEntityId",
     ) as HTMLSelectElement;
     const faceCurrency = form.elements.namedItem(
       "faceCurrencyCode",
-    ) as HTMLInputElement;
-    country.value = activeCountryCode;
+    ) as HTMLInputElement | null;
     postalEntity.value = activePostalEntityId;
-    faceCurrency.value = activeDisplayCurrencyCode;
+    if (faceCurrency) {
+      faceCurrency.value = activeDisplayCurrencyCode;
+    }
     setStatus("Stamp added to inventory.");
   }
 
@@ -182,14 +281,14 @@ export function StampInventory({
           Stamp inventory
         </h2>
         <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-          Add monetary stamps and see their postage value for the active country.
+          Add monetary or named stamps and see their postage value for the active country.
         </p>
       </div>
 
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
         <div>
           <label htmlFor="stamp-country" className="block font-medium">Country</label>
-          <select id="stamp-country" name="countryCode" defaultValue={activeCountryCode} aria-describedby={errors.countryCode ? "stamp-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="stamp-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-describedby={errors.countryCode ? "stamp-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             {countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           <FieldError id="stamp-country-error" message={errors.countryCode} />
@@ -212,15 +311,36 @@ export function StampInventory({
           <FieldError id="stamp-year-error" message={errors.yearOfIssue} />
         </div>
         <div>
-          <label htmlFor="face-amount" className="block font-medium">Monetary face amount</label>
-          <input id="face-amount" name="faceAmount" inputMode="decimal" aria-describedby={errors.faceAmount ? "face-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
-          <FieldError id="face-amount-error" message={errors.faceAmount} />
+          <label htmlFor="face-value-type" className="block font-medium">Face value type</label>
+          <select id="face-value-type" name="faceValueType" value={faceValueType} onChange={(event) => setFaceValueType(event.target.value as "MONETARY" | "NAMED")} aria-describedby={errors.faceValueType ? "face-value-type-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+            <option value="MONETARY">Monetary amount</option>
+            <option value="NAMED">Country-specific name or code</option>
+          </select>
+          <FieldError id="face-value-type-error" message={errors.faceValueType} />
         </div>
-        <div>
-          <label htmlFor="face-currency" className="block font-medium">Face currency</label>
-          <input id="face-currency" name="faceCurrencyCode" list="stamp-currency-options" defaultValue={activeDisplayCurrencyCode} maxLength={3} autoCapitalize="characters" aria-describedby={errors.faceCurrencyCode ? "face-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
-          <FieldError id="face-currency-error" message={errors.faceCurrencyCode} />
-        </div>
+        {faceValueType === "MONETARY" ? (
+          <>
+            <div>
+              <label htmlFor="face-amount" className="block font-medium">Monetary face amount</label>
+              <input id="face-amount" name="faceAmount" inputMode="decimal" aria-describedby={errors.faceAmount ? "face-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <FieldError id="face-amount-error" message={errors.faceAmount} />
+            </div>
+            <div>
+              <label htmlFor="face-currency" className="block font-medium">Face currency</label>
+              <input id="face-currency" name="faceCurrencyCode" list="stamp-currency-options" defaultValue={activeDisplayCurrencyCode} maxLength={3} autoCapitalize="characters" aria-describedby={errors.faceCurrencyCode ? "face-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <FieldError id="face-currency-error" message={errors.faceCurrencyCode} />
+            </div>
+          </>
+        ) : (
+          <NamedFaceValueFields
+            countryCode={countryCode}
+            query={namedQuery}
+            onQueryChange={setNamedQuery}
+            options={namedOptions}
+            searchError={namedSearchError}
+            selectionError={errors.namedFaceValueId}
+          />
+        )}
         <div>
           <label htmlFor="owned-quantity" className="block font-medium">Owned quantity</label>
           <input id="owned-quantity" name="quantityOwned" type="number" min="1" max="2147483647" step="1" defaultValue="1" aria-describedby={errors.quantityOwned ? "owned-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
@@ -263,7 +383,7 @@ export function StampInventory({
           {inventory.stamps.map((stamp) => (
             <li key={stamp.id} className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
               <h3 className="font-semibold">{stamp.name}{stamp.yearOfIssue ? ` (${stamp.yearOfIssue})` : ""}</h3>
-              <p>{stamp.postalEntity.name} ({stamp.countryCode}) · {stamp.faceAmount} {stamp.faceCurrencyCode}</p>
+              <p>{stamp.postalEntity.name} ({stamp.countryCode}) · {stamp.faceValueType === "NAMED" ? stamp.namedFaceValue?.displayCode : `${stamp.faceAmount} ${stamp.faceCurrencyCode}`}</p>
               <p>Owned: {stamp.quantityOwned}; annulled: {stamp.quantityAnnulled}; usable: {stamp.usableQuantity}</p>
               <p>{stamp.expired ? "Expired" : "Not expired"}</p>
               <p>Unit postage: {stamp.unitPostageValue ? <Money value={stamp.unitPostageValue} /> : "Unresolved"}</p>

@@ -21,6 +21,11 @@ enum PostalEntityStatus {
   PENDING
 }
 
+enum FaceValueType {
+  MONETARY
+  NAMED
+}
+
 model UserProfile {
   id                          String                    @id
   email                       String?
@@ -37,23 +42,26 @@ model UserProfile {
 }
 
 model StampInventoryEntry {
-  id                        String       @id @default(cuid())
-  userId                    String       @map("user_id")
-  countryCode               String       @map("country_code")
-  postalEntityId            String       @map("postal_entity_id")
+  id                        String          @id @default(cuid())
+  userId                    String          @map("user_id")
+  countryCode               String          @map("country_code")
+  postalEntityId            String          @map("postal_entity_id")
   name                      String
-  yearOfIssue               Int?         @map("year_of_issue")
-  faceAmount                String       @map("face_amount")
-  faceCurrencyCode          String       @map("face_currency_code")
-  manualPostageAmount       String?      @map("manual_postage_amount")
-  manualPostageCurrencyCode String?      @map("manual_postage_currency_code")
-  quantityOwned             Int          @map("quantity_owned")
-  quantityAnnulled          Int          @default(0) @map("quantity_annulled")
-  expired                   Boolean      @default(false)
-  user                      UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postalEntity              PostalEntity @relation(fields: [postalEntityId, countryCode], references: [id, countryCode], onDelete: Restrict)
-  createdAt                 DateTime     @default(now()) @map("created_at")
-  updatedAt                 DateTime     @updatedAt @map("updated_at")
+  yearOfIssue               Int?            @map("year_of_issue")
+  faceValueType             FaceValueType   @default(MONETARY) @map("face_value_type")
+  faceAmount                String?         @map("face_amount")
+  faceCurrencyCode          String?         @map("face_currency_code")
+  namedFaceValueId          String?         @map("named_face_value_id")
+  manualPostageAmount       String?         @map("manual_postage_amount")
+  manualPostageCurrencyCode String?         @map("manual_postage_currency_code")
+  quantityOwned             Int             @map("quantity_owned")
+  quantityAnnulled          Int             @default(0) @map("quantity_annulled")
+  expired                   Boolean         @default(false)
+  user                      UserProfile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postalEntity              PostalEntity    @relation(fields: [postalEntityId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  namedFaceValue            NamedFaceValue? @relation(fields: [namedFaceValueId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  createdAt                 DateTime        @default(now()) @map("created_at")
+  updatedAt                 DateTime        @updatedAt @map("updated_at")
 
   @@index([userId, createdAt])
   @@map("stamp_inventory_entries")
@@ -146,15 +154,17 @@ model ValueScheduleValue {
 }
 
 model NamedFaceValue {
-  id              String        @id @default(cuid())
-  countryCode     String        @map("country_code")
-  displayCode     String        @map("display_code")
-  normalizedCode  String        @map("normalized_code")
-  valueScheduleId String        @map("value_schedule_id")
-  valueSchedule   ValueSchedule @relation(fields: [valueScheduleId, countryCode], references: [id, countryCode], onDelete: Restrict)
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                    String                @id @default(cuid())
+  countryCode           String                @map("country_code")
+  displayCode           String                @map("display_code")
+  normalizedCode        String                @map("normalized_code")
+  valueScheduleId       String                @map("value_schedule_id")
+  valueSchedule         ValueSchedule         @relation(fields: [valueScheduleId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  stampInventoryEntries StampInventoryEntry[]
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
 
   @@unique([countryCode, normalizedCode])
+  @@unique([id, countryCode])
   @@map("named_face_values")
 }
