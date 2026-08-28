@@ -92,6 +92,7 @@ export async function createValueProposal(
             ...(input.targetNamedFaceValueId
               ? { namedFaceValueId: input.targetNamedFaceValueId }
               : { definitionProposalId: input.definitionProposalId }),
+            effectiveOn: input.effectiveOn,
           },
         },
       },

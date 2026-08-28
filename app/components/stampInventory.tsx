@@ -182,6 +182,7 @@ function StampEditor({
   const [replacementOptions, setReplacementOptions] = useState<
     NamedFaceValueOption[]
   >([]);
+  const [replacementQuery, setReplacementQuery] = useState("");
   const [replacementLoadError, setReplacementLoadError] = useState<
     string | null
   >(null);
@@ -193,13 +194,14 @@ function StampEditor({
   const expiredExplanationId = `${expiredId}-explanation`;
   const actionResolutionId = `stamp-${stamp.id}-action-resolution`;
   const actionResolutionErrorId = `${actionResolutionId}-error`;
+  const replacementSearchId = `stamp-${stamp.id}-replacement-search`;
 
   useEffect(() => {
     if (!stamp.actionRequired || stamp.faceValueType !== "NAMED") return;
     const controller = new AbortController();
     const parameters = new URLSearchParams({
       countryCode: stamp.countryCode,
-      query: "",
+      query: replacementQuery,
     });
     fetch(`/api/named-face-values?${parameters}`, {
       signal: controller.signal,
@@ -210,14 +212,22 @@ function StampEditor({
           namedFaceValues: NamedFaceValueOption[];
         };
       })
-      .then(({ namedFaceValues }) => setReplacementOptions(namedFaceValues))
+      .then(({ namedFaceValues }) => {
+        setReplacementOptions(namedFaceValues);
+        setReplacementLoadError(null);
+      })
       .catch((caught: unknown) => {
         if (!(caught instanceof Error && caught.name === "AbortError")) {
           setReplacementLoadError("Eligible replacements could not be loaded.");
         }
       });
     return () => controller.abort();
-  }, [stamp.actionRequired, stamp.countryCode, stamp.faceValueType]);
+  }, [
+    replacementQuery,
+    stamp.actionRequired,
+    stamp.countryCode,
+    stamp.faceValueType,
+  ]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -326,6 +336,25 @@ function StampEditor({
       </fieldset>
       {stamp.actionRequired && (
         <div className="sm:col-span-2">
+          {stamp.faceValueType === "NAMED" && (
+            <div>
+              <label htmlFor={replacementSearchId} className="block font-medium">
+                Search eligible named/code replacements
+              </label>
+              <input
+                id={replacementSearchId}
+                type="search"
+                value={replacementQuery}
+                onChange={(event) => setReplacementQuery(event.target.value)}
+                aria-describedby={
+                  replacementLoadError
+                    ? `${actionResolutionId}-load-error`
+                    : undefined
+                }
+                className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2"
+              />
+            </div>
+          )}
           <label htmlFor={actionResolutionId} className="block font-medium">
             Resolve rejected proposal reference
           </label>

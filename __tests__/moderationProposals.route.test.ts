@@ -592,6 +592,68 @@ describe("moderation proposal API", () => {
     });
   });
 
+  it("does not resolve a rejected current value with a future resubmission", async () => {
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "schedule-slot-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Schedule slot stamp",
+        faceValueType: "NAMED",
+        namedFaceValueId: "approved-b",
+        quantityOwned: 1,
+      },
+    });
+    const rejected = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rejected-current-slot",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.5",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unsupported current value",
+      },
+    });
+    auth.userId = "moderator";
+    expect((await rejectionRequest("NAMED_VALUE", rejected.id)).status).toBe(200);
+
+    await createValueProposal(
+      "proposer",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: "approved-b",
+        definitionProposalId: null,
+        amount: "1.75",
+        effectiveOn: "2028-10-01",
+        sourceUrl: null,
+        sourceNote: "Published future schedule",
+      },
+      "2026-08-28",
+    );
+
+    expect(
+      await prisma.stampProposalAction.findFirstOrThrow({
+        where: {
+          stampId: "schedule-slot-stamp",
+          namedValueProposalId: rejected.id,
+        },
+      }),
+    ).toMatchObject({ resolvedAt: null, resolution: null });
+    expect(
+      (await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })).find(({ id }) => id === "schedule-slot-stamp"),
+    ).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      availableFallback: { amount: "1.25", source: "NAMED_SCHEDULE" },
+    });
+  });
+
   it("requires explicit fallback selection after rejecting a used value or conversion", async () => {
     await prisma.userPostalEntitySetting.create({
       data: {

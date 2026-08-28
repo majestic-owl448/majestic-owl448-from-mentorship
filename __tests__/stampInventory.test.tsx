@@ -221,6 +221,16 @@ describe("stamp inventory interface", () => {
 
   it("labels action-required rows and offers an explicit fallback choice", () => {
     const stamp = savedStamp("rejected", null, null);
+    stamp.faceValueType = "NAMED";
+    stamp.faceAmount = null;
+    stamp.faceCurrencyCode = null;
+    stamp.namedFaceValueProposalId = "rejected-definition";
+    stamp.namedFaceValue = {
+      id: "rejected-definition",
+      countryCode: "IT",
+      displayCode: "Rejected name",
+      proposalStatus: "REJECTED",
+    };
     stamp.actionRequired = true;
     stamp.availableFallback = {
       amount: "0.75",
@@ -245,6 +255,9 @@ describe("stamp inventory interface", () => {
     );
     expect(markup).toContain(
       '<label for="stamp-rejected-action-resolution"',
+    );
+    expect(markup).toContain(
+      '<label for="stamp-rejected-replacement-search"',
     );
     expect(markup).toContain("Use Manual postage value:");
     expect(markup).toContain("Valuation source: Action required");
