@@ -134,6 +134,91 @@ describe("named/code proposal interface", () => {
     ).toBeTruthy();
   });
 
+  it("links a corrected definition submission to the rejected proposal", async () => {
+    const user = userEvent.setup();
+    let submittedBody: Record<string, unknown> | null = null;
+    const rejectedDefinition = {
+      id: "rejected-definition",
+      proposalType: "DEFINITION" as const,
+      targetNamedFaceValueId: null,
+      countryCode: "IT",
+      displayCode: "Unsupported",
+      normalizedCode: "unsupported",
+      currencyCode: "EUR",
+      sourceUrl: null,
+      sourceNote: "Unverified source",
+      status: "REJECTED" as const,
+      decidedAt: "2026-08-28T12:00:00.000Z",
+      decisionNote: "Use the published tariff.",
+      createdAt: "2026-08-27T12:00:00.000Z",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("named-face-values?")) {
+          return Response.json({ namedFaceValues: [] });
+        }
+        if (init?.method === "POST") {
+          submittedBody = JSON.parse(String(init.body)) as Record<
+            string,
+            unknown
+          >;
+          return Response.json(
+            {
+              proposal: {
+                ...rejectedDefinition,
+                id: "corrected-definition",
+                status: "PENDING",
+              },
+            },
+            { status: 201 },
+          );
+        }
+        return Response.json({
+          definitions: [rejectedDefinition],
+          values: [],
+        });
+      }),
+    );
+    render(
+      <NamedFaceValueProposals
+        activeCountryCode="IT"
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+      />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Resubmit corrected definition",
+      }),
+    );
+    expect(
+      screen.getByText(/Correcting rejected definition rejected-definition/),
+    ).toBeTruthy();
+    await user.type(
+      screen.getByLabelText("Proposed display name or code"),
+      "Corrected",
+    );
+    await user.type(
+      screen.getByLabelText("Proposed normalized code"),
+      "corrected",
+    );
+    await user.selectOptions(screen.getByLabelText("Schedule currency"), "EUR");
+    await user.type(screen.getByLabelText("Source note"), "Published tariff");
+    await user.click(screen.getByRole("button", { name: "Submit proposal" }));
+
+    await waitFor(() =>
+      expect(submittedBody).toMatchObject({
+        proposalType: "DEFINITION",
+        replacesRejectedProposalId: "rejected-definition",
+        countryCode: "IT",
+        displayCode: "Corrected",
+      }),
+    );
+  });
+
   it("keeps the correction target when the proposed country changes", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

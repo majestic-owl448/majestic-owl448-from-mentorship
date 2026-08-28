@@ -5,6 +5,7 @@ export type NamedFaceValueProposalField =
   | "proposalType"
   | "targetNamedFaceValueId"
   | "definitionProposalId"
+  | "replacesRejectedProposalId"
   | "countryCode"
   | "displayCode"
   | "normalizedCode"
@@ -17,6 +18,7 @@ export type NamedFaceValueProposalField =
 export type DefinitionProposalInput = {
   proposalType: "DEFINITION";
   targetNamedFaceValueId: string | null;
+  replacesRejectedProposalId?: string | null;
   countryCode: string;
   displayCode: string;
   normalizedCode: string;
@@ -106,6 +108,8 @@ export function validateNamedFaceValueProposal(
   if (proposalType === "DEFINITION") {
     const targetNamedFaceValueId =
       stringValue(record, "targetNamedFaceValueId") || null;
+    const replacesRejectedProposalId =
+      stringValue(record, "replacesRejectedProposalId") || null;
     const countryCode = normalizeCountryCode(
       stringValue(record, "countryCode"),
     );
@@ -135,6 +139,9 @@ export function validateNamedFaceValueProposal(
       data: {
         proposalType: "DEFINITION",
         targetNamedFaceValueId,
+        ...(replacesRejectedProposalId
+          ? { replacesRejectedProposalId }
+          : {}),
         countryCode,
         displayCode,
         normalizedCode,

@@ -387,99 +387,114 @@ export async function updateStamp(
   }
 
   const { actionResolution, ...updates } = input;
-  const referenceUpdates: {
-    namedFaceValueId?: string | null;
-    namedFaceValueProposalId?: string | null;
-  } = {};
-  let resolvedActionTypes: "ALL" | "NAMED" | null = null;
-  if (actionResolution) {
-    if (stamp.proposalActions.length === 0) {
+  const initialActionIds = stamp.proposalActions.map(({ id }) => id);
+  if (actionResolution?.type === "FALLBACK") {
+    if (initialActionIds.length === 0) {
       throw new StampActionError("This stamp does not require a replacement.");
     }
-    if (actionResolution.type === "FALLBACK") {
-      const candidate = await presentStampRecord(
-        { ...stamp, ...updates, proposalActions: [] },
-        activeCountry,
-      );
-      if (
-        !candidate.unitPostageValue ||
-        ["EXPIRED", "OUTSIDE_ACTIVE_COUNTRY"].includes(
-          candidate.unitPostageValue.source,
-        )
-      ) {
-        throw new StampActionError(
-          "No approved or manual fallback is available for this stamp.",
-        );
-      }
-      resolvedActionTypes = "ALL";
-    } else if (stamp.faceValueType !== "NAMED") {
+    const candidate = await presentStampRecord(
+      { ...stamp, ...updates, proposalActions: [] },
+      activeCountry,
+    );
+    if (
+      !candidate.unitPostageValue ||
+      ["EXPIRED", "OUTSIDE_ACTIVE_COUNTRY"].includes(
+        candidate.unitPostageValue.source,
+      )
+    ) {
       throw new StampActionError(
-        "Only a named/code stamp can use a named/code replacement.",
+        "No approved or manual fallback is available for this stamp.",
       );
-    } else if (actionResolution.referenceType === "approved") {
-      const replacement = await prisma.namedFaceValue.findUnique({
-        where: {
-          id_countryCode: {
-            id: actionResolution.id,
-            countryCode: stamp.countryCode,
-          },
-        },
-        select: { id: true },
-      });
-      if (!replacement) {
-        throw new StampActionError("Select an eligible replacement.");
-      }
-      Object.assign(referenceUpdates, {
-        namedFaceValueId: replacement.id,
-        namedFaceValueProposalId: null,
-      });
-      resolvedActionTypes = "NAMED";
-    } else {
-      const replacement = await prisma.namedFaceValueDefinitionProposal.findFirst({
-        where: {
-          id: actionResolution.id,
-          countryCode: stamp.countryCode,
-          submittedById: userId,
-          status: "PENDING",
-        },
-        select: { id: true },
-      });
-      if (!replacement) {
-        throw new StampActionError("Select an eligible replacement.");
-      }
-      Object.assign(referenceUpdates, {
-        namedFaceValueId: null,
-        namedFaceValueProposalId: replacement.id,
-      });
-      resolvedActionTypes = "NAMED";
     }
   }
 
   return prisma.$transaction(async (tx) => {
+    const current = await tx.stampInventoryEntry.findFirst({
+      where: { id: stampId, userId },
+      include: {
+        proposalActions: {
+          where: { id: { in: initialActionIds }, resolvedAt: null },
+        },
+      },
+    });
+    if (!current) {
+      throw new StampNotFoundError();
+    }
+    const referenceUpdates: {
+      namedFaceValueId?: string | null;
+      namedFaceValueProposalId?: string | null;
+    } = {};
+    let resolvedActionIds: string[] = [];
+    let resolution: string | null = null;
+    if (actionResolution) {
+      if (current.proposalActions.length === 0) {
+        throw new StampActionError("This stamp does not require a replacement.");
+      }
+      if (actionResolution.type === "FALLBACK") {
+        resolvedActionIds = current.proposalActions.map(({ id }) => id);
+        resolution = "SELECTED_FALLBACK";
+      } else {
+        if (current.faceValueType !== "NAMED") {
+          throw new StampActionError(
+            "Only a named/code stamp can use a named/code replacement.",
+          );
+        }
+        if (actionResolution.referenceType === "approved") {
+          const replacement = await tx.namedFaceValue.findUnique({
+            where: {
+              id_countryCode: {
+                id: actionResolution.id,
+                countryCode: current.countryCode,
+              },
+            },
+            select: { id: true },
+          });
+          if (!replacement) {
+            throw new StampActionError("Select an eligible replacement.");
+          }
+          referenceUpdates.namedFaceValueId = replacement.id;
+          referenceUpdates.namedFaceValueProposalId = null;
+        } else {
+          const replacement =
+            await tx.namedFaceValueDefinitionProposal.findFirst({
+              where: {
+                id: actionResolution.id,
+                countryCode: current.countryCode,
+                submittedById: userId,
+                status: "PENDING",
+              },
+              select: { id: true },
+            });
+          if (!replacement) {
+            throw new StampActionError("Select an eligible replacement.");
+          }
+          referenceUpdates.namedFaceValueId = null;
+          referenceUpdates.namedFaceValueProposalId = replacement.id;
+        }
+        resolvedActionIds = current.proposalActions
+          .filter(
+            (action) =>
+              action.namedDefinitionProposalId !== null ||
+              action.namedValueProposalId !== null,
+          )
+          .map(({ id }) => id);
+        resolution = "SELECTED_NAMED_REPLACEMENT";
+      }
+    }
+
     await tx.stampInventoryEntry.update({
       where: { id: stampId },
       data: { ...updates, ...referenceUpdates },
     });
-    if (resolvedActionTypes) {
+    if (resolvedActionIds.length > 0 && resolution) {
       await tx.stampProposalAction.updateMany({
         where: {
-          stampId,
+          id: { in: resolvedActionIds },
           resolvedAt: null,
-          ...(resolvedActionTypes === "NAMED"
-            ? {
-                OR: [
-                  { namedDefinitionProposalId: { not: null } },
-                  { namedValueProposalId: { not: null } },
-                ],
-              }
-            : {}),
         },
         data: {
           resolvedAt: new Date(),
-          resolution:
-            resolvedActionTypes === "ALL"
-              ? "SELECTED_FALLBACK"
-              : "SELECTED_NAMED_REPLACEMENT",
+          resolution,
         },
       });
     }
