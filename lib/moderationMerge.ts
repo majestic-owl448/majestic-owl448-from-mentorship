@@ -139,6 +139,7 @@ async function mergeValue(
           select: {
             approvedNamedFaceValueId: true,
             targetNamedFaceValueId: true,
+            countryCode: true,
           },
         },
       },
@@ -165,12 +166,15 @@ async function mergeValue(
     !target ||
     target.effectiveOn !== proposal.effectiveOn ||
     !sameDecimal(target.amount, proposal.amount) ||
+    (proposal.definitionProposal !== null &&
+      target.valueSchedule.countryCode !==
+        proposal.definitionProposal.countryCode) ||
     !target.valueSchedule.namedFaceValues.some(
       (definition) => definition.id === namedFaceValueId,
     )
   ) {
     throw new MergeTargetError(
-      "The selected schedule value does not match the proposed definition, amount, and effective date.",
+      "The selected schedule value does not match the proposed definition, country, amount, and effective date.",
     );
   }
   await tx.namedFaceValueValueProposal.update({

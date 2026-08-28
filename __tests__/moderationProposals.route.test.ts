@@ -297,6 +297,7 @@ describe("moderation proposal API", () => {
     expect(valueBody.proposal.possibleMatches).toEqual([
       expect.objectContaining({ id: "approved-current-value", amount: "1.25" }),
     ]);
+    expect(valueBody.proposal.compatibleMergeTargets).toEqual([]);
 
     const conversionBody = await (
       await detailRequest("FIXED_CONVERSION", "conversion-proposal")
@@ -324,6 +325,40 @@ describe("moderation proposal API", () => {
     expect((await GET_QUEUE(queueRequest("?type=INVENTORY"))).status).toBe(400);
     expect((await detailRequest("INVENTORY", "private-inventory-entry")).status).toBe(404);
     expect((await detailRequest("NAMED_VALUE", "missing")).status).toBe(404);
+  });
+
+  it("rejects a linked definition target from another country", async () => {
+    auth.userId = "moderator";
+
+    const response = await mergeRequest(
+      "NAMED_VALUE",
+      "value-proposal",
+      "approved-current-value",
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error:
+        "The selected schedule value does not match the proposed definition, country, amount, and effective date.",
+    });
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: "value-proposal" },
+        select: {
+          status: true,
+          mergedValueScheduleValueId: true,
+          moderatedById: true,
+          decidedAt: true,
+          decisionNote: true,
+        },
+      }),
+    ).toEqual({
+      status: "PENDING",
+      mergedValueScheduleValueId: null,
+      moderatedById: null,
+      decidedAt: null,
+      decisionNote: null,
+    });
   });
 
   it("approves a definition for all users and preserves a linked stamp reference", async () => {

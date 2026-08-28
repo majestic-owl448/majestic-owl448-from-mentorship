@@ -283,6 +283,7 @@ async function namedValueDetail(proposalId: string) {
     proposal.definitionProposal?.approvedNamedFaceValueId ??
     proposal.definitionProposal?.targetNamedFaceValueId ??
     null;
+  const mergeCountryCode = proposal.definitionProposal?.countryCode ?? null;
   const possibleMatches = await prisma.valueScheduleValue.findMany({
     where: {
       effectiveOn: proposal.effectiveOn,
@@ -296,6 +297,7 @@ async function namedValueDetail(proposalId: string) {
       effectiveOn: true,
       valueSchedule: {
         select: {
+          countryCode: true,
           currencyCode: true,
           namedFaceValues: {
             select: { id: true, countryCode: true, displayCode: true },
@@ -329,6 +331,8 @@ async function namedValueDetail(proposalId: string) {
         (match) =>
           mergeNamedTargetId !== null &&
           sameDecimal(match.amount, proposal.amount) &&
+          (mergeCountryCode === null ||
+            match.valueSchedule.countryCode === mergeCountryCode) &&
           match.valueSchedule.namedFaceValues.some(
             (definition) => definition.id === mergeNamedTargetId,
           ),
