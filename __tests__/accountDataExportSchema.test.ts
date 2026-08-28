@@ -16,6 +16,7 @@ describe("account export schema coverage", () => {
     const directlyLinked = models.filter(
       (model) =>
         model.name === "UserProfile" ||
+        model.name === "DeletedAccountTombstone" ||
         model.fields.some(
           (field) => field.kind !== "object" && field.name === "userId",
         ) ||

@@ -76,6 +76,13 @@ model AccountDeletionJob {
   @@map("account_deletion_jobs")
 }
 
+model DeletedAccountTombstone {
+  userIdHash String   @id @map("user_id_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("deleted_account_tombstones")
+}
+
 model StampInventoryEntry {
   id                        String                            @id @default(cuid())
   userId                    String                            @map("user_id")

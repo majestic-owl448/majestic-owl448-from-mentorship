@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import supertokens from "supertokens-node";
 import Session from "supertokens-node/recipe/session";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -28,6 +29,10 @@ const superTokensIdentityDeletion: AccountIdentityDeletion = {
 };
 
 type Transaction = Prisma.TransactionClient;
+
+export function accountDeletionHash(userId: string) {
+  return createHash("sha256").update(userId).digest("hex");
+}
 
 function redactAccountText(
   value: string | null,
@@ -295,6 +300,11 @@ export async function processAccountDeletionJob(
     await identityDeletion.deleteIdentity(userId);
     await prisma.$transaction(async (tx) => {
       await deletePrivateAccountData(tx, userId, profile?.email ?? null);
+      await tx.deletedAccountTombstone.upsert({
+        where: { userIdHash: accountDeletionHash(userId) },
+        create: { userIdHash: accountDeletionHash(userId) },
+        update: {},
+      });
       await tx.userProfile.deleteMany({ where: { id: userId } });
       await tx.accountDeletionJob.deleteMany({ where: { userId } });
     });

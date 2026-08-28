@@ -154,6 +154,10 @@ export const USER_LINKED_MODEL_POLICY = {
       "updatedAt",
     ],
   },
+  DeletedAccountTombstone: {
+    exportedFields: [],
+    secretFields: ["userIdHash", "createdAt"],
+  },
 } as const;
 
 type ScalarRecord = Record<string, unknown>;

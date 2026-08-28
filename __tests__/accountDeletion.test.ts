@@ -12,6 +12,7 @@ import {
 } from "@/lib/userProfile";
 
 async function clearDeletionFixtures() {
+  await prisma.deletedAccountTombstone.deleteMany();
   await prisma.accountDeletionJob.deleteMany();
   await prisma.stampProposalAction.deleteMany();
   await prisma.stampInventoryEntry.deleteMany();
@@ -430,6 +431,12 @@ describe("account deletion", () => {
     await expect(
       prisma.accountDeletionJob.findUnique({ where: { userId: "deleting-user" } }),
     ).resolves.toBeNull();
+    await expect(
+      upsertUserProfile("deleting-user", "recreated@example.com"),
+    ).rejects.toBeInstanceOf(AccountAccessBlockedError);
+    const tombstone = await prisma.deletedAccountTombstone.findFirstOrThrow();
+    expect(tombstone.userIdHash).not.toContain("deleting-user");
+    expect(tombstone.userIdHash).toHaveLength(64);
 
     await expect(
       prisma.userProfile.findUniqueOrThrow({ where: { id: "other-user" } }),

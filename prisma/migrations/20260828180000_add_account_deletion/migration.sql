@@ -11,6 +11,12 @@ CREATE TABLE "account_deletion_jobs" (
     "updated_at" DATETIME NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE "deleted_account_tombstones" (
+    "user_id_hash" TEXT NOT NULL PRIMARY KEY,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- RedefineTables
 PRAGMA defer_foreign_keys=ON;
 PRAGMA foreign_keys=OFF;
