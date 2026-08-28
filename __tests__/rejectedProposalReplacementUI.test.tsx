@@ -34,6 +34,7 @@ const inventory: InventoryResponse = {
         displayCode: "Rejected",
         proposalStatus: "REJECTED",
       },
+      currentNamedFaceValue: null,
       upcomingNamedFaceValue: null,
       manualPostageAmount: null,
       manualPostageCurrencyCode: null,

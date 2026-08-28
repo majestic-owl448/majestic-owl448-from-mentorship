@@ -187,6 +187,8 @@ describe("stamp inventory API", () => {
     await prisma.currencyConversionProposal.deleteMany();
     await prisma.currencyConversion.deleteMany();
     await prisma.stampInventoryEntry.deleteMany();
+    await prisma.namedFaceValueValueProposal.deleteMany();
+    await prisma.namedFaceValueDefinitionProposal.deleteMany();
     await prisma.namedFaceValue.deleteMany();
     await prisma.valueScheduleValue.deleteMany();
     await prisma.valueSchedule.deleteMany();
@@ -648,6 +650,135 @@ describe("stamp inventory API", () => {
       faceAmount: null,
       faceCurrencyCode: null,
     });
+  });
+
+  it("returns current and upcoming named values only during the notice window", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2028-09-20T12:00:00.000Z"));
+      auth.userId = "first-user";
+      await createActiveSetting("first-user");
+      await prisma.valueSchedule.create({
+        data: {
+          id: "italy-b-zone-one-schedule",
+          countryCode: "IT",
+          currencyCode: "EUR",
+          values: {
+            create: [
+              { amount: "1.35" },
+              { amount: "1.40", effectiveOn: "2028-10-01" },
+            ],
+          },
+          namedFaceValues: {
+            create: {
+              id: "italy-b-zone-one",
+              displayCode: "B Zona 1",
+              normalizedCode: "b zona 1",
+            },
+          },
+        },
+      });
+      await POST(request("POST", validNamedStamp));
+
+      let response = await GET(request("GET"));
+      let body = await response.json();
+      expect(body.stamps[0]).toMatchObject({
+        currentNamedFaceValue: { amount: "1.35", currencyCode: "EUR" },
+        upcomingNamedFaceValue: null,
+        unitPostageValue: { amount: "1.35", source: "NAMED_SCHEDULE" },
+        totalPostageValue: { amount: "2.7", currencyCode: "EUR" },
+      });
+      expect(body.inventoryTotal).toEqual({
+        amount: "2.7",
+        currencyCode: "EUR",
+      });
+
+      vi.setSystemTime(new Date("2028-09-21T12:00:00.000Z"));
+      response = await GET(request("GET"));
+      body = await response.json();
+      expect(body.stamps[0]).toMatchObject({
+        currentNamedFaceValue: { amount: "1.35", currencyCode: "EUR" },
+        upcomingNamedFaceValue: {
+          amount: "1.4",
+          currencyCode: "EUR",
+          effectiveOn: "2028-10-01",
+          daysUntil: 10,
+        },
+        totalPostageValue: { amount: "2.7", currencyCode: "EUR" },
+      });
+
+      vi.setSystemTime(new Date("2028-09-30T22:30:00.000Z"));
+      response = await GET(request("GET"));
+      body = await response.json();
+      expect(body.stamps[0]).toMatchObject({
+        currentNamedFaceValue: { amount: "1.4", currencyCode: "EUR" },
+        upcomingNamedFaceValue: null,
+        unitPostageValue: { amount: "1.4", source: "NAMED_SCHEDULE" },
+        totalPostageValue: { amount: "2.8", currencyCode: "EUR" },
+      });
+      expect(body.inventoryTotal).toEqual({
+        amount: "2.8",
+        currencyCode: "EUR",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("returns a pending upcoming value only in its proposer's inventory", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2028-09-21T12:00:00.000Z"));
+      await createActiveSetting("first-user");
+      await createActiveSetting("second-user");
+      await createNamedFaceValue(
+        "italy-b-zone-one",
+        "IT",
+        "B Zona 1",
+        "1.35",
+      );
+      await prisma.namedFaceValueValueProposal.create({
+        data: {
+          submittedById: "first-user",
+          namedFaceValueId: "italy-b-zone-one",
+          amount: "1.40",
+          effectiveOn: "2028-10-01",
+          eligibleOn: "2028-10-01",
+          sourceNote: "Published rate notice",
+        },
+      });
+
+      auth.userId = "first-user";
+      await POST(
+        request("POST", {
+          ...validNamedStamp,
+          postalEntityId: "first-user-postal-entity",
+        }),
+      );
+      auth.userId = "second-user";
+      await POST(
+        request("POST", {
+          ...validNamedStamp,
+          postalEntityId: "second-user-postal-entity",
+        }),
+      );
+
+      auth.userId = "first-user";
+      const proposerBody = await (await GET(request("GET"))).json();
+      expect(proposerBody.stamps[0].upcomingNamedFaceValue).toMatchObject({
+        amount: "1.4",
+        effectiveOn: "2028-10-01",
+      });
+
+      auth.userId = "second-user";
+      const otherBody = await (await GET(request("GET"))).json();
+      expect(otherBody.stamps[0]).toMatchObject({
+        currentNamedFaceValue: { amount: "1.35", currencyCode: "EUR" },
+        upcomingNamedFaceValue: null,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stores and resolves a zero manual value for a stamp without a face value", async () => {

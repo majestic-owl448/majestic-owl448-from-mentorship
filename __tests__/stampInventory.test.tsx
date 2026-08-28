@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   applyStampUpdate,
   applyStampRemoval,
+  formatCalendarDate,
   formatInventoryDate,
   formatMoney,
   NamedFaceValueFields,
@@ -32,6 +33,7 @@ function savedStamp(
     namedFaceValueId: null,
     namedFaceValueProposalId: null,
     namedFaceValue: null,
+    currentNamedFaceValue: null,
     upcomingNamedFaceValue: null,
     manualPostageAmount: null,
     manualPostageCurrencyCode: null,
@@ -109,6 +111,11 @@ describe("stamp inventory interface", () => {
     );
   });
 
+  it("formats calendar dates without shifting the stored day", () => {
+    expect(formatCalendarDate("2028-10-01", "en-GB")).toBe("01/10/2028");
+    expect(formatCalendarDate("2028-10-01", "en-US")).toBe("10/1/2028");
+  });
+
   it("shows the inventory total, valuation sources, zero reason, and unresolved state in text", () => {
     const markup = renderToStaticMarkup(
       <StampInventoryResults
@@ -158,6 +165,10 @@ describe("stamp inventory interface", () => {
       displayCode: "B Zona 2",
       proposalStatus: "PENDING",
     };
+    pending.currentNamedFaceValue = {
+      amount: "1.35",
+      currencyCode: "EUR",
+    };
     pending.upcomingNamedFaceValue = {
       amount: "2.20",
       currencyCode: "EUR",
@@ -177,9 +188,11 @@ describe("stamp inventory interface", () => {
     );
 
     expect(markup).toContain("Definition status: PENDING");
-    expect(markup).toContain(
-      "Upcoming named/code value: 2.20 EUR from 2028-10-01",
-    );
+    expect(markup).toContain("Current named/code value:");
+    expect(markup).toContain("€1.35");
+    expect(markup).toContain("Upcoming named/code value:");
+    expect(markup).toContain("€2.20");
+    expect(markup).toContain("effective 10/1/2028");
   });
 
   it("renders labelled keyboard-operable quantity editors for inventory lines", () => {
