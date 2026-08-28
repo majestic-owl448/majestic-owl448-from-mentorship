@@ -30,6 +30,7 @@ const inventory: InventoryResponse = {
       namedFaceValueId: null,
       namedFaceValueProposalId: null,
       namedFaceValue: null,
+      currentNamedFaceValue: null,
       upcomingNamedFaceValue: null,
       manualPostageAmount: null,
       manualPostageCurrencyCode: null,
