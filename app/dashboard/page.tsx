@@ -9,6 +9,7 @@ import type {
   SettingOption,
 } from "@/app/components/initialPostalEntitySettingForm";
 import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
+import { AccountDataDownload } from "@/app/components/accountDataDownload";
 import { NamedFaceValueProposals } from "@/app/components/namedFaceValueProposals";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
@@ -192,6 +193,8 @@ function DashboardContent() {
           Open proposal moderation
         </Link>
       )}
+
+      <AccountDataDownload />
 
       <button
         onClick={onSignOut}
