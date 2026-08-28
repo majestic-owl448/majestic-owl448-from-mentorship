@@ -41,6 +41,8 @@ type DefinitionProposal = {
   sourceUrl: string | null;
   sourceNote: string | null;
   status: ProposalStatus;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
   createdAt: string;
 };
 
@@ -54,6 +56,9 @@ type ValueProposal = {
   sourceUrl: string | null;
   sourceNote: string | null;
   status: ProposalStatus;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
+  actionRequired?: boolean;
   createdAt: string;
 };
 
@@ -97,6 +102,21 @@ export function ProposalStatusList({
           </p>
           <p>Type: {proposal.proposalType === "DEFINITION" ? "Named definition" : "Schedule value"}</p>
           <p>Status: {proposal.status}</p>
+          {"actionRequired" in proposal && proposal.actionRequired && (
+            <p>
+              Action required: the linked definition was rejected. Submit a
+              new value proposal against an eligible definition.
+            </p>
+          )}
+          {proposal.status === "REJECTED" && (
+            <>
+              <p>Decision note: {proposal.decisionNote}</p>
+              <p>
+                Submit corrected data with the form above, or replace each
+                affected inventory reference.
+              </p>
+            </>
+          )}
           <p>
             Source: {proposal.sourceUrl ?? proposal.sourceNote}
           </p>

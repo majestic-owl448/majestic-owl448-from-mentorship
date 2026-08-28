@@ -68,8 +68,35 @@ export async function createCurrencyConversionProposal(
     );
   }
 
-  return prisma.currencyConversionProposal.create({
-    data: { submittedById: userId, ...input },
+  return prisma.$transaction(async (tx) => {
+    const proposal = await tx.currencyConversionProposal.create({
+      data: { submittedById: userId, ...input },
+    });
+    const matchingPostalEntities = await tx.userPostalEntitySetting.findMany({
+      where: {
+        userId,
+        displayCurrencyCode: input.toCurrencyCode,
+      },
+      select: { postalEntityId: true },
+    });
+    await tx.stampInventoryEntry.updateMany({
+      where: {
+        userId,
+        actionRequired: true,
+        postalEntityId: {
+          in: matchingPostalEntities.map(({ postalEntityId }) => postalEntityId),
+        },
+        OR: [
+          {
+            faceValueType: "MONETARY",
+            faceCurrencyCode: input.fromCurrencyCode,
+          },
+          { manualPostageCurrencyCode: input.fromCurrencyCode },
+        ],
+      },
+      data: { actionRequired: false },
+    });
+    return proposal;
   });
 }
 

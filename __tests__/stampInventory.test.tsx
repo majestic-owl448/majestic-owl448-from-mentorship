@@ -219,6 +219,37 @@ describe("stamp inventory interface", () => {
     expect(markup).not.toContain("onKeyDown");
   });
 
+  it("labels action-required rows and offers an explicit fallback choice", () => {
+    const stamp = savedStamp("rejected", null, null);
+    stamp.actionRequired = true;
+    stamp.availableFallback = {
+      amount: "0.75",
+      currencyCode: "EUR",
+      source: "MANUAL_FALLBACK",
+    };
+    stamp.valuation = { status: "ACTION_REQUIRED", source: null };
+    const markup = renderToStaticMarkup(
+      <StampInventoryResults
+        inventory={{
+          activeCountryCode: "IT",
+          displayCurrencyCode: "EUR",
+          inventoryTotal: { amount: "0", currencyCode: "EUR" },
+          stamps: [stamp],
+        }}
+        onStampUpdated={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain(
+      "Action required: rejected proposal data is no longer used.",
+    );
+    expect(markup).toContain(
+      '<label for="stamp-rejected-action-resolution"',
+    );
+    expect(markup).toContain("Use Manual postage value:");
+    expect(markup).toContain("Valuation source: Action required");
+  });
+
   it("replaces the updated line and inventory total from an update response", () => {
     const original = savedStamp("editable", "FACE_AMOUNT");
     const unchanged = savedStamp("unchanged", "FACE_AMOUNT");

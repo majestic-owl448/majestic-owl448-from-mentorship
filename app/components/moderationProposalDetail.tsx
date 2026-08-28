@@ -21,7 +21,7 @@ type ProposalDetail = {
   compatibleMergeTargets: Record<string, unknown>[];
 };
 
-type ModerationAction = "APPROVE" | "MERGE";
+type ModerationAction = "APPROVE" | "MERGE" | "REJECT";
 
 const labels: Record<string, string> = {
   targetNamedFaceValueId: "Approved definition being corrected",
@@ -121,6 +121,8 @@ export function ModerationProposalDetail({
       setApprovalMessage(
         action === "MERGE"
           ? "Proposal merged. References now use the canonical record."
+          : action === "REJECT"
+            ? "Proposal rejected. Linked inventory now requires action."
           : "Proposal approved. Shared data is now available.",
       );
     } catch (caught) {
@@ -227,6 +229,19 @@ export function ModerationProposalDetail({
                 />
                 Merge as a duplicate
               </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="moderation-action"
+                  value="REJECT"
+                  checked={action === "REJECT"}
+                  onChange={() => {
+                    setAction("REJECT");
+                    setConfirmed(false);
+                  }}
+                />
+                Reject without publishing
+              </label>
               {proposal.compatibleMergeTargets.length === 0 && (
                 <p>No compatible merge targets are available.</p>
               )}
@@ -281,6 +296,8 @@ export function ModerationProposalDetail({
               <span>
                 {action === "MERGE"
                   ? "I confirm that this duplicate should use the selected canonical record."
+                  : action === "REJECT"
+                    ? "I confirm that this proposal should be rejected and linked inventory should require action."
                   : "I confirm that this proposal should update shared data for all users."}
               </span>
             </label>
@@ -297,9 +314,13 @@ export function ModerationProposalDetail({
               {submitting
                 ? action === "MERGE"
                   ? "Merging…"
+                  : action === "REJECT"
+                    ? "Rejecting…"
                   : "Approving…"
                 : action === "MERGE"
                   ? "Merge proposal"
+                  : action === "REJECT"
+                    ? "Reject proposal"
                   : "Approve proposal"}
             </button>
           </form>

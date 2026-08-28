@@ -2,10 +2,17 @@ export type StampUpdateInput = {
   quantityOwned: number;
   quantityAnnulled: number;
   expired: boolean;
+  actionResolution?:
+    | { type: "FALLBACK" }
+    | { type: "NAMED_VALUE"; referenceType: "approved" | "proposal"; id: string }
+    | null;
 };
 
 export type StampUpdateErrors = Partial<
-  Record<"quantityOwned" | "quantityAnnulled" | "expired", string>
+  Record<
+    "quantityOwned" | "quantityAnnulled" | "expired" | "actionResolution",
+    string
+  >
 >;
 
 type StampUpdateValidationResult =
@@ -63,6 +70,26 @@ export function validateStampUpdate(
     errors.expired = "Select whether the stamp is expired.";
   }
 
+  const actionResolutionValue =
+    typeof record.actionResolution === "string"
+      ? record.actionResolution.trim()
+      : "";
+  let actionResolution: StampUpdateInput["actionResolution"] = null;
+  if (actionResolutionValue === "FALLBACK") {
+    actionResolution = { type: "FALLBACK" };
+  } else if (actionResolutionValue) {
+    const match = /^(approved|proposal):(.+)$/.exec(actionResolutionValue);
+    if (!match) {
+      errors.actionResolution = "Select an eligible replacement.";
+    } else {
+      actionResolution = {
+        type: "NAMED_VALUE",
+        referenceType: match[1] as "approved" | "proposal",
+        id: match[2],
+      };
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     return { errors };
   }
@@ -72,6 +99,7 @@ export function validateStampUpdate(
       quantityOwned: Number(ownedBigInt),
       quantityAnnulled: Number(annulledBigInt),
       expired: record.expired as boolean,
+      ...(actionResolution ? { actionResolution } : {}),
     },
   };
 }

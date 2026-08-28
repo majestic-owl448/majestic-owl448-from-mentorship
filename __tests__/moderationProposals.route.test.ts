@@ -33,7 +33,7 @@ import {
 import { approveModerationProposal } from "@/lib/moderationApproval";
 import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { resolveNamedFaceValueById, searchNamedFaceValues } from "@/lib/namedFaceValue";
-import { listStamps } from "@/lib/stampInventory";
+import { listStamps, updateStamp as updateStampRecord } from "@/lib/stampInventory";
 
 function queueRequest(query = "") {
   return new NextRequest(`http://localhost/api/moderation/proposals${query}`);
@@ -79,6 +79,24 @@ function mergeRequest(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "MERGE", targetId, decisionNote }),
+      },
+    ),
+    { params: Promise.resolve({ proposalType, proposalId }) },
+  );
+}
+
+function rejectionRequest(
+  proposalType: string,
+  proposalId: string,
+  decisionNote = "The submitted source does not support this value.",
+) {
+  return APPROVE(
+    new NextRequest(
+      `http://localhost/api/moderation/proposals/${proposalType}/${proposalId}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REJECT", decisionNote }),
       },
     ),
     { params: Promise.resolve({ proposalType, proposalId }) },
@@ -325,6 +343,224 @@ describe("moderation proposal API", () => {
     expect((await GET_QUEUE(queueRequest("?type=INVENTORY"))).status).toBe(400);
     expect((await detailRequest("INVENTORY", "private-inventory-entry")).status).toBe(404);
     expect((await detailRequest("NAMED_VALUE", "missing")).status).toBe(404);
+  });
+
+  it("rejects an unpublished definition, blocks linked inventory, and preserves the decision", async () => {
+    const proposal = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "rejected-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Unsupported code",
+        normalizedCode: "unsupported code",
+        currencyCode: "EUR",
+        sourceNote: "Unverified forum post",
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rejected-definition-value",
+        submittedById: "proposer",
+        definitionProposalId: proposal.id,
+        amount: "0.75",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unverified forum post",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "rejected-definition-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Unsupported stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: proposal.id,
+        manualPostageAmount: "0.75",
+        manualPostageCurrencyCode: "EUR",
+        quantityOwned: 2,
+      },
+    });
+    auth.userId = "moderator";
+
+    const response = await rejectionRequest("NAMED_DEFINITION", proposal.id);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      proposal: {
+        status: "REJECTED",
+        decision: {
+          moderator: { id: "moderator" },
+          decidedAt: expect.any(String),
+          note: "The submitted source does not support this value.",
+        },
+      },
+    });
+    expect(await searchNamedFaceValues("IT", "unsupported", "normal-user")).toEqual([]);
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: "rejected-definition-value" },
+      }),
+    ).toMatchObject({ status: "PENDING", actionRequired: true });
+    const blocked = (
+      await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })
+    ).find(({ id }) => id === "rejected-definition-stamp");
+    expect(blocked).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      totalPostageValue: null,
+      availableFallback: {
+        amount: "0.75",
+        currencyCode: "EUR",
+        source: "MANUAL_FALLBACK",
+      },
+      valuation: { status: "ACTION_REQUIRED" },
+    });
+
+    await updateStampRecord(
+      "proposer",
+      "rejected-definition-stamp",
+      {
+        quantityOwned: 2,
+        quantityAnnulled: 0,
+        expired: false,
+        actionResolution: {
+          type: "NAMED_VALUE",
+          referenceType: "approved",
+          id: "approved-b",
+        },
+      },
+      {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      },
+    );
+    expect(
+      await prisma.stampInventoryEntry.findUniqueOrThrow({
+        where: { id: "rejected-definition-stamp" },
+      }),
+    ).toMatchObject({
+      actionRequired: false,
+      namedFaceValueId: "approved-b",
+      namedFaceValueProposalId: null,
+    });
+
+    expect((await rejectionRequest("NAMED_DEFINITION", proposal.id)).status).toBe(409);
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+      }),
+    ).toMatchObject({
+      status: "REJECTED",
+      moderatedById: "moderator",
+      decisionNote: "The submitted source does not support this value.",
+    });
+  });
+
+  it("requires explicit fallback selection after rejecting a used value or conversion", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "proposer-private-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    await prisma.stampInventoryEntry.createMany({
+      data: [
+        {
+          id: "rejected-value-stamp",
+          userId: "proposer",
+          countryCode: "IT",
+          postalEntityId: "private-postal-entity",
+          name: "Named stamp",
+          faceValueType: "NAMED",
+          namedFaceValueId: "approved-b",
+          quantityOwned: 1,
+        },
+        {
+          id: "rejected-conversion-stamp",
+          userId: "proposer",
+          countryCode: "IT",
+          postalEntityId: "private-postal-entity",
+          name: "Dollar stamp",
+          faceAmount: "2",
+          faceCurrencyCode: "USD",
+          quantityOwned: 1,
+        },
+      ],
+    });
+    const valueProposal = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rejected-current-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.50",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unsupported value",
+      },
+    });
+    const conversionProposal = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "rejected-usd-conversion",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.95",
+        sourceNote: "Unsupported conversion",
+      },
+    });
+    auth.userId = "moderator";
+
+    expect((await rejectionRequest("NAMED_VALUE", valueProposal.id)).status).toBe(200);
+    expect((await rejectionRequest("FIXED_CONVERSION", conversionProposal.id)).status).toBe(200);
+
+    const activeCountry = {
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      postalEntity: { countryCode: "IT" },
+    };
+    const blocked = await listStamps("proposer", activeCountry);
+    expect(blocked.find(({ id }) => id === "rejected-value-stamp")).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      availableFallback: { amount: "1.25", source: "NAMED_SCHEDULE" },
+    });
+    expect(blocked.find(({ id }) => id === "rejected-conversion-stamp")).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      availableFallback: { amount: "1.8", source: "FIXED_CONVERSION" },
+    });
+
+    await updateStampRecord(
+      "proposer",
+      "rejected-conversion-stamp",
+      {
+        quantityOwned: 1,
+        quantityAnnulled: 0,
+        expired: false,
+        actionResolution: { type: "FALLBACK" },
+      },
+      activeCountry,
+    );
+    expect(
+      (await listStamps("proposer", activeCountry)).find(
+        ({ id }) => id === "rejected-conversion-stamp",
+      ),
+    ).toMatchObject({
+      actionRequired: false,
+      unitPostageValue: { amount: "1.8", source: "FIXED_CONVERSION" },
+    });
   });
 
   it("rejects a linked definition target from another country", async () => {

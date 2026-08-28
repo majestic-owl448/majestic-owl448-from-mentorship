@@ -69,17 +69,30 @@ export async function createValueProposal(
     }
   }
 
-  return prisma.namedFaceValueValueProposal.create({
-    data: {
-      submittedById: userId,
-      namedFaceValueId: input.targetNamedFaceValueId,
-      definitionProposalId: input.definitionProposalId,
-      amount: input.amount,
-      effectiveOn: input.effectiveOn,
-      eligibleOn: input.effectiveOn ?? localDate,
-      sourceUrl: input.sourceUrl,
-      sourceNote: input.sourceNote,
-    },
+  return prisma.$transaction(async (tx) => {
+    const proposal = await tx.namedFaceValueValueProposal.create({
+      data: {
+        submittedById: userId,
+        namedFaceValueId: input.targetNamedFaceValueId,
+        definitionProposalId: input.definitionProposalId,
+        amount: input.amount,
+        effectiveOn: input.effectiveOn,
+        eligibleOn: input.effectiveOn ?? localDate,
+        sourceUrl: input.sourceUrl,
+        sourceNote: input.sourceNote,
+      },
+    });
+    await tx.stampInventoryEntry.updateMany({
+      where: {
+        userId,
+        actionRequired: true,
+        ...(input.targetNamedFaceValueId
+          ? { namedFaceValueId: input.targetNamedFaceValueId }
+          : { namedFaceValueProposalId: input.definitionProposalId }),
+      },
+      data: { actionRequired: false },
+    });
+    return proposal;
   });
 }
 
@@ -97,6 +110,8 @@ export async function listUserNamedFaceValueProposals(userId: string) {
         sourceUrl: true,
         sourceNote: true,
         status: true,
+        decidedAt: true,
+        decisionNote: true,
         createdAt: true,
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -113,6 +128,9 @@ export async function listUserNamedFaceValueProposals(userId: string) {
         sourceUrl: true,
         sourceNote: true,
         status: true,
+        decidedAt: true,
+        decisionNote: true,
+        actionRequired: true,
         createdAt: true,
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

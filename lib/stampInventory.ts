@@ -60,6 +60,13 @@ export class StampNotFoundError extends Error {
   }
 }
 
+export class StampActionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StampActionError";
+  }
+}
+
 async function resolveUnitPostageValue(
   stamp: StampInventoryEntry,
   activeCountry: ActiveCountry,
@@ -164,11 +171,12 @@ async function presentStampRecord(
               stamp.userId,
             )
           : null;
-  const unitPostageValue = await resolveUnitPostageValue(
+  const availableFallback = await resolveUnitPostageValue(
     stamp,
     activeCountry,
     namedValue,
   );
+  const unitPostageValue = stamp.actionRequired ? null : availableFallback;
   const usableQuantity = stamp.expired
     ? 0
     : stamp.quantityOwned - stamp.quantityAnnulled;
@@ -233,9 +241,13 @@ async function presentStampRecord(
     quantityAnnulled: stamp.quantityAnnulled,
     usableQuantity,
     expired: stamp.expired,
+    actionRequired: stamp.actionRequired,
+    availableFallback: stamp.actionRequired ? availableFallback : null,
     unitPostageValue,
     totalPostageValue,
-    valuation: unitPostageValue
+    valuation: stamp.actionRequired
+      ? { status: "ACTION_REQUIRED" as const, source: null }
+      : unitPostageValue
       ? { status: "RESOLVED" as const, source: unitPostageValue.source }
       : { status: "UNRESOLVED" as const, source: null },
     createdAt: stamp.createdAt.toISOString(),
@@ -337,18 +349,92 @@ export async function updateStamp(
   userId: string,
   stampId: string,
   input: StampUpdateInput,
+  activeCountry: ActiveCountry,
 ) {
   const stamp = await prisma.stampInventoryEntry.findFirst({
     where: { id: stampId, userId },
-    select: { id: true },
+    include: {
+      postalEntity: true,
+      namedFaceValue: true,
+      namedFaceValueProposal: true,
+    },
   });
   if (!stamp) {
     throw new StampNotFoundError();
   }
 
+  const { actionResolution, ...updates } = input;
+  const referenceUpdates: {
+    actionRequired?: boolean;
+    namedFaceValueId?: string | null;
+    namedFaceValueProposalId?: string | null;
+  } = {};
+  if (actionResolution) {
+    if (!stamp.actionRequired) {
+      throw new StampActionError("This stamp does not require a replacement.");
+    }
+    if (actionResolution.type === "FALLBACK") {
+      const candidate = await presentStampRecord(
+        { ...stamp, ...updates, actionRequired: false },
+        activeCountry,
+      );
+      if (
+        !candidate.unitPostageValue ||
+        ["EXPIRED", "OUTSIDE_ACTIVE_COUNTRY"].includes(
+          candidate.unitPostageValue.source,
+        )
+      ) {
+        throw new StampActionError(
+          "No approved or manual fallback is available for this stamp.",
+        );
+      }
+      referenceUpdates.actionRequired = false;
+    } else if (stamp.faceValueType !== "NAMED") {
+      throw new StampActionError(
+        "Only a named/code stamp can use a named/code replacement.",
+      );
+    } else if (actionResolution.referenceType === "approved") {
+      const replacement = await prisma.namedFaceValue.findUnique({
+        where: {
+          id_countryCode: {
+            id: actionResolution.id,
+            countryCode: stamp.countryCode,
+          },
+        },
+        select: { id: true },
+      });
+      if (!replacement) {
+        throw new StampActionError("Select an eligible replacement.");
+      }
+      Object.assign(referenceUpdates, {
+        actionRequired: false,
+        namedFaceValueId: replacement.id,
+        namedFaceValueProposalId: null,
+      });
+    } else {
+      const replacement = await prisma.namedFaceValueDefinitionProposal.findFirst({
+        where: {
+          id: actionResolution.id,
+          countryCode: stamp.countryCode,
+          submittedById: userId,
+          status: "PENDING",
+        },
+        select: { id: true },
+      });
+      if (!replacement) {
+        throw new StampActionError("Select an eligible replacement.");
+      }
+      Object.assign(referenceUpdates, {
+        actionRequired: false,
+        namedFaceValueId: null,
+        namedFaceValueProposalId: replacement.id,
+      });
+    }
+  }
+
   return prisma.stampInventoryEntry.update({
     where: { id: stampId },
-    data: input,
+    data: { ...updates, ...referenceUpdates },
     include: {
       postalEntity: true,
       namedFaceValue: true,

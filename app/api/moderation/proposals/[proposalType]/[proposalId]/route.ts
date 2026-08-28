@@ -19,6 +19,7 @@ import {
   mergeModerationProposal,
   validateMergeTargetId,
 } from "@/lib/moderationMerge";
+import { rejectModerationProposal } from "@/lib/moderationRejection";
 
 export async function GET(
   request: NextRequest,
@@ -86,6 +87,13 @@ export async function POST(
           proposalType as ModerationProposalType,
           proposalId,
           validateMergeTargetId(input?.targetId),
+          moderatorId,
+          decisionNote,
+        );
+      } else if (action === "REJECT") {
+        await rejectModerationProposal(
+          proposalType as ModerationProposalType,
+          proposalId,
           moderatorId,
           decisionNote,
         );

@@ -87,6 +87,53 @@ describe("named/code proposal interface", () => {
     expect(screen.getByText("Status: PENDING")).toBeTruthy();
   });
 
+  it("shows the decision note and replacement prompt after rejection", () => {
+    render(
+      <ProposalStatusList
+        proposals={{
+          definitions: [
+            {
+              id: "rejected-definition",
+              proposalType: "DEFINITION",
+              targetNamedFaceValueId: null,
+              countryCode: "IT",
+              displayCode: "Unsupported",
+              normalizedCode: "unsupported",
+              currencyCode: "EUR",
+              sourceUrl: null,
+              sourceNote: "Unverified source",
+              status: "REJECTED",
+              decidedAt: "2026-08-28T12:00:00.000Z",
+              decisionNote: "Use the published tariff.",
+              createdAt: "2026-08-27T12:00:00.000Z",
+            },
+          ],
+          values: [
+            {
+              id: "blocked-value",
+              proposalType: "VALUE",
+              namedFaceValueId: null,
+              definitionProposalId: "rejected-definition",
+              amount: "0.75",
+              effectiveOn: null,
+              sourceUrl: null,
+              sourceNote: "Same source",
+              status: "PENDING",
+              actionRequired: true,
+              createdAt: "2026-08-27T13:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Decision note: Use the published tariff.")).toBeTruthy();
+    expect(screen.getByText(/replace each affected inventory reference/)).toBeTruthy();
+    expect(
+      screen.getByText(/linked definition was rejected/),
+    ).toBeTruthy();
+  });
+
   it("keeps the correction target when the proposed country changes", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

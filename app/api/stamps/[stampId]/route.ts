@@ -11,6 +11,7 @@ import {
   deleteStamp,
   listStamps,
   presentStamp,
+  StampActionError,
   StampNotFoundError,
   updateStamp,
 } from "@/lib/stampInventory";
@@ -59,6 +60,7 @@ export async function PATCH(
         userId,
         stampId,
         validation.data,
+        activePostalEntitySetting,
       );
       const stamp = await presentStamp(updated, activePostalEntitySetting);
       const stamps = await listStamps(userId, activePostalEntitySetting);
@@ -79,6 +81,12 @@ export async function PATCH(
       }
       if (caught instanceof StampNotFoundError) {
         return NextResponse.json({ error: caught.message }, { status: 404 });
+      }
+      if (caught instanceof StampActionError) {
+        return NextResponse.json(
+          { errors: { actionResolution: caught.message } },
+          { status: 400 },
+        );
       }
       throw caught;
     }
