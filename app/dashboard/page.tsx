@@ -10,6 +10,7 @@ import type {
 } from "@/app/components/initialPostalEntitySettingForm";
 import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
 import { AccountDataDownload } from "@/app/components/accountDataDownload";
+import { AccountDeletion } from "@/app/components/accountDeletion";
 import { NamedFaceValueProposals } from "@/app/components/namedFaceValueProposals";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
@@ -195,6 +196,8 @@ function DashboardContent() {
       )}
 
       <AccountDataDownload />
+
+      <AccountDeletion />
 
       <button
         onClick={onSignOut}

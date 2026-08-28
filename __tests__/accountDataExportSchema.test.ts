@@ -17,6 +17,9 @@ describe("account export schema coverage", () => {
       (model) =>
         model.name === "UserProfile" ||
         model.fields.some(
+          (field) => field.kind !== "object" && field.name === "userId",
+        ) ||
+        model.fields.some(
           (field) => field.kind === "object" && field.type === "UserProfile",
         ),
     );
