@@ -4,6 +4,7 @@ import { withSession } from "supertokens-node/nextjs";
 import { ensureSuperTokensInit } from "@/app/config/backend";
 import {
   listPostalEntitySettings,
+  listAvailablePostalEntities,
   localDateInTimeZone,
   PostalEntitySettingRequiredError,
   requireActivePostalEntitySetting,
@@ -41,7 +42,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const postalEntitySettings = await listPostalEntitySettings(userId);
+    const [postalEntitySettings, availablePostalEntities] = await Promise.all([
+      listPostalEntitySettings(userId),
+      listAvailablePostalEntities(userId),
+    ]);
 
     return NextResponse.json({
       role: profile.role,
@@ -52,6 +56,7 @@ export async function GET(request: NextRequest) {
           ? null
           : localDateInTimeZone(activePostalEntitySetting.timeZone),
       postalEntitySettings,
+      availablePostalEntities,
       options: {
         countries: countryOptions(),
         currencies: currencyOptions(),

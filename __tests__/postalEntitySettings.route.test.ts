@@ -45,6 +45,10 @@ import { GET as GET_INVENTORY } from "@/app/api/inventory/route";
 const validSetting = {
   postalEntityName: "Poste Italiane",
   countryCode: "IT",
+  issuingAuthority: "Italian Republic",
+  scope: "Italy",
+  sourceUrl: "https://example.com/poste-italiane",
+  sourceNote: "",
   displayCurrencyCode: "EUR",
   timeZone: "Europe/Rome",
   timeZoneMode: "SYSTEM",
@@ -99,6 +103,8 @@ describe("postal entity settings API", () => {
           name: "Poste Italiane",
           normalizedName: "poste italiane",
           countryCode: "IT",
+          issuingAuthority: "Italian Republic",
+          scope: "Italy",
           status: "PENDING",
           submittedById: "first-user",
         },
@@ -154,6 +160,10 @@ describe("postal entity settings API", () => {
       postRequest({
         postalEntityName: " ",
         countryCode: "XX",
+        issuingAuthority: "",
+        scope: "",
+        sourceUrl: "ftp://example.com/entity",
+        sourceNote: "",
         displayCurrencyCode: "XXX",
         timeZone: "Mars/Olympus",
         timeZoneMode: "AUTOMATIC",
@@ -165,6 +175,10 @@ describe("postal entity settings API", () => {
       errors: {
         postalEntityName: "Enter the postal entity name.",
         countryCode: "Select a valid ISO 3166-1 country.",
+        issuingAuthority: "Enter the issuing authority.",
+        scope: "Enter the geographic or office scope.",
+        sourceUrl: "Enter an HTTP or HTTPS URL.",
+        sourceNote: "Enter a source URL or source note.",
         displayCurrencyCode:
           "Select a currency supported by this application.",
         timeZoneMode: "Select system or custom timezone mode.",

@@ -14,6 +14,7 @@ type Props = {
   countries: SettingOption[];
   currencies: SettingOption[];
   settings: SavedPostalEntitySetting[];
+  availablePostalEntities?: SavedPostalEntitySetting["postalEntity"][];
   onAdded: (setting: SavedPostalEntitySetting) => void;
   onActivated: (setting: SavedPostalEntitySetting) => void;
   onUpdated: (setting: SavedPostalEntitySetting) => void;
@@ -21,6 +22,203 @@ type Props = {
 
 const inputClass =
   "h-11 rounded-lg border border-zinc-300 bg-white px-3 text-zinc-950 disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900";
+
+function ExistingPostalEntitySettingForm({
+  currencies,
+  entities,
+  onAdded,
+}: {
+  currencies: SettingOption[];
+  entities: SavedPostalEntitySetting["postalEntity"][];
+  onAdded: (setting: SavedPostalEntitySetting) => void;
+}) {
+  const isMounted = useIsMounted();
+  const systemTimeZone = isMounted
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    : "UTC";
+  const [postalEntityId, setPostalEntityId] = useState("");
+  const [displayCurrencyCode, setDisplayCurrencyCode] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus(null);
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/settings/postal-entities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          postalEntityId,
+          displayCurrencyCode,
+          timeZoneMode: "SYSTEM",
+          timeZone: systemTimeZone,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.postalEntitySetting) {
+        setStatus(result.error ?? "The approved postal entity could not be added.");
+        return;
+      }
+      onAdded(result.postalEntitySetting);
+      setStatus("Approved postal entity added.");
+      setPostalEntityId("");
+      setDisplayCurrencyCode("");
+    } catch {
+      setStatus("The approved postal entity could not be added.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="grid max-w-lg gap-4" aria-labelledby="use-approved-entity-heading">
+      <h3 id="use-approved-entity-heading" className="text-lg font-semibold">Use an approved postal entity</h3>
+      <div className="grid gap-1">
+        <label htmlFor="approvedPostalEntity" className="font-medium">Approved postal entity</label>
+        <select id="approvedPostalEntity" value={postalEntityId} onChange={(event) => setPostalEntityId(event.target.value)} className={inputClass} required>
+          <option value="">Select a postal entity</option>
+          {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name} ({entity.countryCode})</option>)}
+        </select>
+      </div>
+      <div className="grid gap-1">
+        <label htmlFor="approvedEntityCurrency" className="font-medium">Display currency</label>
+        <select id="approvedEntityCurrency" value={displayCurrencyCode} onChange={(event) => setDisplayCurrencyCode(event.target.value)} className={inputClass} required>
+          <option value="">Select a currency</option>
+          {currencies.map((currency) => <option key={currency.value} value={currency.value}>{currency.label}</option>)}
+        </select>
+      </div>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">Timezone: current browser timezone ({systemTimeZone}). You can edit it after adding the setting.</p>
+      <button type="submit" disabled={submitting || !postalEntityId || !displayCurrencyCode} className="h-10 w-fit rounded-full border border-zinc-300 px-5 disabled:opacity-60 dark:border-zinc-700">
+        {submitting ? "Adding…" : "Add approved entity"}
+      </button>
+      {status && <p role="status">{status}</p>}
+    </form>
+  );
+}
+
+function RejectedEntityReplacement({
+  availablePostalEntities,
+  countries,
+  setting,
+  onUpdated,
+  onActivated,
+}: {
+  availablePostalEntities: SavedPostalEntitySetting["postalEntity"][];
+  countries: SettingOption[];
+  setting: SavedPostalEntitySetting;
+  onUpdated: (setting: SavedPostalEntitySetting) => void;
+  onActivated: (setting: SavedPostalEntitySetting) => void;
+}) {
+  const [mode, setMode] = useState<"EXISTING" | "RESUBMIT">("EXISTING");
+  const [postalEntityId, setPostalEntityId] = useState("");
+  const [values, setValues] = useState({
+    postalEntityName: setting.postalEntity.name,
+    countryCode: setting.postalEntity.countryCode,
+    issuingAuthority: setting.postalEntity.issuingAuthority ?? "",
+    scope: setting.postalEntity.scope ?? "",
+    sourceUrl: "",
+    sourceNote: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrors({});
+    setStatus(null);
+    setSubmitting(true);
+    try {
+      const response = await fetch(
+        `/api/settings/postal-entities/${setting.id}/replacement`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mode === "EXISTING" ? { postalEntityId } : values),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok || !result.postalEntitySetting) {
+        setErrors(result.errors ?? {});
+        setStatus(result.error ?? "Choose or submit a replacement postal entity.");
+        return;
+      }
+      onUpdated(result.postalEntitySetting);
+      if (result.isActive) onActivated(result.postalEntitySetting);
+      setStatus("Postal entity references replaced.");
+    } catch {
+      setStatus("The postal entity references could not be replaced.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const fields = [
+    ["postalEntityName", "Postal entity name"],
+    ["issuingAuthority", "Issuing authority"],
+    ["scope", "Geographic or office scope"],
+    ["sourceUrl", "Source URL"],
+    ["sourceNote", "Source note"],
+  ] as const;
+
+  return (
+    <form onSubmit={submit} className="grid gap-4 rounded-lg border border-red-300 p-4 dark:border-red-800" noValidate>
+      <p role="alert">
+        This submission was rejected. Its linked settings and stamps cannot resolve until you replace it or resubmit corrected information.
+      </p>
+      <fieldset className="grid gap-2">
+        <legend className="font-medium">Replacement method</legend>
+        <label className="flex items-center gap-2">
+          <input type="radio" name={`replacement-${setting.id}`} checked={mode === "EXISTING"} onChange={() => setMode("EXISTING")} />
+          Use an available postal entity
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name={`replacement-${setting.id}`} checked={mode === "RESUBMIT"} onChange={() => setMode("RESUBMIT")} />
+          Resubmit corrected entity information
+        </label>
+      </fieldset>
+      {mode === "EXISTING" ? (
+        <div className="grid gap-1">
+          <label htmlFor={`replacement-entity-${setting.id}`} className="font-medium">Replacement postal entity</label>
+          <select id={`replacement-entity-${setting.id}`} value={postalEntityId} onChange={(event) => setPostalEntityId(event.target.value)} className={inputClass} required>
+            <option value="">Select a postal entity</option>
+            {availablePostalEntities.filter((entity) => entity.id !== setting.postalEntity.id).map((entity) => (
+              <option key={entity.id} value={entity.id}>{entity.name} ({entity.countryCode})</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <>
+          {fields.map(([field, label]) => (
+            <div className="grid gap-1" key={field}>
+              <label htmlFor={`${field}-${setting.id}`} className="font-medium">{label}</label>
+              {field === "sourceNote" ? (
+                <textarea id={`${field}-${setting.id}`} value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-${setting.id}-error` : undefined} className="min-h-20 rounded-lg border border-zinc-300 bg-transparent p-3" />
+              ) : (
+                <input id={`${field}-${setting.id}`} type={field === "sourceUrl" ? "url" : "text"} value={values[field]} onChange={(event) => setValues((current) => ({ ...current, [field]: event.target.value }))} aria-invalid={Boolean(errors[field])} aria-describedby={errors[field] ? `${field}-${setting.id}-error` : undefined} className={inputClass} />
+              )}
+              {errors[field] && <p id={`${field}-${setting.id}-error`} role="alert">{errors[field]}</p>}
+            </div>
+          ))}
+          <div className="grid gap-1">
+            <label htmlFor={`replacement-country-${setting.id}`} className="font-medium">Country</label>
+            <select id={`replacement-country-${setting.id}`} value={values.countryCode} onChange={(event) => setValues((current) => ({ ...current, countryCode: event.target.value }))} aria-invalid={Boolean(errors.countryCode)} aria-describedby={errors.countryCode ? `replacement-country-${setting.id}-error` : undefined} className={inputClass}>
+              <option value="">Select a country</option>
+              {countries.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+            </select>
+            {errors.countryCode && <p id={`replacement-country-${setting.id}-error`} role="alert">{errors.countryCode}</p>}
+          </div>
+        </>
+      )}
+      <button type="submit" disabled={submitting || (mode === "EXISTING" && !postalEntityId)} className="h-10 w-fit rounded-full bg-foreground px-5 text-background disabled:opacity-60">
+        {submitting ? "Replacing…" : mode === "EXISTING" ? "Replace references" : "Resubmit and replace references"}
+      </button>
+      {status && <p role={errors && Object.keys(errors).length ? "alert" : "status"}>{status}</p>}
+    </form>
+  );
+}
 
 function SettingEditor({
   currencies,
@@ -196,13 +394,20 @@ export function PostalEntitySettingsManager({
   countries,
   currencies,
   settings,
+  availablePostalEntities = [],
   onAdded,
   onActivated,
   onUpdated,
 }: Props) {
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
-  const activeSetting = settings.find((setting) => setting.id === activeSettingId);
+  const usableSettings = settings.filter((setting) => setting.postalEntity.status === "PENDING" || setting.postalEntity.status === "APPROVED");
+  const activeSetting = usableSettings.find((setting) => setting.id === activeSettingId);
+  const approvedEntitiesToAdd = availablePostalEntities.filter(
+    (entity) =>
+      entity.status === "APPROVED" &&
+      !settings.some((setting) => setting.postalEntity.id === entity.id),
+  );
 
   async function activate(settingId: string) {
     setActivating(true);
@@ -228,7 +433,7 @@ export function PostalEntitySettingsManager({
 
   return (
     <div className="flex flex-col gap-10">
-      {settings.length > 0 ? (
+      {usableSettings.length > 0 ? (
         <section className="flex max-w-lg flex-col gap-3" aria-labelledby="active-setting-heading">
           <h2 id="active-setting-heading" className="text-xl font-semibold">
             Active postal entity
@@ -243,7 +448,7 @@ export function PostalEntitySettingsManager({
             disabled={activating}
             className={inputClass}
           >
-            {settings.map((setting) => (
+            {usableSettings.map((setting) => (
               <option key={setting.id} value={setting.id}>
                 {setting.postalEntity.name} ({setting.postalEntity.countryCode})
               </option>
@@ -274,11 +479,22 @@ export function PostalEntitySettingsManager({
                   {setting.id === activeSettingId ? " Active for valuation." : ""}
                 </p>
               </div>
-              <SettingEditor
-                currencies={currencies}
-                setting={setting}
-                onUpdated={onUpdated}
-              />
+              {(setting.postalEntity.status === "PENDING" || setting.postalEntity.status === "APPROVED") && (
+                <SettingEditor
+                  currencies={currencies}
+                  setting={setting}
+                  onUpdated={onUpdated}
+                />
+              )}
+              {setting.postalEntity.status === "REJECTED" && (
+                <RejectedEntityReplacement
+                  availablePostalEntities={availablePostalEntities}
+                  countries={countries}
+                  setting={setting}
+                  onUpdated={onUpdated}
+                  onActivated={onActivated}
+                />
+              )}
             </article>
           ))}
         </section>
@@ -293,6 +509,13 @@ export function PostalEntitySettingsManager({
             Each postal entity keeps its own display currency and timezone.
           </p>
         </div>
+        {approvedEntitiesToAdd.length > 0 && (
+          <ExistingPostalEntitySettingForm
+            currencies={currencies}
+            entities={approvedEntitiesToAdd}
+            onAdded={onAdded}
+          />
+        )}
         <InitialPostalEntitySettingForm
           key={settings.length}
           countries={countries}

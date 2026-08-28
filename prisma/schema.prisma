@@ -19,6 +19,9 @@ enum TimeZoneMode {
 
 enum PostalEntityStatus {
   PENDING
+  APPROVED
+  REJECTED
+  MERGED
 }
 
 enum FaceValueType {
@@ -49,6 +52,7 @@ model UserProfile {
   moderatedDefinitionProposals NamedFaceValueDefinitionProposal[] @relation("NamedDefinitionModerator")
   moderatedValueProposals      NamedFaceValueValueProposal[]      @relation("NamedValueModerator")
   moderatedConversionProposals CurrencyConversionProposal[]       @relation("CurrencyConversionModerator")
+  moderatedPostalEntities      PostalEntity[]                     @relation("ModeratedPostalEntities")
   createdAt                    DateTime                           @default(now()) @map("created_at")
   updatedAt                    DateTime                           @updatedAt @map("updated_at")
 
@@ -84,20 +88,41 @@ model StampInventoryEntry {
 }
 
 model PostalEntity {
-  id                    String                    @id @default(cuid())
-  name                  String
-  normalizedName        String                    @map("normalized_name")
-  countryCode           String                    @map("country_code")
-  status                PostalEntityStatus        @default(PENDING)
-  submittedById         String?                   @map("submitted_by_id")
-  submittedBy           UserProfile?              @relation("SubmittedPostalEntities", fields: [submittedById], references: [id], onDelete: SetNull)
-  userSettings          UserPostalEntitySetting[]
-  stampInventoryEntries StampInventoryEntry[]
-  createdAt             DateTime                  @default(now()) @map("created_at")
-  updatedAt             DateTime                  @updatedAt @map("updated_at")
+  id                        String                    @id @default(cuid())
+  name                      String
+  normalizedName            String                    @map("normalized_name")
+  countryCode               String                    @map("country_code")
+  issuingAuthority          String                    @default("") @map("issuing_authority")
+  scope                     String                    @default("")
+  sourceUrl                 String?                   @map("source_url")
+  sourceNote                String?                   @map("source_note")
+  submittedName             String                    @default("") @map("submitted_name")
+  submittedNormalizedName   String                    @default("") @map("submitted_normalized_name")
+  submittedCountryCode      String                    @default("") @map("submitted_country_code")
+  submittedIssuingAuthority String                    @default("") @map("submitted_issuing_authority")
+  submittedScope            String                    @default("") @map("submitted_scope")
+  submittedSourceUrl        String?                   @map("submitted_source_url")
+  submittedSourceNote       String?                   @map("submitted_source_note")
+  status                    PostalEntityStatus        @default(PENDING)
+  submittedById             String?                   @map("submitted_by_id")
+  moderatedById             String?                   @map("moderated_by_id")
+  decidedAt                 DateTime?                 @map("decided_at")
+  decisionNote              String?                   @map("decision_note")
+  mergedIntoId              String?                   @map("merged_into_id")
+  submittedBy               UserProfile?              @relation("SubmittedPostalEntities", fields: [submittedById], references: [id], onDelete: SetNull)
+  moderatedBy               UserProfile?              @relation("ModeratedPostalEntities", fields: [moderatedById], references: [id], onDelete: SetNull)
+  mergedInto                PostalEntity?              @relation("MergedPostalEntities", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedEntities            PostalEntity[]             @relation("MergedPostalEntities")
+  userSettings              UserPostalEntitySetting[]
+  stampInventoryEntries     StampInventoryEntry[]
+  createdAt                 DateTime                    @default(now()) @map("created_at")
+  updatedAt                 DateTime                    @updatedAt @map("updated_at")
 
   @@unique([id, countryCode])
   @@index([countryCode, normalizedName])
+  @@index([status, createdAt])
+  @@index([moderatedById])
+  @@index([mergedIntoId])
   @@map("postal_entities")
 }
 

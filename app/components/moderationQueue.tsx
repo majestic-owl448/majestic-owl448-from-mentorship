@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 type ProposalType =
   | "NAMED_DEFINITION"
   | "NAMED_VALUE"
-  | "FIXED_CONVERSION";
+  | "FIXED_CONVERSION"
+  | "POSTAL_ENTITY";
 type ProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 
 type QueueItem = {
@@ -22,6 +23,7 @@ const typeLabels: Record<ProposalType, string> = {
   NAMED_DEFINITION: "Named/code definition",
   NAMED_VALUE: "Named/code value",
   FIXED_CONVERSION: "Fixed conversion",
+  POSTAL_ENTITY: "Postal entity",
 };
 
 export function ModerationQueue() {
@@ -72,7 +74,7 @@ export function ModerationQueue() {
           Proposal queue
         </h1>
         <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-          Inspect submitted named/code data and fixed currency conversions.
+          Inspect submitted shared data before it becomes public.
         </p>
       </div>
 
@@ -91,6 +93,7 @@ export function ModerationQueue() {
             <option value="NAMED_DEFINITION">Named/code definitions</option>
             <option value="NAMED_VALUE">Named/code values</option>
             <option value="FIXED_CONVERSION">Fixed conversions</option>
+            <option value="POSTAL_ENTITY">Postal entities</option>
           </select>
         </div>
         <div>

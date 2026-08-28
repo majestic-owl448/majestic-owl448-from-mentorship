@@ -66,4 +66,43 @@ describe("postal entity settings manager", () => {
     );
     expect(markup).toContain("Use current browser timezone (UTC)");
   });
+
+  it("labels approved-entity selection and rejected-reference replacement controls", () => {
+    const rejected = {
+      ...settings[0],
+      postalEntity: {
+        ...settings[0].postalEntity,
+        issuingAuthority: "Unknown",
+        scope: "Italy",
+        status: "REJECTED" as const,
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <PostalEntitySettingsManager
+        activeSettingId={null}
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+        settings={[rejected]}
+        availablePostalEntities={[
+          {
+            id: "approved-entity",
+            name: "Approved Post",
+            countryCode: "IT",
+            issuingAuthority: "Italy",
+            scope: "Italy",
+            status: "APPROVED",
+          },
+        ]}
+        onAdded={() => undefined}
+        onActivated={() => undefined}
+        onUpdated={() => undefined}
+      />,
+    );
+    expect(markup).toContain("Use an approved postal entity");
+    expect(markup).toContain("This submission was rejected.");
+    expect(markup).toContain("Replacement method");
+    expect(markup).toContain("Use an available postal entity");
+    expect(markup).toContain("Resubmit corrected entity information");
+    expect(markup).toContain("Replace references");
+  });
 });

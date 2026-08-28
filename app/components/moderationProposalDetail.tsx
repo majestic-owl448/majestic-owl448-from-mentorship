@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 type ProposalDetail = {
   id: string;
-  proposalType: "NAMED_DEFINITION" | "NAMED_VALUE" | "FIXED_CONVERSION";
+  proposalType: "NAMED_DEFINITION" | "NAMED_VALUE" | "FIXED_CONVERSION" | "POSTAL_ENTITY";
   status: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
   proposer: { id: string; email: string | null };
   submittedAt: string;
@@ -17,11 +17,12 @@ type ProposalDetail = {
   } | null;
   canonicalTargetId: string | null;
   proposedValues: Record<string, string | null>;
+  currentValues?: Record<string, string | null>;
   possibleMatches: Record<string, unknown>[];
   compatibleMergeTargets: Record<string, unknown>[];
 };
 
-type ModerationAction = "APPROVE" | "MERGE";
+type ModerationAction = "APPROVE" | "MERGE" | "REJECT";
 
 const labels: Record<string, string> = {
   targetNamedFaceValueId: "Approved definition being corrected",
@@ -38,6 +39,12 @@ const labels: Record<string, string> = {
   fromCurrencyCode: "Source currency",
   toCurrencyCode: "Target currency",
   multiplier: "Multiplier",
+  postalEntityName: "Postal entity name",
+  normalizedPostalEntityName: "Normalized postal entity name",
+  issuingAuthority: "Issuing authority",
+  scope: "Geographic or office scope",
+  sourceUrl: "Source URL",
+  sourceNote: "Source note",
 };
 
 function displayValue(value: unknown): string {
@@ -68,6 +75,8 @@ export function ModerationProposalDetail({
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
+  const [correctedValues, setCorrectedValues] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -84,7 +93,16 @@ export function ModerationProposalDetail({
         }
         return result.proposal;
       })
-      .then(setProposal)
+      .then((loaded) => {
+        setProposal(loaded);
+        setCorrectedValues(
+          Object.fromEntries(
+            Object.entries(loaded.currentValues ?? loaded.proposedValues).map(
+              ([key, value]) => [key, value ?? ""],
+            ),
+          ),
+        );
+      })
       .catch((caught: unknown) => {
         if (caught instanceof Error && caught.name !== "AbortError") {
           setError(caught.message);
@@ -97,6 +115,7 @@ export function ModerationProposalDetail({
     event.preventDefault();
     setSubmitting(true);
     setApprovalMessage(null);
+    setFieldErrors({});
     try {
       const response = await fetch(
         `/api/moderation/proposals/${proposalType}/${proposalId}`,
@@ -107,20 +126,27 @@ export function ModerationProposalDetail({
             action,
             decisionNote,
             ...(action === "MERGE" ? { targetId: mergeTargetId } : {}),
+            ...(proposal?.proposalType === "POSTAL_ENTITY" && action === "APPROVE"
+              ? { correctedValues }
+              : {}),
           }),
         },
       );
       const result = (await response.json()) as {
         proposal?: ProposalDetail;
         error?: string;
+        errors?: Record<string, string>;
       };
       if (!response.ok || !result.proposal) {
+        setFieldErrors(result.errors ?? {});
         throw new Error(result.error ?? "The proposal could not be decided.");
       }
       setProposal(result.proposal);
       setApprovalMessage(
         action === "MERGE"
           ? "Proposal merged. References now use the canonical record."
+          : action === "REJECT"
+            ? "Postal entity rejected. Linked private data now requires replacement."
           : "Proposal approved. Shared data is now available.",
       );
     } catch (caught) {
@@ -227,6 +253,21 @@ export function ModerationProposalDetail({
                 />
                 Merge as a duplicate
               </label>
+              {proposal.proposalType === "POSTAL_ENTITY" && (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="moderation-action"
+                    value="REJECT"
+                    checked={action === "REJECT"}
+                    onChange={() => {
+                      setAction("REJECT");
+                      setConfirmed(false);
+                    }}
+                  />
+                  Reject unsupported or nonsensical data
+                </label>
+              )}
               {proposal.compatibleMergeTargets.length === 0 && (
                 <p>No compatible merge targets are available.</p>
               )}
@@ -258,6 +299,44 @@ export function ModerationProposalDetail({
               </fieldset>
             )}
 
+            {action === "APPROVE" && proposal.proposalType === "POSTAL_ENTITY" && (
+              <fieldset className="grid gap-3">
+                <legend className="font-medium">Corrected canonical fields</legend>
+                {["postalEntityName", "countryCode", "issuingAuthority", "scope", "sourceUrl", "sourceNote"].map((field) => {
+                  const errorId = `${field}-correction-error`;
+                  return (
+                    <div key={field} className="grid gap-1">
+                      <label htmlFor={`${field}-correction`} className="font-medium">
+                        {labels[field]}
+                      </label>
+                      {field === "sourceNote" ? (
+                        <textarea
+                          id={`${field}-correction`}
+                          value={correctedValues[field] ?? ""}
+                          onChange={(event) => setCorrectedValues((current) => ({ ...current, [field]: event.target.value }))}
+                          aria-invalid={Boolean(fieldErrors[field])}
+                          aria-describedby={fieldErrors[field] ? errorId : undefined}
+                          rows={3}
+                          className="rounded-md border border-zinc-400 bg-transparent p-2"
+                        />
+                      ) : (
+                        <input
+                          id={`${field}-correction`}
+                          type={field === "sourceUrl" ? "url" : "text"}
+                          value={correctedValues[field] ?? ""}
+                          onChange={(event) => setCorrectedValues((current) => ({ ...current, [field]: event.target.value }))}
+                          aria-invalid={Boolean(fieldErrors[field])}
+                          aria-describedby={fieldErrors[field] ? errorId : undefined}
+                          className="h-10 rounded-md border border-zinc-400 bg-transparent px-2"
+                        />
+                      )}
+                      {fieldErrors[field] && <p id={errorId} role="alert">{fieldErrors[field]}</p>}
+                    </div>
+                  );
+                })}
+              </fieldset>
+            )}
+
             <div className="grid gap-2">
               <label htmlFor="decision-note" className="font-medium">
                 Decision note
@@ -281,6 +360,8 @@ export function ModerationProposalDetail({
               <span>
                 {action === "MERGE"
                   ? "I confirm that this duplicate should use the selected canonical record."
+                  : action === "REJECT"
+                    ? "I confirm that this unsupported submission should stop resolving."
                   : "I confirm that this proposal should update shared data for all users."}
               </span>
             </label>
@@ -297,9 +378,13 @@ export function ModerationProposalDetail({
               {submitting
                 ? action === "MERGE"
                   ? "Merging…"
+                  : action === "REJECT"
+                    ? "Rejecting…"
                   : "Approving…"
                 : action === "MERGE"
                   ? "Merge proposal"
+                  : action === "REJECT"
+                    ? "Reject postal entity"
                   : "Approve proposal"}
             </button>
           </form>

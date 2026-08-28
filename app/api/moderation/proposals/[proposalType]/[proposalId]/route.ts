@@ -19,6 +19,12 @@ import {
   mergeModerationProposal,
   validateMergeTargetId,
 } from "@/lib/moderationMerge";
+import {
+  PostalEntityCorrectionError,
+  approvePostalEntity,
+  mergePostalEntity,
+  rejectPostalEntity,
+} from "@/lib/postalEntityModeration";
 
 export async function GET(
   request: NextRequest,
@@ -69,12 +75,33 @@ export async function POST(
         action?: unknown;
         decisionNote?: unknown;
         targetId?: unknown;
+        correctedValues?: unknown;
       } | null;
       const decisionNote = validateDecisionNote(
         input?.decisionNote,
       );
       const action = input?.action ?? "APPROVE";
-      if (action === "APPROVE") {
+      if (proposalType === "POSTAL_ENTITY" && action === "APPROVE") {
+        await approvePostalEntity(
+          proposalId,
+          moderatorId,
+          decisionNote,
+          input?.correctedValues,
+        );
+      } else if (proposalType === "POSTAL_ENTITY" && action === "MERGE") {
+        await mergePostalEntity(
+          proposalId,
+          validateMergeTargetId(input?.targetId),
+          moderatorId,
+          decisionNote,
+        );
+      } else if (proposalType === "POSTAL_ENTITY" && action === "REJECT") {
+        await rejectPostalEntity(
+          proposalId,
+          moderatorId,
+          decisionNote,
+        );
+      } else if (action === "APPROVE") {
         await approveModerationProposal(
           proposalType as ModerationProposalType,
           proposalId,
@@ -103,6 +130,12 @@ export async function POST(
         caught instanceof MergeInputError
       ) {
         return NextResponse.json({ error: caught.message }, { status: 400 });
+      }
+      if (caught instanceof PostalEntityCorrectionError) {
+        return NextResponse.json(
+          { error: caught.message, errors: caught.errors },
+          { status: 400 },
+        );
       }
       if (caught instanceof ProposalNotFoundError) {
         return NextResponse.json({ error: caught.message }, { status: 404 });

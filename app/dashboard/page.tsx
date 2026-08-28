@@ -19,6 +19,7 @@ type SettingsResponse = {
   activePostalEntitySetting: SavedPostalEntitySetting | null;
   activeLocalDate: string | null;
   postalEntitySettings: SavedPostalEntitySetting[];
+  availablePostalEntities: SavedPostalEntitySetting["postalEntity"][];
   options: {
     countries: SettingOption[];
     currencies: SettingOption[];
@@ -121,6 +122,7 @@ function DashboardContent() {
         countries={settings.options.countries}
         currencies={settings.options.currencies}
         settings={settings.postalEntitySettings}
+        availablePostalEntities={settings.availablePostalEntities}
         onAdded={(added) =>
           setLoaded((current) =>
             current?.userId === userId
