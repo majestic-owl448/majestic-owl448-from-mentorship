@@ -286,6 +286,15 @@ async function pendingValues(
       status: "PENDING",
       OR: [
         ...(namedFaceValueId ? [{ namedFaceValueId }] : []),
+        ...(namedFaceValueId
+          ? [
+              {
+                definitionProposal: {
+                  approvedNamedFaceValueId: namedFaceValueId,
+                },
+              },
+            ]
+          : []),
         ...(definitionProposalId ? [{ definitionProposalId }] : []),
       ],
     },
@@ -333,10 +342,13 @@ export async function resolveNamedFaceValueProposalById(
       id: proposalId,
       countryCode: normalizedCountryCode,
       submittedById: userId,
-      status: "PENDING",
+      status: { in: ["PENDING", "APPROVED"] },
     },
     include: {
       targetNamedFaceValue: {
+        include: { valueSchedule: { include: { values: true } } },
+      },
+      approvedNamedFaceValue: {
         include: { valueSchedule: { include: { values: true } } },
       },
     },
@@ -355,15 +367,17 @@ export async function resolveNamedFaceValueProposalById(
     proposal.targetNamedFaceValueId,
     proposal.id,
   );
-  const approvedValues =
-    proposal.targetNamedFaceValue?.valueSchedule.values ?? [];
+  const approvedDefinition =
+    proposal.approvedNamedFaceValue ?? proposal.targetNamedFaceValue;
+  const approvedValues = approvedDefinition?.valueSchedule.values ?? [];
   return resolveNamedFaceValueSchedule(
     {
-      id: proposal.id,
+      id: approvedDefinition?.id ?? proposal.id,
       countryCode: proposal.countryCode,
       displayCode: proposal.displayCode,
       normalizedCode: proposal.normalizedCode,
-      currencyCode: proposal.currencyCode,
+      currencyCode:
+        approvedDefinition?.valueSchedule.currencyCode ?? proposal.currencyCode,
       values: [
         ...approvedValues.map((value) => ({
           ...value,

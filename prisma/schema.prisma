@@ -35,19 +35,22 @@ enum ProposalStatus {
 }
 
 model UserProfile {
-  id                          String                             @id
-  email                       String?
-  role                        UserRole                           @default(USER)
-  activePostalEntitySettingId String?                            @unique @map("active_postal_entity_setting_id")
-  activePostalEntitySetting   UserPostalEntitySetting?           @relation("ActivePostalEntitySetting", fields: [activePostalEntitySettingId], references: [id], onDelete: SetNull)
-  postalEntitySettings        UserPostalEntitySetting[]          @relation("UserPostalEntitySettings")
-  submittedPostalEntities     PostalEntity[]                     @relation("SubmittedPostalEntities")
-  stampInventoryEntries       StampInventoryEntry[]
-  namedDefinitionProposals    NamedFaceValueDefinitionProposal[]
-  namedValueProposals         NamedFaceValueValueProposal[]
-  currencyConversionProposals CurrencyConversionProposal[]
-  createdAt                   DateTime                           @default(now()) @map("created_at")
-  updatedAt                   DateTime                           @updatedAt @map("updated_at")
+  id                           String                             @id
+  email                        String?
+  role                         UserRole                           @default(USER)
+  activePostalEntitySettingId  String?                            @unique @map("active_postal_entity_setting_id")
+  activePostalEntitySetting    UserPostalEntitySetting?           @relation("ActivePostalEntitySetting", fields: [activePostalEntitySettingId], references: [id], onDelete: SetNull)
+  postalEntitySettings         UserPostalEntitySetting[]          @relation("UserPostalEntitySettings")
+  submittedPostalEntities      PostalEntity[]                     @relation("SubmittedPostalEntities")
+  stampInventoryEntries        StampInventoryEntry[]
+  namedDefinitionProposals     NamedFaceValueDefinitionProposal[]
+  namedValueProposals          NamedFaceValueValueProposal[]
+  currencyConversionProposals  CurrencyConversionProposal[]
+  moderatedDefinitionProposals NamedFaceValueDefinitionProposal[] @relation("NamedDefinitionModerator")
+  moderatedValueProposals      NamedFaceValueValueProposal[]      @relation("NamedValueModerator")
+  moderatedConversionProposals CurrencyConversionProposal[]       @relation("CurrencyConversionModerator")
+  createdAt                    DateTime                           @default(now()) @map("created_at")
+  updatedAt                    DateTime                           @updatedAt @map("updated_at")
 
   @@map("user_profiles")
 }
@@ -152,7 +155,11 @@ model CurrencyConversionProposal {
   sourceUrl                  String?             @map("source_url")
   sourceNote                 String?             @map("source_note")
   status                     ProposalStatus      @default(PENDING)
+  moderatedById              String?             @map("moderated_by_id")
+  decidedAt                  DateTime?           @map("decided_at")
+  decisionNote               String?             @map("decision_note")
   submittedBy                UserProfile         @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  moderatedBy                UserProfile?        @relation("CurrencyConversionModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   targetCurrencyConversion   CurrencyConversion? @relation(fields: [targetCurrencyConversionId], references: [id], onDelete: Restrict)
   fromCurrency               Currency            @relation("ProposalSourceCurrency", fields: [fromCurrencyCode], references: [code], onDelete: Restrict)
   toCurrency                 Currency            @relation("ProposalTargetCurrency", fields: [toCurrencyCode], references: [code], onDelete: Restrict)
@@ -160,6 +167,7 @@ model CurrencyConversionProposal {
 
   @@index([submittedById, status, createdAt])
   @@index([submittedById, fromCurrencyCode, toCurrencyCode, status, createdAt])
+  @@index([moderatedById])
   @@map("currency_conversion_proposals")
 }
 
@@ -199,6 +207,7 @@ model NamedFaceValue {
   valueSchedule         ValueSchedule                      @relation(fields: [valueScheduleId, countryCode], references: [id, countryCode], onDelete: Restrict)
   stampInventoryEntries StampInventoryEntry[]
   definitionProposals   NamedFaceValueDefinitionProposal[] @relation("CorrectedNamedFaceValue")
+  approvedProposals     NamedFaceValueDefinitionProposal[] @relation("ApprovedNamedFaceValue")
   valueProposals        NamedFaceValueValueProposal[]
   createdAt             DateTime                           @default(now()) @map("created_at")
   updatedAt             DateTime                           @updatedAt @map("updated_at")
@@ -209,25 +218,32 @@ model NamedFaceValue {
 }
 
 model NamedFaceValueDefinitionProposal {
-  id                     String                        @id @default(cuid())
-  submittedById          String                        @map("submitted_by_id")
-  targetNamedFaceValueId String?                       @map("target_named_face_value_id")
-  countryCode            String                        @map("country_code")
-  displayCode            String                        @map("display_code")
-  normalizedCode         String                        @map("normalized_code")
-  currencyCode           String                        @map("currency_code")
-  sourceUrl              String?                       @map("source_url")
-  sourceNote             String?                       @map("source_note")
-  status                 ProposalStatus                @default(PENDING)
-  submittedBy            UserProfile                   @relation(fields: [submittedById], references: [id], onDelete: Cascade)
-  targetNamedFaceValue   NamedFaceValue?               @relation("CorrectedNamedFaceValue", fields: [targetNamedFaceValueId], references: [id], onDelete: Restrict)
-  valueProposals         NamedFaceValueValueProposal[]
-  stampInventoryEntries  StampInventoryEntry[]
-  createdAt              DateTime                      @default(now()) @map("created_at")
+  id                       String                        @id @default(cuid())
+  submittedById            String                        @map("submitted_by_id")
+  targetNamedFaceValueId   String?                       @map("target_named_face_value_id")
+  approvedNamedFaceValueId String?                       @map("approved_named_face_value_id")
+  countryCode              String                        @map("country_code")
+  displayCode              String                        @map("display_code")
+  normalizedCode           String                        @map("normalized_code")
+  currencyCode             String                        @map("currency_code")
+  sourceUrl                String?                       @map("source_url")
+  sourceNote               String?                       @map("source_note")
+  status                   ProposalStatus                @default(PENDING)
+  moderatedById            String?                       @map("moderated_by_id")
+  decidedAt                DateTime?                     @map("decided_at")
+  decisionNote             String?                       @map("decision_note")
+  submittedBy              UserProfile                   @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  moderatedBy              UserProfile?                  @relation("NamedDefinitionModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  targetNamedFaceValue     NamedFaceValue?               @relation("CorrectedNamedFaceValue", fields: [targetNamedFaceValueId], references: [id], onDelete: Restrict)
+  approvedNamedFaceValue   NamedFaceValue?               @relation("ApprovedNamedFaceValue", fields: [approvedNamedFaceValueId], references: [id], onDelete: Restrict)
+  valueProposals           NamedFaceValueValueProposal[]
+  stampInventoryEntries    StampInventoryEntry[]
+  createdAt                DateTime                      @default(now()) @map("created_at")
 
   @@unique([id, countryCode])
   @@index([submittedById, status, createdAt])
   @@index([countryCode, normalizedCode])
+  @@index([moderatedById])
   @@map("named_face_value_definition_proposals")
 }
 
@@ -242,7 +258,11 @@ model NamedFaceValueValueProposal {
   sourceUrl            String?                           @map("source_url")
   sourceNote           String?                           @map("source_note")
   status               ProposalStatus                    @default(PENDING)
+  moderatedById        String?                           @map("moderated_by_id")
+  decidedAt            DateTime?                         @map("decided_at")
+  decisionNote         String?                           @map("decision_note")
   submittedBy          UserProfile                       @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  moderatedBy          UserProfile?                      @relation("NamedValueModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   namedFaceValue       NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
   definitionProposal   NamedFaceValueDefinitionProposal? @relation(fields: [definitionProposalId], references: [id], onDelete: Restrict)
   createdAt            DateTime                          @default(now()) @map("created_at")
@@ -250,5 +270,6 @@ model NamedFaceValueValueProposal {
   @@index([submittedById, status, createdAt])
   @@index([namedFaceValueId, effectiveOn])
   @@index([definitionProposalId, effectiveOn])
+  @@index([moderatedById])
   @@map("named_face_value_value_proposals")
 }
