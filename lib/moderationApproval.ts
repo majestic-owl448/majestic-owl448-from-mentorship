@@ -18,7 +18,7 @@ export class ProposalNotFoundError extends Error {
 
 export class ProposalAlreadyDecidedError extends Error {
   constructor() {
-    super("Only pending proposals can be approved.");
+    super("Only pending proposals can be decided.");
     this.name = "ProposalAlreadyDecidedError";
   }
 }

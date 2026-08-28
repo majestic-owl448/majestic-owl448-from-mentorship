@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 export const moderationProposalTypes = [
   "NAMED_DEFINITION",
@@ -22,6 +23,10 @@ type QueueFilters = {
   proposalType: ModerationProposalType | null;
   status: ModerationProposalStatus | null;
 };
+
+function sameDecimal(left: string, right: string): boolean {
+  return new Prisma.Decimal(left).equals(new Prisma.Decimal(right));
+}
 
 function queueItem(
   proposal: {
@@ -158,6 +163,7 @@ async function namedDefinitionDetail(proposalId: string) {
     select: {
       id: true,
       targetNamedFaceValueId: true,
+      approvedNamedFaceValueId: true,
       countryCode: true,
       displayCode: true,
       normalizedCode: true,
@@ -198,6 +204,8 @@ async function namedDefinitionDetail(proposalId: string) {
 
   return {
     ...sharedDetail(proposal, "NAMED_DEFINITION"),
+    canonicalTargetId:
+      proposal.status === "MERGED" ? proposal.approvedNamedFaceValueId : null,
     proposedValues: {
       targetNamedFaceValueId: proposal.targetNamedFaceValueId,
       countryCode: proposal.countryCode,
@@ -209,6 +217,17 @@ async function namedDefinitionDetail(proposalId: string) {
       ...match,
       currencyCode: valueSchedule.currencyCode,
     })),
+    compatibleMergeTargets: possibleMatches
+      .filter(
+        (match) =>
+          match.countryCode === proposal.countryCode &&
+          match.normalizedCode === proposal.normalizedCode &&
+          match.valueSchedule.currencyCode === proposal.currencyCode,
+      )
+      .map(({ valueSchedule, ...match }) => ({
+        ...match,
+        currencyCode: valueSchedule.currencyCode,
+      })),
   };
 }
 
@@ -219,6 +238,7 @@ async function namedValueDetail(proposalId: string) {
       id: true,
       namedFaceValueId: true,
       definitionProposalId: true,
+      mergedValueScheduleValueId: true,
       amount: true,
       effectiveOn: true,
       eligibleOn: true,
@@ -233,6 +253,7 @@ async function namedValueDetail(proposalId: string) {
       definitionProposal: {
         select: {
           targetNamedFaceValueId: true,
+          approvedNamedFaceValueId: true,
           countryCode: true,
           normalizedCode: true,
         },
@@ -257,6 +278,11 @@ async function namedValueDetail(proposalId: string) {
         },
         select: { id: true },
       });
+  const mergeNamedTargetId =
+    proposal.namedFaceValueId ??
+    proposal.definitionProposal?.approvedNamedFaceValueId ??
+    proposal.definitionProposal?.targetNamedFaceValueId ??
+    null;
   const possibleMatches = await prisma.valueScheduleValue.findMany({
     where: {
       effectiveOn: proposal.effectiveOn,
@@ -282,6 +308,10 @@ async function namedValueDetail(proposalId: string) {
 
   return {
     ...sharedDetail(proposal, "NAMED_VALUE"),
+    canonicalTargetId:
+      proposal.status === "MERGED"
+        ? proposal.mergedValueScheduleValueId
+        : null,
     proposedValues: {
       namedFaceValueId: proposal.namedFaceValueId,
       definitionProposalId: proposal.definitionProposalId,
@@ -294,6 +324,20 @@ async function namedValueDetail(proposalId: string) {
       currencyCode: valueSchedule.currencyCode,
       namedFaceValues: valueSchedule.namedFaceValues,
     })),
+    compatibleMergeTargets: possibleMatches
+      .filter(
+        (match) =>
+          mergeNamedTargetId !== null &&
+          sameDecimal(match.amount, proposal.amount) &&
+          match.valueSchedule.namedFaceValues.some(
+            (definition) => definition.id === mergeNamedTargetId,
+          ),
+      )
+      .map(({ valueSchedule, ...match }) => ({
+        ...match,
+        currencyCode: valueSchedule.currencyCode,
+        namedFaceValues: valueSchedule.namedFaceValues,
+      })),
   };
 }
 
@@ -341,6 +385,10 @@ async function fixedConversionDetail(proposalId: string) {
 
   return {
     ...sharedDetail(proposal, "FIXED_CONVERSION"),
+    canonicalTargetId:
+      proposal.status === "MERGED"
+        ? proposal.targetCurrencyConversionId
+        : null,
     proposedValues: {
       targetCurrencyConversionId: proposal.targetCurrencyConversionId,
       fromCurrencyCode: proposal.fromCurrencyCode,
@@ -348,6 +396,12 @@ async function fixedConversionDetail(proposalId: string) {
       multiplier: proposal.multiplier,
     },
     possibleMatches,
+    compatibleMergeTargets: possibleMatches.filter(
+      (match) =>
+        match.fromCurrencyCode === proposal.fromCurrencyCode &&
+        match.toCurrencyCode === proposal.toCurrencyCode &&
+        sameDecimal(match.multiplier, proposal.multiplier),
+    ),
   };
 }
 

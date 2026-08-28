@@ -64,6 +64,7 @@ describe("moderation interface", () => {
             submittedAt: "2026-08-28T10:00:00.000Z",
             source: { url: null, note: "Central bank bulletin" },
             decision: null,
+            canonicalTargetId: null,
             proposedValues: {
               targetCurrencyConversionId: "approved-usd-eur",
               fromCurrencyCode: "USD",
@@ -71,6 +72,14 @@ describe("moderation interface", () => {
               multiplier: "0.91",
             },
             possibleMatches: [
+              {
+                id: "approved-usd-eur",
+                fromCurrencyCode: "USD",
+                toCurrencyCode: "EUR",
+                multiplier: "0.90",
+              },
+            ],
+            compatibleMergeTargets: [
               {
                 id: "approved-usd-eur",
                 fromCurrencyCode: "USD",
@@ -108,6 +117,7 @@ describe("moderation interface", () => {
       submittedAt: "2026-08-28T10:00:00.000Z",
       source: { url: null, note: "Central bank bulletin" },
       decision: null,
+      canonicalTargetId: null,
       proposedValues: {
         targetCurrencyConversionId: null,
         fromCurrencyCode: "USD",
@@ -115,6 +125,7 @@ describe("moderation interface", () => {
         multiplier: "0.91",
       },
       possibleMatches: [],
+      compatibleMergeTargets: [],
     };
     const fetchMock = vi
       .fn()
@@ -142,7 +153,7 @@ describe("moderation interface", () => {
         proposalId="conversion-proposal"
       />,
     );
-    await screen.findByRole("heading", { name: "Approve proposal" });
+    await screen.findByRole("heading", { name: "Moderate proposal" });
 
     const note = screen.getByLabelText("Decision note");
     note.focus();
@@ -171,7 +182,112 @@ describe("moderation interface", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          action: "APPROVE",
           decisionNote: "Rate checked against the central bank bulletin.",
+        }),
+      }),
+    );
+  });
+
+  it("supports keyboard merge-target selection and confirmation", async () => {
+    const user = userEvent.setup();
+    const pendingProposal = {
+      id: "conversion-proposal",
+      proposalType: "FIXED_CONVERSION",
+      status: "PENDING",
+      proposer: { id: "proposer", email: "proposer@example.com" },
+      submittedAt: "2026-08-28T10:00:00.000Z",
+      source: { url: null, note: "Central bank bulletin" },
+      decision: null,
+      canonicalTargetId: null,
+      proposedValues: {
+        targetCurrencyConversionId: null,
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.90",
+      },
+      possibleMatches: [
+        {
+          id: "approved-usd-eur",
+          fromCurrencyCode: "USD",
+          toCurrencyCode: "EUR",
+          multiplier: "0.9",
+        },
+      ],
+      compatibleMergeTargets: [
+        {
+          id: "approved-usd-eur",
+          fromCurrencyCode: "USD",
+          toCurrencyCode: "EUR",
+          multiplier: "0.9",
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ proposal: pendingProposal }))
+      .mockResolvedValueOnce(
+        Response.json({
+          proposal: {
+            ...pendingProposal,
+            status: "MERGED",
+            canonicalTargetId: "approved-usd-eur",
+            decision: {
+              moderator: { id: "moderator", email: "moderator@example.com" },
+              decidedAt: "2026-08-28T11:00:00.000Z",
+              note: "Confirmed duplicate fixed conversion.",
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ModerationProposalDetail
+        proposalType="FIXED_CONVERSION"
+        proposalId="conversion-proposal"
+      />,
+    );
+    await screen.findByRole("heading", { name: "Moderate proposal" });
+
+    const mergeAction = screen.getByRole("radio", {
+      name: "Merge as a duplicate",
+    });
+    mergeAction.focus();
+    await user.keyboard(" ");
+    const target = screen.getByRole("radio", {
+      name: /id: approved-usd-eur/,
+    });
+    await user.tab();
+    expect(document.activeElement).toBe(target);
+    await user.keyboard(" ");
+    await user.tab();
+    await user.keyboard("Confirmed duplicate fixed conversion.");
+    await user.tab();
+    const confirmation = screen.getByRole("checkbox", {
+      name: /duplicate should use the selected canonical record/,
+    });
+    expect(document.activeElement).toBe(confirmation);
+    await user.keyboard(" ");
+    await user.tab();
+    const mergeButton = screen.getByRole("button", { name: "Merge proposal" });
+    expect(document.activeElement).toBe(mergeButton);
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText(
+        "Proposal merged. References now use the canonical record.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("MERGED")).toBeTruthy();
+    expect(screen.getByText("approved-usd-eur")).toBeTruthy();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/moderation/proposals/FIXED_CONVERSION/conversion-proposal",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          action: "MERGE",
+          decisionNote: "Confirmed duplicate fixed conversion.",
+          targetId: "approved-usd-eur",
         }),
       }),
     );

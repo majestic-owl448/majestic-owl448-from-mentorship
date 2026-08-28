@@ -15,9 +15,13 @@ type ProposalDetail = {
     decidedAt: string;
     note: string | null;
   } | null;
+  canonicalTargetId: string | null;
   proposedValues: Record<string, string | null>;
   possibleMatches: Record<string, unknown>[];
+  compatibleMergeTargets: Record<string, unknown>[];
 };
+
+type ModerationAction = "APPROVE" | "MERGE";
 
 const labels: Record<string, string> = {
   targetNamedFaceValueId: "Approved definition being corrected",
@@ -59,6 +63,8 @@ export function ModerationProposalDetail({
   const [proposal, setProposal] = useState<ProposalDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState("");
+  const [action, setAction] = useState<ModerationAction>("APPROVE");
+  const [mergeTargetId, setMergeTargetId] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
@@ -87,7 +93,7 @@ export function ModerationProposalDetail({
     return () => controller.abort();
   }, [proposalId, proposalType]);
 
-  async function approveProposal(event: React.FormEvent<HTMLFormElement>) {
+  async function moderateProposal(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setApprovalMessage(null);
@@ -97,7 +103,11 @@ export function ModerationProposalDetail({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ decisionNote }),
+          body: JSON.stringify({
+            action,
+            decisionNote,
+            ...(action === "MERGE" ? { targetId: mergeTargetId } : {}),
+          }),
         },
       );
       const result = (await response.json()) as {
@@ -105,15 +115,19 @@ export function ModerationProposalDetail({
         error?: string;
       };
       if (!response.ok || !result.proposal) {
-        throw new Error(result.error ?? "The proposal could not be approved.");
+        throw new Error(result.error ?? "The proposal could not be decided.");
       }
       setProposal(result.proposal);
-      setApprovalMessage("Proposal approved. Shared data is now available.");
+      setApprovalMessage(
+        action === "MERGE"
+          ? "Proposal merged. References now use the canonical record."
+          : "Proposal approved. Shared data is now available.",
+      );
     } catch (caught) {
       setApprovalMessage(
         caught instanceof Error
           ? caught.message
-          : "The proposal could not be approved.",
+          : "The proposal could not be decided.",
       );
     } finally {
       setSubmitting(false);
@@ -179,11 +193,71 @@ export function ModerationProposalDetail({
       </section>
 
       {proposal.status === "PENDING" ? (
-        <section aria-labelledby="approval-heading">
-          <h2 id="approval-heading" className="text-xl font-semibold">
-            Approve proposal
+        <section aria-labelledby="moderation-heading">
+          <h2 id="moderation-heading" className="text-xl font-semibold">
+            Moderate proposal
           </h2>
-          <form className="mt-3 grid gap-4" onSubmit={approveProposal}>
+          <form className="mt-3 grid gap-4" onSubmit={moderateProposal}>
+            <fieldset className="grid gap-2">
+              <legend className="font-medium">Action</legend>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="moderation-action"
+                  value="APPROVE"
+                  checked={action === "APPROVE"}
+                  onChange={() => {
+                    setAction("APPROVE");
+                    setConfirmed(false);
+                  }}
+                />
+                Approve as new or corrected shared data
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="moderation-action"
+                  value="MERGE"
+                  checked={action === "MERGE"}
+                  disabled={proposal.compatibleMergeTargets.length === 0}
+                  onChange={() => {
+                    setAction("MERGE");
+                    setConfirmed(false);
+                  }}
+                />
+                Merge as a duplicate
+              </label>
+              {proposal.compatibleMergeTargets.length === 0 && (
+                <p>No compatible merge targets are available.</p>
+              )}
+            </fieldset>
+
+            {action === "MERGE" && (
+              <fieldset className="grid gap-2">
+                <legend className="font-medium">Merge target</legend>
+                {proposal.compatibleMergeTargets.map((target, index) => {
+                  const targetId = String(target.id ?? "");
+                  return (
+                    <label
+                      key={targetId || index}
+                      className="flex items-start gap-2 rounded-lg border border-zinc-300 p-3 dark:border-zinc-700"
+                    >
+                      <input
+                        type="radio"
+                        name="merge-target"
+                        value={targetId}
+                        checked={mergeTargetId === targetId}
+                        onChange={(event) =>
+                          setMergeTargetId(event.target.value)
+                        }
+                      />
+                      <span>{displayValue(target)}</span>
+                    </label>
+                  );
+                })}
+              </fieldset>
+            )}
+
             <div className="grid gap-2">
               <label htmlFor="decision-note" className="font-medium">
                 Decision note
@@ -205,16 +279,28 @@ export function ModerationProposalDetail({
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
               <span>
-                I confirm that this proposal should update shared data for all
-                users.
+                {action === "MERGE"
+                  ? "I confirm that this duplicate should use the selected canonical record."
+                  : "I confirm that this proposal should update shared data for all users."}
               </span>
             </label>
             <button
               type="submit"
-              disabled={!confirmed || decisionNote.trim().length === 0 || submitting}
+              disabled={
+                !confirmed ||
+                decisionNote.trim().length === 0 ||
+                (action === "MERGE" && mergeTargetId.length === 0) ||
+                submitting
+              }
               className="w-fit rounded-md bg-foreground px-4 py-2 text-background disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Approving…" : "Approve proposal"}
+              {submitting
+                ? action === "MERGE"
+                  ? "Merging…"
+                  : "Approving…"
+                : action === "MERGE"
+                  ? "Merge proposal"
+                  : "Approve proposal"}
             </button>
           </form>
         </section>
@@ -241,6 +327,12 @@ export function ModerationProposalDetail({
                 <dt className="font-medium">Decision note</dt>
                 <dd>{proposal.decision.note}</dd>
               </div>
+              {proposal.canonicalTargetId && (
+                <div>
+                  <dt className="font-medium">Canonical record</dt>
+                  <dd>{proposal.canonicalTargetId}</dd>
+                </div>
+              )}
             </dl>
           </section>
         )
