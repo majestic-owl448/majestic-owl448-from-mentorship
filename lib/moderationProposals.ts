@@ -163,8 +163,15 @@ async function namedDefinitionDetail(proposalId: string) {
 
   const possibleMatches = await prisma.namedFaceValue.findMany({
     where: {
-      countryCode: proposal.countryCode,
-      normalizedCode: proposal.normalizedCode,
+      OR: [
+        {
+          countryCode: proposal.countryCode,
+          normalizedCode: proposal.normalizedCode,
+        },
+        ...(proposal.targetNamedFaceValueId
+          ? [{ id: proposal.targetNamedFaceValueId }]
+          : []),
+      ],
     },
     select: {
       id: true,
@@ -283,8 +290,15 @@ async function fixedConversionDetail(proposalId: string) {
 
   const possibleMatches = await prisma.currencyConversion.findMany({
     where: {
-      fromCurrencyCode: proposal.fromCurrencyCode,
-      toCurrencyCode: proposal.toCurrencyCode,
+      OR: [
+        {
+          fromCurrencyCode: proposal.fromCurrencyCode,
+          toCurrencyCode: proposal.toCurrencyCode,
+        },
+        ...(proposal.targetCurrencyConversionId
+          ? [{ id: proposal.targetCurrencyConversionId }]
+          : []),
+      ],
     },
     select: {
       id: true,

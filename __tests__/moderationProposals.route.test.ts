@@ -67,6 +67,7 @@ describe("moderation proposal API", () => {
     await prisma.currency.createMany({
       data: [
         { code: "EUR", displayName: "Euro" },
+        { code: "GBP", displayName: "Pound sterling" },
         { code: "USD", displayName: "US Dollar" },
       ],
     });
@@ -106,9 +107,10 @@ describe("moderation proposal API", () => {
       data: {
         id: "definition-proposal",
         submittedById: "proposer",
-        countryCode: "IT",
-        displayCode: "B",
-        normalizedCode: "b",
+        targetNamedFaceValueId: "approved-b",
+        countryCode: "FR",
+        displayCode: "Lettre verte",
+        normalizedCode: "lettre verte",
         currencyCode: "EUR",
         sourceNote: "Official tariff PDF, page 3",
       },
@@ -129,7 +131,7 @@ describe("moderation proposal API", () => {
         id: "conversion-proposal",
         submittedById: "proposer",
         targetCurrencyConversionId: "approved-usd-eur",
-        fromCurrencyCode: "USD",
+        fromCurrencyCode: "GBP",
         toCurrencyCode: "EUR",
         multiplier: "0.91",
         sourceNote: "Central bank bulletin",
@@ -227,9 +229,10 @@ describe("moderation proposal API", () => {
         submittedAt: expect.any(String),
         source: { url: null, note: "Official tariff PDF, page 3" },
         proposedValues: {
-          countryCode: "IT",
-          displayCode: "B",
-          normalizedCode: "b",
+          targetNamedFaceValueId: "approved-b",
+          countryCode: "FR",
+          displayCode: "Lettre verte",
+          normalizedCode: "lettre verte",
           currencyCode: "EUR",
         },
         possibleMatches: [
@@ -253,7 +256,8 @@ describe("moderation proposal API", () => {
     ).json();
     expect(conversionBody.proposal).toMatchObject({
       proposedValues: {
-        fromCurrencyCode: "USD",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "GBP",
         toCurrencyCode: "EUR",
         multiplier: "0.91",
       },
