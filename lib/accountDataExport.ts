@@ -159,6 +159,18 @@ function serializeRecords<T extends ScalarRecord>(records: T[]) {
   return records.map(serializeRecord);
 }
 
+function serializeUserLinkedRecord(
+  modelName: keyof typeof USER_LINKED_MODEL_POLICY,
+  record: ScalarRecord,
+) {
+  return Object.fromEntries(
+    USER_LINKED_MODEL_POLICY[modelName].exportedFields.map((field) => {
+      const value = record[field];
+      return [field, value instanceof Date ? value.toISOString() : value];
+    }),
+  );
+}
+
 function unique(values: (string | null | undefined)[]) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
@@ -273,6 +285,10 @@ export async function createAccountDataExport(
   const linkedConversionIds = unique(
     conversions.map((proposal) => proposal.targetCurrencyConversionId),
   );
+  const contributedConversionPairs = conversions.map((proposal) => ({
+    fromCurrencyCode: proposal.fromCurrencyCode,
+    toCurrencyCode: proposal.toCurrencyCode,
+  }));
   const valuationSourceCurrencyCodes = unique([
     ...inventory.flatMap((entry) => [
       entry.faceCurrencyCode,
@@ -287,6 +303,7 @@ export async function createAccountDataExport(
     where: {
       OR: [
         { id: { in: linkedConversionIds } },
+        ...contributedConversionPairs,
         {
           fromCurrencyCode: { in: valuationSourceCurrencyCodes },
           toCurrencyCode: { in: displayCurrencyCodes },
@@ -318,10 +335,17 @@ export async function createAccountDataExport(
     orderBy: { code: "asc" },
   });
 
-  const withAccountLinks = <T extends { submittedById?: string | null; moderatedById?: string | null }>(
+  const withAccountLinks = <
+    T extends { submittedById?: string | null; moderatedById?: string | null },
+  >(
+    modelName:
+      | "PostalEntity"
+      | "NamedFaceValueDefinitionProposal"
+      | "NamedFaceValueValueProposal"
+      | "CurrencyConversionProposal",
     record: T,
   ) => ({
-    ...serializeRecord(record),
+    ...serializeUserLinkedRecord(modelName, record),
     ...(record.submittedById && record.submittedById !== userId
       ? { submittedById: null }
       : {}),
@@ -339,21 +363,35 @@ export async function createAccountDataExport(
     generatedAt: generatedAt.toISOString(),
     account: {
       superTokens: accountMetadata(superTokensUser),
-      profile: serializeRecord(profile),
+      profile: serializeUserLinkedRecord("UserProfile", profile),
     },
     privateData: {
-      postalEntitySettings: serializeRecords(settings),
-      stampInventory: serializeRecords(inventory),
+      postalEntitySettings: settings.map((setting) =>
+        serializeUserLinkedRecord("UserPostalEntitySetting", setting),
+      ),
+      stampInventory: inventory.map((entry) =>
+        serializeUserLinkedRecord("StampInventoryEntry", entry),
+      ),
       stampProposalActions: serializeRecords(proposalActions),
     },
     proposalsAndModeration: {
-      postalEntities: postalEntities.map(withAccountLinks),
-      namedFaceValueDefinitions: definitions.map(withAccountLinks),
-      namedFaceValueValues: values.map(withAccountLinks),
-      currencyConversions: conversions.map(withAccountLinks),
+      postalEntities: postalEntities.map((entity) =>
+        withAccountLinks("PostalEntity", entity),
+      ),
+      namedFaceValueDefinitions: definitions.map((proposal) =>
+        withAccountLinks("NamedFaceValueDefinitionProposal", proposal),
+      ),
+      namedFaceValueValues: values.map((proposal) =>
+        withAccountLinks("NamedFaceValueValueProposal", proposal),
+      ),
+      currencyConversions: conversions.map((proposal) =>
+        withAccountLinks("CurrencyConversionProposal", proposal),
+      ),
     },
     linkedSharedData: {
-      postalEntities: linkedPostalEntities.map(withAccountLinks),
+      postalEntities: linkedPostalEntities.map((entity) =>
+        withAccountLinks("PostalEntity", entity),
+      ),
       namedFaceValues: serializeRecords(namedFaceValues),
       valueSchedules: serializeRecords(valueSchedules),
       valueScheduleValues: serializeRecords(valueScheduleValues),

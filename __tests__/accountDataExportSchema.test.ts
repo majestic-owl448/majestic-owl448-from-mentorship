@@ -38,4 +38,14 @@ describe("account export schema coverage", () => {
       expect(covered, `${model.name} has an unmapped field`).toEqual(scalarFields);
     }
   });
+
+  it("does not classify an excluded secret field as exported", () => {
+    for (const policy of Object.values(USER_LINKED_MODEL_POLICY)) {
+      expect(
+        policy.exportedFields.filter((field) =>
+          policy.secretFields.includes(field as never),
+        ),
+      ).toEqual([]);
+    }
+  });
 });

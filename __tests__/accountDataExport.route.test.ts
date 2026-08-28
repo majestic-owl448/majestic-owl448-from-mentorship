@@ -95,6 +95,7 @@ describe("GET /api/account/export", () => {
     await prisma.currency.createMany({
       data: [
         { code: "EUR", displayName: "Euro" },
+        { code: "CHF", displayName: "Swiss franc" },
         { code: "ITL", displayName: "Italian lira" },
         { code: "USD", displayName: "US dollar" },
       ],
@@ -234,6 +235,25 @@ describe("GET /api/account/export", () => {
         multiplier: "0.8500",
       },
     });
+    await prisma.currencyConversion.create({
+      data: {
+        id: "approved-contribution-conversion",
+        fromCurrencyCode: "CHF",
+        toCurrencyCode: "USD",
+        multiplier: "1.2500",
+      },
+    });
+    await prisma.currencyConversionProposal.create({
+      data: {
+        id: "approved-new-contribution",
+        submittedById: "export-user",
+        fromCurrencyCode: "CHF",
+        toCurrencyCode: "USD",
+        multiplier: "1.2500",
+        sourceNote: "Approved contribution source",
+        status: "APPROVED",
+      },
+    });
     for (const [index, status] of ["PENDING", "REJECTED", "APPROVED", "MERGED"].entries()) {
       await prisma.currencyConversionProposal.create({
         data: {
@@ -321,6 +341,7 @@ describe("GET /api/account/export", () => {
     ]);
     expect(document.proposalsAndModeration.currencyConversions.map((item: { status: string }) => item.status).sort()).toEqual([
       "APPROVED",
+      "APPROVED",
       "MERGED",
       "PENDING",
       "REJECTED",
@@ -353,6 +374,10 @@ describe("GET /api/account/export", () => {
         expect.objectContaining({
           id: "inventory-linked-conversion",
           multiplier: "0.8500",
+        }),
+        expect.objectContaining({
+          id: "approved-contribution-conversion",
+          multiplier: "1.2500",
         }),
       ]),
     });
