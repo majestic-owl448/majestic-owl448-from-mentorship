@@ -78,6 +78,9 @@ async function mergeDefinition(
       "The selected definition does not match the proposed country, code, and currency.",
     );
   }
+  if (!proposal.submittedById) {
+    throw new ProposalAlreadyDecidedError();
+  }
 
   await tx.stampInventoryEntry.updateMany({
     where: {

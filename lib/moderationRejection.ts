@@ -67,6 +67,7 @@ async function markReferencedInventory(
       where: { id: proposalId },
       select: { submittedById: true },
     });
+    if (!proposal.submittedById) throw new ProposalAlreadyDecidedError();
     const stamps = await tx.stampInventoryEntry.findMany({
       where: {
         userId: proposal.submittedById,
@@ -104,6 +105,7 @@ async function markReferencedInventory(
         createdAt: true,
       },
     });
+    if (!proposal.submittedById) throw new ProposalAlreadyDecidedError();
     const supersedingProposal =
       await tx.namedFaceValueValueProposal.findFirst({
         where: {
@@ -150,6 +152,7 @@ async function markReferencedInventory(
       createdAt: true,
     },
   });
+  if (!proposal.submittedById) throw new ProposalAlreadyDecidedError();
   const supersedingProposal = await tx.currencyConversionProposal.findFirst({
     where: {
       status: "PENDING",

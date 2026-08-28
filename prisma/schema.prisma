@@ -37,6 +37,11 @@ enum ProposalStatus {
   MERGED
 }
 
+enum AccountDeletionStatus {
+  PENDING
+  FAILED
+}
+
 model UserProfile {
   id                           String                             @id
   email                        String?
@@ -53,10 +58,29 @@ model UserProfile {
   moderatedValueProposals      NamedFaceValueValueProposal[]      @relation("NamedValueModerator")
   moderatedConversionProposals CurrencyConversionProposal[]       @relation("CurrencyConversionModerator")
   moderatedPostalEntities      PostalEntity[]                     @relation("ModeratedPostalEntities")
+  deletingAt                   DateTime?                           @map("deleting_at")
   createdAt                    DateTime                           @default(now()) @map("created_at")
   updatedAt                    DateTime                           @updatedAt @map("updated_at")
 
   @@map("user_profiles")
+}
+
+model AccountDeletionJob {
+  userId       String                @id @map("user_id")
+  status       AccountDeletionStatus @default(PENDING)
+  attemptCount Int                   @default(0) @map("attempt_count")
+  lastError    String?               @map("last_error")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  @@map("account_deletion_jobs")
+}
+
+model DeletedAccountTombstone {
+  userIdHash String   @id @map("user_id_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("deleted_account_tombstones")
 }
 
 model StampInventoryEntry {
@@ -173,7 +197,7 @@ model CurrencyConversion {
 
 model CurrencyConversionProposal {
   id                         String              @id @default(cuid())
-  submittedById              String              @map("submitted_by_id")
+  submittedById              String?             @map("submitted_by_id")
   targetCurrencyConversionId String?             @map("target_currency_conversion_id")
   fromCurrencyCode           String              @map("from_currency_code")
   toCurrencyCode             String              @map("to_currency_code")
@@ -184,7 +208,7 @@ model CurrencyConversionProposal {
   moderatedById              String?             @map("moderated_by_id")
   decidedAt                  DateTime?           @map("decided_at")
   decisionNote               String?             @map("decision_note")
-  submittedBy                UserProfile         @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  submittedBy                UserProfile?        @relation(fields: [submittedById], references: [id], onDelete: SetNull)
   moderatedBy                UserProfile?        @relation("CurrencyConversionModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   targetCurrencyConversion   CurrencyConversion? @relation(fields: [targetCurrencyConversionId], references: [id], onDelete: Restrict)
   fromCurrency               Currency            @relation("ProposalSourceCurrency", fields: [fromCurrencyCode], references: [code], onDelete: Restrict)
@@ -247,7 +271,7 @@ model NamedFaceValue {
 
 model NamedFaceValueDefinitionProposal {
   id                       String                        @id @default(cuid())
-  submittedById            String                        @map("submitted_by_id")
+  submittedById            String?                       @map("submitted_by_id")
   targetNamedFaceValueId   String?                       @map("target_named_face_value_id")
   approvedNamedFaceValueId String?                       @map("approved_named_face_value_id")
   countryCode              String                        @map("country_code")
@@ -260,7 +284,7 @@ model NamedFaceValueDefinitionProposal {
   moderatedById            String?                       @map("moderated_by_id")
   decidedAt                DateTime?                     @map("decided_at")
   decisionNote             String?                       @map("decision_note")
-  submittedBy              UserProfile                   @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  submittedBy              UserProfile?                  @relation(fields: [submittedById], references: [id], onDelete: SetNull)
   moderatedBy              UserProfile?                  @relation("NamedDefinitionModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   targetNamedFaceValue     NamedFaceValue?               @relation("CorrectedNamedFaceValue", fields: [targetNamedFaceValueId], references: [id], onDelete: Restrict)
   approvedNamedFaceValue   NamedFaceValue?               @relation("ApprovedNamedFaceValue", fields: [approvedNamedFaceValueId], references: [id], onDelete: Restrict)
@@ -278,7 +302,7 @@ model NamedFaceValueDefinitionProposal {
 
 model NamedFaceValueValueProposal {
   id                         String                            @id @default(cuid())
-  submittedById              String                            @map("submitted_by_id")
+  submittedById              String?                           @map("submitted_by_id")
   namedFaceValueId           String?                           @map("named_face_value_id")
   definitionProposalId       String?                           @map("definition_proposal_id")
   mergedValueScheduleValueId String?                           @map("merged_value_schedule_value_id")
@@ -292,7 +316,7 @@ model NamedFaceValueValueProposal {
   decidedAt                  DateTime?                         @map("decided_at")
   decisionNote               String?                           @map("decision_note")
   actionRequired             Boolean                           @default(false) @map("action_required")
-  submittedBy                UserProfile                       @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  submittedBy                UserProfile?                      @relation(fields: [submittedById], references: [id], onDelete: SetNull)
   moderatedBy                UserProfile?                      @relation("NamedValueModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   namedFaceValue             NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
   definitionProposal         NamedFaceValueDefinitionProposal? @relation(fields: [definitionProposalId], references: [id], onDelete: Restrict)

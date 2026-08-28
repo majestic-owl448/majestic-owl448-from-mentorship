@@ -2,6 +2,10 @@ import SuperTokens from "supertokens-node";
 import Session from "supertokens-node/recipe/session";
 import ThirdParty from "supertokens-node/recipe/thirdparty";
 import type { TypeInput } from "supertokens-node/types";
+import {
+  isAccountDeletionPending,
+  processAccountDeletionJob,
+} from "@/lib/accountDeletion";
 import { appInfo } from "./appInfo";
 
 function requireEnv(name: string): string {
@@ -55,7 +59,43 @@ export function backendConfig(): TypeInput {
           ],
         },
       }),
-      Session.init(),
+      Session.init({
+        override: {
+          functions: (original) => ({
+            ...original,
+            createNewSession: async (input) => {
+              if (await isAccountDeletionPending(input.userId)) {
+                await processAccountDeletionJob(input.userId).catch(() => undefined);
+                throw new Error("Account deletion is in progress.");
+              }
+              return original.createNewSession(input);
+            },
+            getSession: async (input) => {
+              const session = await original.getSession({
+                ...input,
+                options: { ...input.options, checkDatabase: true },
+              });
+              if (
+                session &&
+                (await isAccountDeletionPending(session.getUserId()))
+              ) {
+                return undefined;
+              }
+              return session;
+            },
+            refreshSession: async (input) => {
+              const session = await original.refreshSession(input);
+              if (await isAccountDeletionPending(session.getUserId())) {
+                await processAccountDeletionJob(session.getUserId()).catch(
+                  () => undefined,
+                );
+                throw new Error("Account deletion is in progress.");
+              }
+              return session;
+            },
+          }),
+        },
+      }),
     ],
     // Route handlers are short-lived, so SuperTokens should not keep background
     // work alive between requests.

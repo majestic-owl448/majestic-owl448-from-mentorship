@@ -10,6 +10,7 @@ export const USER_LINKED_MODEL_POLICY = {
       "email",
       "role",
       "activePostalEntitySettingId",
+      "deletingAt",
       "createdAt",
       "updatedAt",
     ],
@@ -141,6 +142,21 @@ export const USER_LINKED_MODEL_POLICY = {
     ],
     secretFields: [],
     redactedWhenForeign: ["submittedById", "moderatedById"],
+  },
+  AccountDeletionJob: {
+    exportedFields: [],
+    secretFields: [
+      "userId",
+      "status",
+      "attemptCount",
+      "lastError",
+      "createdAt",
+      "updatedAt",
+    ],
+  },
+  DeletedAccountTombstone: {
+    exportedFields: [],
+    secretFields: ["userIdHash", "createdAt"],
   },
 } as const;
 
