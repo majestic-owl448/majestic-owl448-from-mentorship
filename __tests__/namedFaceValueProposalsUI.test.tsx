@@ -194,6 +194,11 @@ describe("named/code proposal interface", () => {
         name: "Resubmit corrected definition",
       }),
     );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText("Proposed display name or code"),
+      ),
+    );
     expect(
       screen.getByText(/Correcting rejected definition rejected-definition/),
     ).toBeTruthy();
@@ -216,6 +221,46 @@ describe("named/code proposal interface", () => {
         countryCode: "IT",
         displayCode: "Corrected",
       }),
+    );
+  });
+
+  it("programmatically associates validation errors with invalid fields", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input).includes("named-face-values?")) {
+          return Response.json({ namedFaceValues: [] });
+        }
+        if (init?.method === "POST") {
+          return Response.json(
+            {
+              error: "Correct the proposal fields.",
+              errors: { displayCode: "Enter a display name or code." },
+            },
+            { status: 400 },
+          );
+        }
+        return Response.json({ definitions: [], values: [] });
+      }),
+    );
+    render(
+      <NamedFaceValueProposals
+        activeCountryCode="IT"
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit proposal" }));
+
+    const field = screen.getByLabelText("Proposed display name or code");
+    await waitFor(() => expect(field.getAttribute("aria-invalid")).toBe("true"));
+    expect(field.getAttribute("aria-describedby")).toBe(
+      "proposal-display-code-error",
+    );
+    expect(screen.getByText("Enter a display name or code.").id).toBe(
+      "proposal-display-code-error",
     );
   });
 

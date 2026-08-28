@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
 
 type ProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
@@ -165,6 +165,7 @@ export function NamedFaceValueProposals({
   const [submitting, setSubmitting] = useState(false);
   const [replacesRejectedProposalId, setReplacesRejectedProposalId] =
     useState("");
+  const displayCodeRef = useRef<HTMLInputElement>(null);
 
   async function loadProposals(signal?: AbortSignal) {
     const response = await fetch("/api/named-face-value-proposals", { signal });
@@ -325,7 +326,7 @@ export function NamedFaceValueProposals({
         )}
         <div>
           <label htmlFor="proposal-type" className="block font-medium">Proposal type</label>
-          <select id="proposal-type" name="proposalType" value={proposalType} onChange={(event) => setProposalType(event.target.value as "DEFINITION" | "VALUE")} aria-describedby={errors.proposalType ? "proposal-type-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="proposal-type" name="proposalType" value={proposalType} onChange={(event) => setProposalType(event.target.value as "DEFINITION" | "VALUE")} aria-invalid={Boolean(errors.proposalType)} aria-describedby={errors.proposalType ? "proposal-type-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="DEFINITION">Named definition</option>
             <option value="VALUE">Schedule value</option>
           </select>
@@ -334,7 +335,7 @@ export function NamedFaceValueProposals({
         {proposalType === "DEFINITION" && (
           <div>
             <label htmlFor="proposal-country" className="block font-medium">Proposed country</label>
-            <select id="proposal-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-describedby={errors.countryCode ? "proposal-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+            <select id="proposal-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-invalid={Boolean(errors.countryCode)} aria-describedby={errors.countryCode ? "proposal-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
               {countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             <FieldError id="proposal-country-error" message={errors.countryCode} />
@@ -348,14 +349,14 @@ export function NamedFaceValueProposals({
         </div>
         <div>
           <label htmlFor="proposal-search" className="block font-medium">Search existing definitions</label>
-          <input id="proposal-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-describedby={searchError ? "proposal-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="proposal-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-invalid={Boolean(searchError)} aria-describedby={searchError ? "proposal-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="proposal-search-error" message={searchError ?? undefined} />
         </div>
         <div>
           <label htmlFor="proposal-target" className="block font-medium">
             {proposalType === "DEFINITION" ? "Definition to correct (optional)" : "Definition for this value"}
           </label>
-          <select id="proposal-target" name="proposalTarget" value={targetReference} onChange={(event) => setTargetReference(event.target.value)} aria-describedby={errors.targetNamedFaceValueId || errors.definitionProposalId ? "proposal-target-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="proposal-target" name="proposalTarget" value={targetReference} onChange={(event) => setTargetReference(event.target.value)} aria-invalid={Boolean(errors.targetNamedFaceValueId || errors.definitionProposalId)} aria-describedby={errors.targetNamedFaceValueId || errors.definitionProposalId ? "proposal-target-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="">{proposalType === "DEFINITION" ? "Create a new definition" : "Select a definition"}</option>
             {targetOptions.map((option) => <option key={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`} value={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`}>{option.displayCode}{option.proposalStatus ? ` (${option.proposalStatus})` : ""}</option>)}
           </select>
@@ -366,17 +367,17 @@ export function NamedFaceValueProposals({
           <>
             <div>
               <label htmlFor="proposal-display-code" className="block font-medium">Proposed display name or code</label>
-              <input id="proposal-display-code" name="displayCode" aria-describedby={errors.displayCode ? "proposal-display-code-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <input ref={displayCodeRef} id="proposal-display-code" name="displayCode" aria-invalid={Boolean(errors.displayCode)} aria-describedby={errors.displayCode ? "proposal-display-code-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
               <FieldError id="proposal-display-code-error" message={errors.displayCode} />
             </div>
             <div>
               <label htmlFor="proposal-normalized-code" className="block font-medium">Proposed normalized code</label>
-              <input id="proposal-normalized-code" name="normalizedCode" aria-describedby={errors.normalizedCode ? "proposal-normalized-code-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <input id="proposal-normalized-code" name="normalizedCode" aria-invalid={Boolean(errors.normalizedCode)} aria-describedby={errors.normalizedCode ? "proposal-normalized-code-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
               <FieldError id="proposal-normalized-code-error" message={errors.normalizedCode} />
             </div>
             <div>
               <label htmlFor="proposal-currency" className="block font-medium">Schedule currency</label>
-              <select id="proposal-currency" name="currencyCode" defaultValue="" aria-describedby={errors.currencyCode ? "proposal-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+              <select id="proposal-currency" name="currencyCode" defaultValue="" aria-invalid={Boolean(errors.currencyCode)} aria-describedby={errors.currencyCode ? "proposal-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
                 <option value="">Select a currency</option>
                 {currencies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
@@ -387,12 +388,12 @@ export function NamedFaceValueProposals({
           <>
             <div>
               <label htmlFor="proposal-amount" className="block font-medium">Proposed amount</label>
-              <input id="proposal-amount" name="amount" inputMode="decimal" aria-describedby={errors.amount ? "proposal-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <input id="proposal-amount" name="amount" inputMode="decimal" aria-invalid={Boolean(errors.amount)} aria-describedby={errors.amount ? "proposal-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
               <FieldError id="proposal-amount-error" message={errors.amount} />
             </div>
             <div>
               <label htmlFor="proposal-effective-on" className="block font-medium">Effective date (leave blank for current)</label>
-              <input id="proposal-effective-on" name="effectiveOn" type="date" aria-describedby={errors.effectiveOn ? "proposal-effective-on-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <input id="proposal-effective-on" name="effectiveOn" type="date" aria-invalid={Boolean(errors.effectiveOn)} aria-describedby={errors.effectiveOn ? "proposal-effective-on-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
               <FieldError id="proposal-effective-on-error" message={errors.effectiveOn} />
             </div>
           </>
@@ -403,12 +404,12 @@ export function NamedFaceValueProposals({
         </p>
         <div>
           <label htmlFor="proposal-source-url" className="block font-medium">Source URL</label>
-          <input id="proposal-source-url" name="sourceUrl" type="url" aria-describedby={`${sourceHelpId}${errors.sourceUrl ? " proposal-source-url-error" : ""}`} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="proposal-source-url" name="sourceUrl" type="url" aria-invalid={Boolean(errors.sourceUrl)} aria-describedby={`${sourceHelpId}${errors.sourceUrl ? " proposal-source-url-error" : ""}`} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="proposal-source-url-error" message={errors.sourceUrl} />
         </div>
         <div>
           <label htmlFor="proposal-source-note" className="block font-medium">Source note</label>
-          <textarea id="proposal-source-note" name="sourceNote" aria-describedby={`${sourceHelpId}${errors.sourceNote ? " proposal-source-note-error" : ""}`} className="mt-1 min-h-24 w-full rounded border border-zinc-400 bg-transparent p-2" />
+          <textarea id="proposal-source-note" name="sourceNote" aria-invalid={Boolean(errors.sourceNote)} aria-describedby={`${sourceHelpId}${errors.sourceNote ? " proposal-source-note-error" : ""}`} className="mt-1 min-h-24 w-full rounded border border-zinc-400 bg-transparent p-2" />
           <FieldError id="proposal-source-note-error" message={errors.sourceNote} />
         </div>
         <button type="submit" disabled={submitting} className="h-10 rounded-full bg-foreground px-5 font-medium text-background disabled:opacity-60 sm:w-fit">
@@ -432,6 +433,7 @@ export function NamedFaceValueProposals({
                 : "",
             );
             setStatus(null);
+            requestAnimationFrame(() => displayCodeRef.current?.focus());
           }}
         />
       )}

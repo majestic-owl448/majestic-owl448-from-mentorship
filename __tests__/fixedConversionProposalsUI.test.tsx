@@ -174,4 +174,43 @@ describe("fixed-conversion proposal interface", () => {
     await waitFor(() => expect(onProposalSubmitted).toHaveBeenCalledOnce());
     expect(await screen.findByText("Status: PENDING")).toBeTruthy();
   });
+
+  it("programmatically associates validation errors with invalid fields", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          return Response.json(
+            {
+              error: "Correct the proposal fields.",
+              errors: { multiplier: "Enter an exact positive multiplier." },
+            },
+            { status: 400 },
+          );
+        }
+        return Response.json({ approvedConversions: [], proposals: [] });
+      }),
+    );
+    render(
+      <FixedConversionProposals
+        activeDisplayCurrencyCode="EUR"
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+        onProposalSubmitted={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Submit conversion proposal" }),
+    );
+
+    const field = screen.getByLabelText("Exact multiplier");
+    await waitFor(() => expect(field.getAttribute("aria-invalid")).toBe("true"));
+    expect(field.getAttribute("aria-describedby")).toBe(
+      "proposal-multiplier-error",
+    );
+    expect(screen.getByText("Enter an exact positive multiplier.").id).toBe(
+      "proposal-multiplier-error",
+    );
+  });
 });

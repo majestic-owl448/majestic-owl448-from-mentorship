@@ -139,3 +139,51 @@ it("cancels and confirms removal with the keyboard and restores focus", async ()
     container.querySelector<HTMLElement>('[tabindex="-1"]'),
   );
 });
+
+it("programmatically associates stamp validation errors with invalid fields", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (_input, init) => {
+      if (init?.method === "POST") {
+        return Response.json(
+          {
+            error: "Correct the highlighted stamp fields.",
+            errors: {
+              name: "Enter a stamp name.",
+              faceAmount: "Enter a positive face amount.",
+            },
+          },
+          { status: 400 },
+        );
+      }
+      return Response.json({ ...inventory, stamps: [] });
+    }),
+  );
+  const user = userEvent.setup();
+  render(
+    <StampInventory
+      activeCountryCode="IT"
+      activeDisplayCurrencyCode="EUR"
+      activePostalEntityId="italy-post"
+      countries={[{ value: "IT", label: "Italy" }]}
+      currencies={[{ value: "EUR", label: "Euro" }]}
+      postalEntities={[
+        { id: "italy-post", name: "Poste Italiane", countryCode: "IT" },
+      ]}
+    />,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Add stamp" }));
+
+  for (const [label, errorId] of [
+    ["Stamp name", "stamp-name-error"],
+    ["Monetary face amount", "face-amount-error"],
+  ]) {
+    const field = screen.getByLabelText(label);
+    await waitFor(() =>
+      expect(field.getAttribute("aria-invalid")).toBe("true"),
+    );
+    expect(field.getAttribute("aria-describedby")).toBe(errorId);
+    expect(document.getElementById(errorId)).not.toBeNull();
+  }
+});
