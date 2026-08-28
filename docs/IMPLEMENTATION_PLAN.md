@@ -360,7 +360,7 @@ Merge behavior:
 - Mark the proposal `MERGED`.
 - Reject a merge that would create incompatible named-value country or effective-date data, or an incompatible conversion currency pair.
 
-Product decision R1 in [issue #24](https://github.com/majestic-owl448/majestic-owl448-from-mentorship/issues/24) must be decided before implementing rejected-proposal behavior.
+Product decision R1 in [issue #24](https://github.com/majestic-owl448/stamps-v2/issues/24) must be decided before implementing rejected-proposal behavior.
 
 Moderator interface:
 
