@@ -186,13 +186,14 @@ model ValueSchedule {
 }
 
 model ValueScheduleValue {
-  id              String        @id @default(cuid())
-  valueScheduleId String        @map("value_schedule_id")
+  id              String                        @id @default(cuid())
+  valueScheduleId String                        @map("value_schedule_id")
   amount          String
-  effectiveOn     String?       @map("effective_on")
-  valueSchedule   ValueSchedule @relation(fields: [valueScheduleId], references: [id], onDelete: Cascade)
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  effectiveOn     String?                       @map("effective_on")
+  valueSchedule   ValueSchedule                 @relation(fields: [valueScheduleId], references: [id], onDelete: Cascade)
+  mergedProposals NamedFaceValueValueProposal[] @relation("MergedValueScheduleValue")
+  createdAt       DateTime                      @default(now()) @map("created_at")
+  updatedAt       DateTime                      @updatedAt @map("updated_at")
 
   @@unique([valueScheduleId, effectiveOn])
   @@map("value_schedule_values")
@@ -248,28 +249,31 @@ model NamedFaceValueDefinitionProposal {
 }
 
 model NamedFaceValueValueProposal {
-  id                   String                            @id @default(cuid())
-  submittedById        String                            @map("submitted_by_id")
-  namedFaceValueId     String?                           @map("named_face_value_id")
-  definitionProposalId String?                           @map("definition_proposal_id")
-  amount               String
-  effectiveOn          String?                           @map("effective_on")
-  eligibleOn           String                            @map("eligible_on")
-  sourceUrl            String?                           @map("source_url")
-  sourceNote           String?                           @map("source_note")
-  status               ProposalStatus                    @default(PENDING)
-  moderatedById        String?                           @map("moderated_by_id")
-  decidedAt            DateTime?                         @map("decided_at")
-  decisionNote         String?                           @map("decision_note")
-  submittedBy          UserProfile                       @relation(fields: [submittedById], references: [id], onDelete: Cascade)
-  moderatedBy          UserProfile?                      @relation("NamedValueModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
-  namedFaceValue       NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
-  definitionProposal   NamedFaceValueDefinitionProposal? @relation(fields: [definitionProposalId], references: [id], onDelete: Restrict)
-  createdAt            DateTime                          @default(now()) @map("created_at")
+  id                         String                            @id @default(cuid())
+  submittedById              String                            @map("submitted_by_id")
+  namedFaceValueId           String?                           @map("named_face_value_id")
+  definitionProposalId       String?                           @map("definition_proposal_id")
+  mergedValueScheduleValueId String?                           @map("merged_value_schedule_value_id")
+  amount                     String
+  effectiveOn                String?                           @map("effective_on")
+  eligibleOn                 String                            @map("eligible_on")
+  sourceUrl                  String?                           @map("source_url")
+  sourceNote                 String?                           @map("source_note")
+  status                     ProposalStatus                    @default(PENDING)
+  moderatedById              String?                           @map("moderated_by_id")
+  decidedAt                  DateTime?                         @map("decided_at")
+  decisionNote               String?                           @map("decision_note")
+  submittedBy                UserProfile                       @relation(fields: [submittedById], references: [id], onDelete: Cascade)
+  moderatedBy                UserProfile?                      @relation("NamedValueModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  namedFaceValue             NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
+  definitionProposal         NamedFaceValueDefinitionProposal? @relation(fields: [definitionProposalId], references: [id], onDelete: Restrict)
+  mergedValueScheduleValue   ValueScheduleValue?                @relation("MergedValueScheduleValue", fields: [mergedValueScheduleValueId], references: [id], onDelete: Restrict)
+  createdAt                  DateTime                          @default(now()) @map("created_at")
 
   @@index([submittedById, status, createdAt])
   @@index([namedFaceValueId, effectiveOn])
   @@index([definitionProposalId, effectiveOn])
+  @@index([mergedValueScheduleValueId])
   @@index([moderatedById])
   @@map("named_face_value_value_proposals")
 }

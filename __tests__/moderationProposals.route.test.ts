@@ -31,6 +31,7 @@ import {
   POST as APPROVE,
 } from "@/app/api/moderation/proposals/[proposalType]/[proposalId]/route";
 import { approveModerationProposal } from "@/lib/moderationApproval";
+import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { resolveNamedFaceValueById, searchNamedFaceValues } from "@/lib/namedFaceValue";
 import { listStamps } from "@/lib/stampInventory";
 
@@ -59,6 +60,25 @@ function approvalRequest(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decisionNote }),
+      },
+    ),
+    { params: Promise.resolve({ proposalType, proposalId }) },
+  );
+}
+
+function mergeRequest(
+  proposalType: string,
+  proposalId: string,
+  targetId: string,
+  decisionNote = "Duplicate checked against the approved record.",
+) {
+  return APPROVE(
+    new NextRequest(
+      `http://localhost/api/moderation/proposals/${proposalType}/${proposalId}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "MERGE", targetId, decisionNote }),
       },
     ),
     { params: Promise.resolve({ proposalType, proposalId }) },
@@ -277,6 +297,7 @@ describe("moderation proposal API", () => {
     expect(valueBody.proposal.possibleMatches).toEqual([
       expect.objectContaining({ id: "approved-current-value", amount: "1.25" }),
     ]);
+    expect(valueBody.proposal.compatibleMergeTargets).toEqual([]);
 
     const conversionBody = await (
       await detailRequest("FIXED_CONVERSION", "conversion-proposal")
@@ -304,6 +325,40 @@ describe("moderation proposal API", () => {
     expect((await GET_QUEUE(queueRequest("?type=INVENTORY"))).status).toBe(400);
     expect((await detailRequest("INVENTORY", "private-inventory-entry")).status).toBe(404);
     expect((await detailRequest("NAMED_VALUE", "missing")).status).toBe(404);
+  });
+
+  it("rejects a linked definition target from another country", async () => {
+    auth.userId = "moderator";
+
+    const response = await mergeRequest(
+      "NAMED_VALUE",
+      "value-proposal",
+      "approved-current-value",
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error:
+        "The selected schedule value does not match the proposed definition, country, amount, and effective date.",
+    });
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: "value-proposal" },
+        select: {
+          status: true,
+          mergedValueScheduleValueId: true,
+          moderatedById: true,
+          decidedAt: true,
+          decisionNote: true,
+        },
+      }),
+    ).toEqual({
+      status: "PENDING",
+      mergedValueScheduleValueId: null,
+      moderatedById: null,
+      decidedAt: null,
+      decisionNote: null,
+    });
   });
 
   it("approves a definition for all users and preserves a linked stamp reference", async () => {
@@ -662,5 +717,438 @@ describe("moderation proposal API", () => {
       decidedAt: null,
       decisionNote: null,
     });
+  });
+
+  it("merges a duplicate definition and repoints the proposer's references", async () => {
+    const proposal = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "duplicate-b-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "B",
+        normalizedCode: "b",
+        currencyCode: "EUR",
+        sourceNote: "Duplicate tariff entry",
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "duplicate-b-current-value",
+        submittedById: "proposer",
+        definitionProposalId: proposal.id,
+        amount: "1.25",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Duplicate tariff entry",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "duplicate-definition-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Duplicate B stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: proposal.id,
+        quantityOwned: 2,
+      },
+    });
+    const activeCountry = {
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      postalEntity: { countryCode: "IT" },
+    };
+    const before = (await listStamps("proposer", activeCountry)).find(
+      ({ id }) => id === "duplicate-definition-stamp",
+    );
+    auth.userId = "moderator";
+
+    const response = await mergeRequest(
+      "NAMED_DEFINITION",
+      proposal.id,
+      "approved-b",
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).proposal).toMatchObject({
+      status: "MERGED",
+      canonicalTargetId: "approved-b",
+      decision: {
+        moderator: { id: "moderator" },
+        note: "Duplicate checked against the approved record.",
+      },
+    });
+    expect(
+      await prisma.stampInventoryEntry.findUniqueOrThrow({
+        where: { id: "duplicate-definition-stamp" },
+        select: { namedFaceValueId: true, namedFaceValueProposalId: true },
+      }),
+    ).toEqual({
+      namedFaceValueId: "approved-b",
+      namedFaceValueProposalId: null,
+    });
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: "duplicate-b-current-value" },
+        select: { namedFaceValueId: true, definitionProposalId: true },
+      }),
+    ).toEqual({ namedFaceValueId: "approved-b", definitionProposalId: null });
+    const after = (await listStamps("proposer", activeCountry)).find(
+      ({ id }) => id === "duplicate-definition-stamp",
+    );
+    expect(after).toMatchObject({
+      namedFaceValueId: "approved-b",
+      namedFaceValueProposalId: null,
+      unitPostageValue: before?.unitPostageValue,
+      totalPostageValue: before?.totalPostageValue,
+    });
+    expect(await searchNamedFaceValues("IT", "b", "normal-user")).toEqual([
+      expect.objectContaining({ id: "approved-b" }),
+    ]);
+  });
+
+  it("merges a duplicate schedule value without changing resolved postage", async () => {
+    const proposal = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "duplicate-current-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.250",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Duplicate tariff value",
+      },
+    });
+    const before = await resolveNamedFaceValueById(
+      "approved-b",
+      "IT",
+      "2026-08-28",
+      "proposer",
+    );
+    auth.userId = "moderator";
+
+    const response = await mergeRequest(
+      "NAMED_VALUE",
+      proposal.id,
+      "approved-current-value",
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).proposal).toMatchObject({
+      status: "MERGED",
+      canonicalTargetId: "approved-current-value",
+    });
+    const after = await resolveNamedFaceValueById(
+      "approved-b",
+      "IT",
+      "2026-08-28",
+      "proposer",
+    );
+    expect(before.status === "RESOLVED" && before.amount.toFixed()).toBe("1.25");
+    expect(after.status === "RESOLVED" && after.amount.toFixed()).toBe("1.25");
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+        select: { mergedValueScheduleValueId: true },
+      }),
+    ).toEqual({ mergedValueScheduleValueId: "approved-current-value" });
+  });
+
+  it("merges an equivalent conversion and retains the proposer's result", async () => {
+    const proposal = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "duplicate-usd-eur",
+        submittedById: "proposer",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.900",
+        sourceNote: "Duplicate fixed conversion",
+      },
+    });
+    const before = await resolveCurrencyConversion(
+      "2",
+      "USD",
+      "EUR",
+      "proposer",
+    );
+    auth.userId = "moderator";
+
+    const response = await mergeRequest(
+      "FIXED_CONVERSION",
+      proposal.id,
+      "approved-usd-eur",
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).proposal).toMatchObject({
+      status: "MERGED",
+      canonicalTargetId: "approved-usd-eur",
+    });
+    const after = await resolveCurrencyConversion(
+      "2",
+      "USD",
+      "EUR",
+      "proposer",
+    );
+    expect(before.status === "RESOLVED" && before.amount.toFixed()).toBe("1.8");
+    expect(after.status === "RESOLVED" && after.amount.toFixed()).toBe("1.8");
+    expect(after).toMatchObject({ source: "FIXED_CONVERSION" });
+  });
+
+  it("rejects an incompatible definition and rolls back every reference", async () => {
+    const postalEntity = await prisma.postalEntity.create({
+      data: {
+        id: "french-postal-entity",
+        name: "French Post",
+        normalizedName: "french post",
+        countryCode: "FR",
+        submittedById: "proposer",
+      },
+    });
+    const proposal = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "incompatible-definition",
+        submittedById: "proposer",
+        countryCode: "FR",
+        displayCode: "B",
+        normalizedCode: "b",
+        currencyCode: "EUR",
+        sourceNote: "Incorrect duplicate",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "incompatible-definition-stamp",
+        userId: "proposer",
+        countryCode: "FR",
+        postalEntityId: postalEntity.id,
+        name: "French B stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: proposal.id,
+        quantityOwned: 1,
+      },
+    });
+    const before = await prisma.stampInventoryEntry.findUniqueOrThrow({
+      where: { id: "incompatible-definition-stamp" },
+      select: {
+        namedFaceValueId: true,
+        namedFaceValueProposalId: true,
+        updatedAt: true,
+      },
+    });
+    auth.userId = "moderator";
+
+    const response = await mergeRequest(
+      "NAMED_DEFINITION",
+      proposal.id,
+      "approved-b",
+    );
+
+    expect(response.status).toBe(409);
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+        select: {
+          status: true,
+          approvedNamedFaceValueId: true,
+          moderatedById: true,
+          decidedAt: true,
+          decisionNote: true,
+        },
+      }),
+    ).toEqual({
+      status: "PENDING",
+      approvedNamedFaceValueId: null,
+      moderatedById: null,
+      decidedAt: null,
+      decisionNote: null,
+    });
+    expect(
+      await prisma.stampInventoryEntry.findUniqueOrThrow({
+        where: { id: "incompatible-definition-stamp" },
+        select: {
+          namedFaceValueId: true,
+          namedFaceValueProposalId: true,
+          updatedAt: true,
+        },
+      }),
+    ).toEqual(before);
+  });
+
+  it("rolls back repointed references when a transaction fails midway", async () => {
+    const proposal = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "rollback-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "B",
+        normalizedCode: "b",
+        currencyCode: "EUR",
+        sourceNote: "Duplicate used for rollback coverage",
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rollback-linked-value",
+        submittedById: "proposer",
+        definitionProposalId: proposal.id,
+        amount: "1.25",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Duplicate used for rollback coverage",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "rollback-linked-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Rollback B stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: proposal.id,
+        quantityOwned: 1,
+      },
+    });
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER fail_linked_value_repoint
+      BEFORE UPDATE ON named_face_value_value_proposals
+      WHEN OLD.id = 'rollback-linked-value'
+        AND NEW.definition_proposal_id IS NULL
+      BEGIN
+        SELECT RAISE(ABORT, 'forced merge failure');
+      END
+    `);
+    auth.userId = "moderator";
+
+    try {
+      await expect(
+        mergeRequest("NAMED_DEFINITION", proposal.id, "approved-b"),
+      ).rejects.toThrow();
+    } finally {
+      await prisma.$executeRawUnsafe("DROP TRIGGER fail_linked_value_repoint");
+    }
+
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+        select: { status: true, approvedNamedFaceValueId: true },
+      }),
+    ).toEqual({ status: "PENDING", approvedNamedFaceValueId: null });
+    expect(
+      await prisma.stampInventoryEntry.findUniqueOrThrow({
+        where: { id: "rollback-linked-stamp" },
+        select: { namedFaceValueId: true, namedFaceValueProposalId: true },
+      }),
+    ).toEqual({
+      namedFaceValueId: null,
+      namedFaceValueProposalId: proposal.id,
+    });
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: "rollback-linked-value" },
+        select: { namedFaceValueId: true, definitionProposalId: true },
+      }),
+    ).toEqual({ namedFaceValueId: null, definitionProposalId: proposal.id });
+  });
+
+  it("rejects schedule-country, schedule-date, and conversion-pair mismatches", async () => {
+    await prisma.valueSchedule.create({
+      data: {
+        id: "france-b-schedule",
+        countryCode: "FR",
+        currencyCode: "EUR",
+      },
+    });
+    await prisma.namedFaceValue.create({
+      data: {
+        id: "approved-france-b",
+        countryCode: "FR",
+        displayCode: "B",
+        normalizedCode: "b",
+        valueScheduleId: "france-b-schedule",
+      },
+    });
+    const otherCountryValue = await prisma.valueScheduleValue.create({
+      data: {
+        id: "approved-france-current-value",
+        valueScheduleId: "france-b-schedule",
+        amount: "1.25",
+        effectiveOn: null,
+      },
+    });
+    const futureValue = await prisma.valueScheduleValue.create({
+      data: {
+        id: "approved-future-value",
+        valueScheduleId: "italy-b-schedule",
+        amount: "1.25",
+        effectiveOn: "2027-01-01",
+      },
+    });
+    const valueProposal = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "current-value-date-mismatch",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.25",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Wrong date match",
+      },
+    });
+    const otherConversion = await prisma.currencyConversion.create({
+      data: {
+        id: "approved-gbp-eur",
+        fromCurrencyCode: "GBP",
+        toCurrencyCode: "EUR",
+        multiplier: "0.90",
+      },
+    });
+    const conversionProposal = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "usd-eur-pair-mismatch",
+        submittedById: "proposer",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.90",
+        sourceNote: "Wrong pair match",
+      },
+    });
+    auth.userId = "moderator";
+
+    expect(
+      (
+        await mergeRequest(
+          "NAMED_VALUE",
+          valueProposal.id,
+          otherCountryValue.id,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (await mergeRequest("NAMED_VALUE", valueProposal.id, futureValue.id)).status,
+    ).toBe(409);
+    expect(
+      (
+        await mergeRequest(
+          "FIXED_CONVERSION",
+          conversionProposal.id,
+          otherConversion.id,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: valueProposal.id },
+        select: { status: true, mergedValueScheduleValueId: true },
+      }),
+    ).toEqual({ status: "PENDING", mergedValueScheduleValueId: null });
+    expect(
+      await prisma.currencyConversionProposal.findUniqueOrThrow({
+        where: { id: conversionProposal.id },
+        select: { status: true, targetCurrencyConversionId: true },
+      }),
+    ).toEqual({ status: "PENDING", targetCurrencyConversionId: null });
   });
 });

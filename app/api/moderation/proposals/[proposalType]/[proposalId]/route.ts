@@ -13,6 +13,12 @@ import {
   approveModerationProposal,
   validateDecisionNote,
 } from "@/lib/moderationApproval";
+import {
+  MergeInputError,
+  MergeTargetError,
+  mergeModerationProposal,
+  validateMergeTargetId,
+} from "@/lib/moderationMerge";
 
 export async function GET(
   request: NextRequest,
@@ -59,22 +65,43 @@ export async function POST(
     }
 
     try {
+      const input = body as {
+        action?: unknown;
+        decisionNote?: unknown;
+        targetId?: unknown;
+      } | null;
       const decisionNote = validateDecisionNote(
-        (body as { decisionNote?: unknown } | null)?.decisionNote,
+        input?.decisionNote,
       );
-      await approveModerationProposal(
-        proposalType as ModerationProposalType,
-        proposalId,
-        moderatorId,
-        decisionNote,
-      );
+      const action = input?.action ?? "APPROVE";
+      if (action === "APPROVE") {
+        await approveModerationProposal(
+          proposalType as ModerationProposalType,
+          proposalId,
+          moderatorId,
+          decisionNote,
+        );
+      } else if (action === "MERGE") {
+        await mergeModerationProposal(
+          proposalType as ModerationProposalType,
+          proposalId,
+          validateMergeTargetId(input?.targetId),
+          moderatorId,
+          decisionNote,
+        );
+      } else {
+        throw new MergeInputError("Select a valid moderation action.");
+      }
       const proposal = await getModerationProposalDetail(
         proposalType as ModerationProposalType,
         proposalId,
       );
       return NextResponse.json({ proposal });
     } catch (caught) {
-      if (caught instanceof ApprovalInputError) {
+      if (
+        caught instanceof ApprovalInputError ||
+        caught instanceof MergeInputError
+      ) {
         return NextResponse.json({ error: caught.message }, { status: 400 });
       }
       if (caught instanceof ProposalNotFoundError) {
@@ -82,7 +109,8 @@ export async function POST(
       }
       if (
         caught instanceof ProposalAlreadyDecidedError ||
-        caught instanceof ApprovalTargetError
+        caught instanceof ApprovalTargetError ||
+        caught instanceof MergeTargetError
       ) {
         return NextResponse.json({ error: caught.message }, { status: 409 });
       }
