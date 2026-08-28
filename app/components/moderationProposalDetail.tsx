@@ -10,6 +10,11 @@ type ProposalDetail = {
   proposer: { id: string; email: string | null };
   submittedAt: string;
   source: { url: string | null; note: string | null };
+  decision: {
+    moderator: { id: string; email: string | null } | null;
+    decidedAt: string;
+    note: string | null;
+  } | null;
   proposedValues: Record<string, string | null>;
   possibleMatches: Record<string, unknown>[];
 };
@@ -53,6 +58,10 @@ export function ModerationProposalDetail({
 }) {
   const [proposal, setProposal] = useState<ProposalDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [decisionNote, setDecisionNote] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,6 +86,39 @@ export function ModerationProposalDetail({
       });
     return () => controller.abort();
   }, [proposalId, proposalType]);
+
+  async function approveProposal(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setApprovalMessage(null);
+    try {
+      const response = await fetch(
+        `/api/moderation/proposals/${proposalType}/${proposalId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decisionNote }),
+        },
+      );
+      const result = (await response.json()) as {
+        proposal?: ProposalDetail;
+        error?: string;
+      };
+      if (!response.ok || !result.proposal) {
+        throw new Error(result.error ?? "The proposal could not be approved.");
+      }
+      setProposal(result.proposal);
+      setApprovalMessage("Proposal approved. Shared data is now available.");
+    } catch (caught) {
+      setApprovalMessage(
+        caught instanceof Error
+          ? caught.message
+          : "The proposal could not be approved.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (error) return <p role="alert">{error}</p>;
   if (!proposal) return <p role="status">Loading proposal details…</p>;
@@ -135,6 +177,76 @@ export function ModerationProposalDetail({
           </ul>
         )}
       </section>
+
+      {proposal.status === "PENDING" ? (
+        <section aria-labelledby="approval-heading">
+          <h2 id="approval-heading" className="text-xl font-semibold">
+            Approve proposal
+          </h2>
+          <form className="mt-3 grid gap-4" onSubmit={approveProposal}>
+            <div className="grid gap-2">
+              <label htmlFor="decision-note" className="font-medium">
+                Decision note
+              </label>
+              <textarea
+                id="decision-note"
+                value={decisionNote}
+                onChange={(event) => setDecisionNote(event.target.value)}
+                maxLength={2000}
+                required
+                rows={4}
+                className="rounded-md border border-zinc-400 bg-transparent p-2"
+              />
+            </div>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+              />
+              <span>
+                I confirm that this proposal should update shared data for all
+                users.
+              </span>
+            </label>
+            <button
+              type="submit"
+              disabled={!confirmed || decisionNote.trim().length === 0 || submitting}
+              className="w-fit rounded-md bg-foreground px-4 py-2 text-background disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? "Approving…" : "Approve proposal"}
+            </button>
+          </form>
+        </section>
+      ) : (
+        proposal.decision && (
+          <section aria-labelledby="decision-heading">
+            <h2 id="decision-heading" className="text-xl font-semibold">
+              Decision
+            </h2>
+            <dl className="mt-3 grid gap-2">
+              <div>
+                <dt className="font-medium">Moderator</dt>
+                <dd>
+                  {proposal.decision.moderator?.email ??
+                    proposal.decision.moderator?.id ??
+                    "Deleted account"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium">Decided</dt>
+                <dd>{new Date(proposal.decision.decidedAt).toLocaleString()}</dd>
+              </div>
+              <div>
+                <dt className="font-medium">Decision note</dt>
+                <dd>{proposal.decision.note}</dd>
+              </div>
+            </dl>
+          </section>
+        )
+      )}
+
+      {approvalMessage && <p role="status">{approvalMessage}</p>}
     </article>
   );
 }

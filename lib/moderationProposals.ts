@@ -126,6 +126,9 @@ function sharedDetail(
     sourceNote: string | null;
     createdAt: Date;
     submittedBy: { id: string; email: string | null };
+    moderatedBy: { id: string; email: string | null } | null;
+    decidedAt: Date | null;
+    decisionNote: string | null;
   },
   proposalType: ModerationProposalType,
 ) {
@@ -139,6 +142,13 @@ function sharedDetail(
       url: proposal.sourceUrl,
       note: proposal.sourceNote,
     },
+    decision: proposal.decidedAt
+      ? {
+          moderator: proposal.moderatedBy,
+          decidedAt: proposal.decidedAt.toISOString(),
+          note: proposal.decisionNote,
+        }
+      : null,
   };
 }
 
@@ -157,6 +167,9 @@ async function namedDefinitionDetail(proposalId: string) {
       status: true,
       createdAt: true,
       submittedBy: { select: { id: true, email: true } },
+      moderatedBy: { select: { id: true, email: true } },
+      decidedAt: true,
+      decisionNote: true,
     },
   });
   if (!proposal) return null;
@@ -214,6 +227,9 @@ async function namedValueDetail(proposalId: string) {
       status: true,
       createdAt: true,
       submittedBy: { select: { id: true, email: true } },
+      moderatedBy: { select: { id: true, email: true } },
+      decidedAt: true,
+      decisionNote: true,
       definitionProposal: {
         select: {
           targetNamedFaceValueId: true,
@@ -295,6 +311,9 @@ async function fixedConversionDetail(proposalId: string) {
       status: true,
       createdAt: true,
       submittedBy: { select: { id: true, email: true } },
+      moderatedBy: { select: { id: true, email: true } },
+      decidedAt: true,
+      decisionNote: true,
     },
   });
   if (!proposal) return null;
