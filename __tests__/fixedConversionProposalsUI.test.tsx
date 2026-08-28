@@ -92,6 +92,31 @@ describe("fixed-conversion proposal interface", () => {
     expect(screen.getByText("Type: Missing conversion")).toBeTruthy();
   });
 
+  it("shows the decision note and correction prompt for a rejected proposal", () => {
+    render(
+      <FixedConversionProposalStatusList
+        proposals={[
+          {
+            id: "rejected-rate",
+            targetCurrencyConversionId: null,
+            fromCurrencyCode: "ITL",
+            toCurrencyCode: "EUR",
+            multiplier: "0.0005",
+            sourceUrl: null,
+            sourceNote: "Unverified source",
+            status: "REJECTED",
+            decidedAt: "2026-08-28T12:00:00.000Z",
+            decisionNote: "Use the central bank bulletin.",
+            createdAt: "2026-08-27T12:00:00.000Z",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Decision note: Use the central bank bulletin.")).toBeTruthy();
+    expect(screen.getByText(/choose a fallback on each affected inventory row/)).toBeTruthy();
+  });
+
   it("refreshes stamp values after a successful proposal submission", async () => {
     const user = userEvent.setup();
     const onProposalSubmitted = vi.fn(async () => undefined);

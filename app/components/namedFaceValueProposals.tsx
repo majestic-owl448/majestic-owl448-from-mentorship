@@ -18,6 +18,7 @@ type ProposalErrors = Partial<
     | "proposalType"
     | "targetNamedFaceValueId"
     | "definitionProposalId"
+    | "replacesRejectedProposalId"
     | "countryCode"
     | "displayCode"
     | "normalizedCode"
@@ -41,6 +42,8 @@ type DefinitionProposal = {
   sourceUrl: string | null;
   sourceNote: string | null;
   status: ProposalStatus;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
   createdAt: string;
 };
 
@@ -54,6 +57,9 @@ type ValueProposal = {
   sourceUrl: string | null;
   sourceNote: string | null;
   status: ProposalStatus;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
+  actionRequired?: boolean;
   createdAt: string;
 };
 
@@ -72,8 +78,10 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 export function ProposalStatusList({
   proposals,
+  onResubmitDefinition,
 }: {
   proposals: ProposalsResponse;
+  onResubmitDefinition?(proposal: DefinitionProposal): void;
 }) {
   const entries = [...proposals.definitions, ...proposals.values].sort(
     (left, right) =>
@@ -97,6 +105,31 @@ export function ProposalStatusList({
           </p>
           <p>Type: {proposal.proposalType === "DEFINITION" ? "Named definition" : "Schedule value"}</p>
           <p>Status: {proposal.status}</p>
+          {"actionRequired" in proposal && proposal.actionRequired && (
+            <p>
+              Action required: the linked definition was rejected. Submit a
+              new value proposal against an eligible definition.
+            </p>
+          )}
+          {proposal.status === "REJECTED" && (
+            <>
+              <p>Decision note: {proposal.decisionNote}</p>
+              <p>
+                Submit corrected data with the form above, or replace each
+                affected inventory reference.
+              </p>
+              {proposal.proposalType === "DEFINITION" &&
+                onResubmitDefinition && (
+                  <button
+                    type="button"
+                    onClick={() => onResubmitDefinition(proposal)}
+                    className="mt-2 rounded-full border border-zinc-500 px-4 py-2 font-medium"
+                  >
+                    Resubmit corrected definition
+                  </button>
+                )}
+            </>
+          )}
           <p>
             Source: {proposal.sourceUrl ?? proposal.sourceNote}
           </p>
@@ -130,6 +163,8 @@ export function NamedFaceValueProposals({
   const [searchError, setSearchError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [replacesRejectedProposalId, setReplacesRejectedProposalId] =
+    useState("");
 
   async function loadProposals(signal?: AbortSignal) {
     const response = await fetch("/api/named-face-value-proposals", { signal });
@@ -191,6 +226,9 @@ export function NamedFaceValueProposals({
             proposalType,
             targetNamedFaceValueId:
               targetType === "approved" ? targetId : "",
+            replacesRejectedProposalId: data.get(
+              "replacesRejectedProposalId",
+            ),
             countryCode: data.get("countryCode"),
             displayCode: data.get("displayCode"),
             normalizedCode: data.get("normalizedCode"),
@@ -233,6 +271,7 @@ export function NamedFaceValueProposals({
       setTargetCountryCode(activeCountryCode);
       setTargetReference("");
       setQuery("");
+      setReplacesRejectedProposalId("");
       setStatus("Proposal submitted with PENDING status.");
       try {
         await loadProposals();
@@ -267,6 +306,23 @@ export function NamedFaceValueProposals({
       </div>
 
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
+        {replacesRejectedProposalId && (
+          <>
+            <input
+              type="hidden"
+              name="replacesRejectedProposalId"
+              value={replacesRejectedProposalId}
+            />
+            <p role="status" className="sm:col-span-2">
+              Correcting rejected definition {replacesRejectedProposalId}.
+              Linked inventory references will use the new pending proposal.
+            </p>
+            <FieldError
+              id="replaces-rejected-proposal-error"
+              message={errors.replacesRejectedProposalId}
+            />
+          </>
+        )}
         <div>
           <label htmlFor="proposal-type" className="block font-medium">Proposal type</label>
           <select id="proposal-type" name="proposalType" value={proposalType} onChange={(event) => setProposalType(event.target.value as "DEFINITION" | "VALUE")} aria-describedby={errors.proposalType ? "proposal-type-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
@@ -362,7 +418,23 @@ export function NamedFaceValueProposals({
 
       {status && <p role="status">{status}</p>}
       {loadError && <p role="alert">{loadError}</p>}
-      {proposals && <ProposalStatusList proposals={proposals} />}
+      {proposals && (
+        <ProposalStatusList
+          proposals={proposals}
+          onResubmitDefinition={(proposal) => {
+            setProposalType("DEFINITION");
+            setReplacesRejectedProposalId(proposal.id);
+            setCountryCode(proposal.countryCode);
+            setTargetCountryCode(proposal.countryCode);
+            setTargetReference(
+              proposal.targetNamedFaceValueId
+                ? `approved:${proposal.targetNamedFaceValueId}`
+                : "",
+            );
+            setStatus(null);
+          }}
+        />
+      )}
     </section>
   );
 }

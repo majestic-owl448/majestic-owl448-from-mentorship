@@ -293,6 +293,88 @@ describe("moderation interface", () => {
     );
   });
 
+  it("requires a note and keyboard confirmation before rejection", async () => {
+    const user = userEvent.setup();
+    const pendingProposal = {
+      id: "conversion-proposal",
+      proposalType: "FIXED_CONVERSION",
+      status: "PENDING",
+      proposer: { id: "proposer", email: "proposer@example.com" },
+      submittedAt: "2026-08-28T10:00:00.000Z",
+      source: { url: null, note: "Unverified rate" },
+      decision: null,
+      canonicalTargetId: null,
+      proposedValues: {
+        targetCurrencyConversionId: null,
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.91",
+      },
+      possibleMatches: [],
+      compatibleMergeTargets: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ proposal: pendingProposal }))
+      .mockResolvedValueOnce(
+        Response.json({
+          proposal: {
+            ...pendingProposal,
+            status: "REJECTED",
+            decision: {
+              moderator: { id: "moderator", email: "moderator@example.com" },
+              decidedAt: "2026-08-28T11:00:00.000Z",
+              note: "The source does not verify the submitted rate.",
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ModerationProposalDetail
+        proposalType="FIXED_CONVERSION"
+        proposalId="conversion-proposal"
+      />,
+    );
+    await screen.findByRole("heading", { name: "Moderate proposal" });
+
+    const rejectAction = screen.getByRole("radio", {
+      name: "Reject without publishing",
+    });
+    rejectAction.focus();
+    await user.keyboard(" ");
+    const rejectButton = screen.getByRole("button", { name: "Reject proposal" });
+    expect((rejectButton as HTMLButtonElement).disabled).toBe(true);
+    await user.type(
+      screen.getByLabelText("Decision note"),
+      "The source does not verify the submitted rate.",
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /proposal should be rejected and linked inventory should require action/,
+      }),
+    );
+    expect((rejectButton as HTMLButtonElement).disabled).toBe(false);
+    rejectButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByText(
+        "Proposal rejected. Linked inventory now requires action.",
+      ),
+    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/moderation/proposals/FIXED_CONVERSION/conversion-proposal",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          action: "REJECT",
+          decisionNote: "The source does not verify the submitted rate.",
+        }),
+      }),
+    );
+  });
+
   it("labels postal-entity corrections and supports keyboard rejection", async () => {
     const user = userEvent.setup();
     const pendingProposal = {
@@ -323,32 +405,57 @@ describe("moderation interface", () => {
       possibleMatches: [],
       compatibleMergeTargets: [],
     };
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(Response.json({ proposal: pendingProposal }))
-      .mockResolvedValueOnce(Response.json({
-        proposal: {
-          ...pendingProposal,
-          status: "REJECTED",
-          decision: {
-            moderator: { id: "moderator", email: "moderator@example.com" },
-            decidedAt: "2026-08-28T11:00:00.000Z",
-            note: "The submitted source does not support this entity.",
+      .mockResolvedValueOnce(
+        Response.json({
+          proposal: {
+            ...pendingProposal,
+            status: "REJECTED",
+            decision: {
+              moderator: { id: "moderator", email: "moderator@example.com" },
+              decidedAt: "2026-08-28T11:00:00.000Z",
+              note: "The submitted source does not support this entity.",
+            },
           },
-        },
-      }));
+        }),
+      );
     vi.stubGlobal("fetch", fetchMock);
-    render(<ModerationProposalDetail proposalType="POSTAL_ENTITY" proposalId="postal-entity" />);
+    render(
+      <ModerationProposalDetail
+        proposalType="POSTAL_ENTITY"
+        proposalId="postal-entity"
+      />,
+    );
     await screen.findByLabelText("Postal entity name");
     expect(screen.getByLabelText("Issuing authority")).toBeTruthy();
     expect(screen.getByLabelText("Geographic or office scope")).toBeTruthy();
     expect(screen.getByLabelText("Source URL")).toBeTruthy();
     expect(screen.getByLabelText("Source note")).toBeTruthy();
 
-    await user.click(screen.getByRole("radio", { name: "Reject unsupported or nonsensical data" }));
-    await user.type(screen.getByLabelText("Decision note"), "The submitted source does not support this entity.");
-    await user.click(screen.getByRole("checkbox", { name: /unsupported submission should stop resolving/ }));
-    await user.click(screen.getByRole("button", { name: "Reject postal entity" }));
-    expect(await screen.findByText("Postal entity rejected. Linked private data now requires replacement.")).toBeTruthy();
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Reject unsupported or nonsensical data",
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("Decision note"),
+      "The submitted source does not support this entity.",
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /unsupported submission should stop resolving/,
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Reject postal entity" }),
+    );
+    expect(
+      await screen.findByText(
+        "Postal entity rejected. Linked private data now requires replacement.",
+      ),
+    ).toBeTruthy();
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/moderation/proposals/POSTAL_ENTITY/postal-entity",
       expect.objectContaining({

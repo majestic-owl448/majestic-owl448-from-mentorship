@@ -80,6 +80,7 @@ model StampInventoryEntry {
   postalEntity              PostalEntity                      @relation(fields: [postalEntityId, countryCode], references: [id, countryCode], onDelete: Restrict)
   namedFaceValue            NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
   namedFaceValueProposal    NamedFaceValueDefinitionProposal? @relation(fields: [namedFaceValueProposalId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  proposalActions           StampProposalAction[]
   createdAt                 DateTime                          @default(now()) @map("created_at")
   updatedAt                 DateTime                          @updatedAt @map("updated_at")
 
@@ -188,6 +189,7 @@ model CurrencyConversionProposal {
   targetCurrencyConversion   CurrencyConversion? @relation(fields: [targetCurrencyConversionId], references: [id], onDelete: Restrict)
   fromCurrency               Currency            @relation("ProposalSourceCurrency", fields: [fromCurrencyCode], references: [code], onDelete: Restrict)
   toCurrency                 Currency            @relation("ProposalTargetCurrency", fields: [toCurrencyCode], references: [code], onDelete: Restrict)
+  rejectedStampActions       StampProposalAction[] @relation("RejectedCurrencyConversion")
   createdAt                  DateTime            @default(now()) @map("created_at")
 
   @@index([submittedById, status, createdAt])
@@ -264,6 +266,7 @@ model NamedFaceValueDefinitionProposal {
   approvedNamedFaceValue   NamedFaceValue?               @relation("ApprovedNamedFaceValue", fields: [approvedNamedFaceValueId], references: [id], onDelete: Restrict)
   valueProposals           NamedFaceValueValueProposal[]
   stampInventoryEntries    StampInventoryEntry[]
+  rejectedStampActions     StampProposalAction[]           @relation("RejectedNamedDefinition")
   createdAt                DateTime                      @default(now()) @map("created_at")
 
   @@unique([id, countryCode])
@@ -288,11 +291,13 @@ model NamedFaceValueValueProposal {
   moderatedById              String?                           @map("moderated_by_id")
   decidedAt                  DateTime?                         @map("decided_at")
   decisionNote               String?                           @map("decision_note")
+  actionRequired             Boolean                           @default(false) @map("action_required")
   submittedBy                UserProfile                       @relation(fields: [submittedById], references: [id], onDelete: Cascade)
   moderatedBy                UserProfile?                      @relation("NamedValueModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   namedFaceValue             NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
   definitionProposal         NamedFaceValueDefinitionProposal? @relation(fields: [definitionProposalId], references: [id], onDelete: Restrict)
   mergedValueScheduleValue   ValueScheduleValue?                @relation("MergedValueScheduleValue", fields: [mergedValueScheduleValueId], references: [id], onDelete: Restrict)
+  rejectedStampActions       StampProposalAction[]               @relation("RejectedNamedValue")
   createdAt                  DateTime                          @default(now()) @map("created_at")
 
   @@index([submittedById, status, createdAt])
@@ -301,4 +306,25 @@ model NamedFaceValueValueProposal {
   @@index([mergedValueScheduleValueId])
   @@index([moderatedById])
   @@map("named_face_value_value_proposals")
+}
+
+model StampProposalAction {
+  id                           String                            @id @default(cuid())
+  stampId                      String                            @map("stamp_id")
+  namedDefinitionProposalId    String?                           @map("named_definition_proposal_id")
+  namedValueProposalId         String?                           @map("named_value_proposal_id")
+  currencyConversionProposalId String?                           @map("currency_conversion_proposal_id")
+  resolvedAt                   DateTime?                         @map("resolved_at")
+  resolution                   String?
+  stamp                        StampInventoryEntry               @relation(fields: [stampId], references: [id], onDelete: Cascade)
+  namedDefinitionProposal      NamedFaceValueDefinitionProposal? @relation("RejectedNamedDefinition", fields: [namedDefinitionProposalId], references: [id], onDelete: Restrict)
+  namedValueProposal           NamedFaceValueValueProposal?      @relation("RejectedNamedValue", fields: [namedValueProposalId], references: [id], onDelete: Restrict)
+  currencyConversionProposal   CurrencyConversionProposal?       @relation("RejectedCurrencyConversion", fields: [currencyConversionProposalId], references: [id], onDelete: Restrict)
+  createdAt                    DateTime                          @default(now()) @map("created_at")
+
+  @@unique([stampId, namedDefinitionProposalId])
+  @@unique([stampId, namedValueProposalId])
+  @@unique([stampId, currencyConversionProposalId])
+  @@index([stampId, resolvedAt])
+  @@map("stamp_proposal_actions")
 }

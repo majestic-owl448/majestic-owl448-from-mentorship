@@ -68,8 +68,25 @@ export async function createCurrencyConversionProposal(
     );
   }
 
-  return prisma.currencyConversionProposal.create({
-    data: { submittedById: userId, ...input },
+  return prisma.$transaction(async (tx) => {
+    const proposal = await tx.currencyConversionProposal.create({
+      data: { submittedById: userId, ...input },
+    });
+    await tx.stampProposalAction.updateMany({
+      where: {
+        resolvedAt: null,
+        stamp: { userId },
+        currencyConversionProposal: {
+          is: {
+            submittedById: userId,
+            fromCurrencyCode: input.fromCurrencyCode,
+            toCurrencyCode: input.toCurrencyCode,
+          },
+        },
+      },
+      data: { resolvedAt: new Date(), resolution: "RESUBMITTED" },
+    });
+    return proposal;
   });
 }
 

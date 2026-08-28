@@ -146,7 +146,9 @@ export function ModerationProposalDetail({
         action === "MERGE"
           ? "Proposal merged. References now use the canonical record."
           : action === "REJECT"
-            ? "Postal entity rejected. Linked private data now requires replacement."
+            ? proposalType === "POSTAL_ENTITY"
+              ? "Postal entity rejected. Linked private data now requires replacement."
+              : "Proposal rejected. Linked inventory now requires action."
           : "Proposal approved. Shared data is now available.",
       );
     } catch (caught) {
@@ -253,21 +255,21 @@ export function ModerationProposalDetail({
                 />
                 Merge as a duplicate
               </label>
-              {proposal.proposalType === "POSTAL_ENTITY" && (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="moderation-action"
-                    value="REJECT"
-                    checked={action === "REJECT"}
-                    onChange={() => {
-                      setAction("REJECT");
-                      setConfirmed(false);
-                    }}
-                  />
-                  Reject unsupported or nonsensical data
-                </label>
-              )}
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="moderation-action"
+                  value="REJECT"
+                  checked={action === "REJECT"}
+                  onChange={() => {
+                    setAction("REJECT");
+                    setConfirmed(false);
+                  }}
+                />
+                {proposal.proposalType === "POSTAL_ENTITY"
+                  ? "Reject unsupported or nonsensical data"
+                  : "Reject without publishing"}
+              </label>
               {proposal.compatibleMergeTargets.length === 0 && (
                 <p>No compatible merge targets are available.</p>
               )}
@@ -361,7 +363,9 @@ export function ModerationProposalDetail({
                 {action === "MERGE"
                   ? "I confirm that this duplicate should use the selected canonical record."
                   : action === "REJECT"
-                    ? "I confirm that this unsupported submission should stop resolving."
+                    ? proposal.proposalType === "POSTAL_ENTITY"
+                      ? "I confirm that this unsupported submission should stop resolving."
+                      : "I confirm that this proposal should be rejected and linked inventory should require action."
                   : "I confirm that this proposal should update shared data for all users."}
               </span>
             </label>
@@ -384,7 +388,9 @@ export function ModerationProposalDetail({
                 : action === "MERGE"
                   ? "Merge proposal"
                   : action === "REJECT"
-                    ? "Reject postal entity"
+                    ? proposal.proposalType === "POSTAL_ENTITY"
+                      ? "Reject postal entity"
+                      : "Reject proposal"
                   : "Approve proposal"}
             </button>
           </form>

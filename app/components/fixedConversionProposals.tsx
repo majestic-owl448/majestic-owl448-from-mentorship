@@ -21,6 +21,8 @@ type FixedConversionProposal = {
   sourceUrl: string | null;
   sourceNote: string | null;
   status: ProposalStatus;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
   createdAt: string;
 };
 
@@ -71,6 +73,15 @@ export function FixedConversionProposalStatusList({
             Type: {proposal.targetCurrencyConversionId ? "Correction" : "Missing conversion"}
           </p>
           <p>Status: {proposal.status}</p>
+          {proposal.status === "REJECTED" && (
+            <>
+              <p>Decision note: {proposal.decisionNote}</p>
+              <p>
+                Submit a corrected conversion above, or choose a fallback on
+                each affected inventory row.
+              </p>
+            </>
+          )}
           <p>Source: {proposal.sourceUrl ?? proposal.sourceNote}</p>
         </li>
       ))}

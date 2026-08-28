@@ -33,7 +33,16 @@ import {
 import { approveModerationProposal } from "@/lib/moderationApproval";
 import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { resolveNamedFaceValueById, searchNamedFaceValues } from "@/lib/namedFaceValue";
-import { listStamps } from "@/lib/stampInventory";
+import {
+  createDefinitionProposal,
+  createValueProposal,
+} from "@/lib/namedFaceValueProposals";
+import { rejectModerationProposal } from "@/lib/moderationRejection";
+import {
+  createStamp,
+  listStamps,
+  updateStamp as updateStampRecord,
+} from "@/lib/stampInventory";
 
 function queueRequest(query = "") {
   return new NextRequest(`http://localhost/api/moderation/proposals${query}`);
@@ -79,6 +88,24 @@ function mergeRequest(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "MERGE", targetId, decisionNote }),
+      },
+    ),
+    { params: Promise.resolve({ proposalType, proposalId }) },
+  );
+}
+
+function rejectionRequest(
+  proposalType: string,
+  proposalId: string,
+  decisionNote = "The submitted source does not support this value.",
+) {
+  return APPROVE(
+    new NextRequest(
+      `http://localhost/api/moderation/proposals/${proposalType}/${proposalId}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REJECT", decisionNote }),
       },
     ),
     { params: Promise.resolve({ proposalType, proposalId }) },
@@ -325,6 +352,795 @@ describe("moderation proposal API", () => {
     expect((await GET_QUEUE(queueRequest("?type=INVENTORY"))).status).toBe(400);
     expect((await detailRequest("INVENTORY", "private-inventory-entry")).status).toBe(404);
     expect((await detailRequest("NAMED_VALUE", "missing")).status).toBe(404);
+  });
+
+  it("rejects an unpublished definition, blocks linked inventory, and preserves the decision", async () => {
+    const proposal = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "rejected-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Unsupported code",
+        normalizedCode: "unsupported code",
+        currencyCode: "EUR",
+        sourceNote: "Unverified forum post",
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rejected-definition-value",
+        submittedById: "proposer",
+        definitionProposalId: proposal.id,
+        amount: "0.75",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unverified forum post",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "rejected-definition-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Unsupported stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: proposal.id,
+        manualPostageAmount: "0.75",
+        manualPostageCurrencyCode: "EUR",
+        quantityOwned: 2,
+      },
+    });
+    auth.userId = "moderator";
+
+    const response = await rejectionRequest("NAMED_DEFINITION", proposal.id);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      proposal: {
+        status: "REJECTED",
+        decision: {
+          moderator: { id: "moderator" },
+          decidedAt: expect.any(String),
+          note: "The submitted source does not support this value.",
+        },
+      },
+    });
+    expect(await searchNamedFaceValues("IT", "unsupported", "normal-user")).toEqual([]);
+    expect(
+      await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+        where: { id: "rejected-definition-value" },
+      }),
+    ).toMatchObject({ status: "PENDING", actionRequired: true });
+    const blocked = (
+      await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })
+    ).find(({ id }) => id === "rejected-definition-stamp");
+    expect(blocked).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      totalPostageValue: null,
+      availableFallback: {
+        amount: "0.75",
+        currencyCode: "EUR",
+        source: "MANUAL_FALLBACK",
+      },
+      valuation: { status: "ACTION_REQUIRED" },
+    });
+
+    await updateStampRecord(
+      "proposer",
+      "rejected-definition-stamp",
+      {
+        quantityOwned: 2,
+        quantityAnnulled: 0,
+        expired: false,
+        actionResolution: {
+          type: "NAMED_VALUE",
+          referenceType: "approved",
+          id: "approved-b",
+        },
+      },
+      {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      },
+    );
+    expect(
+      await prisma.stampInventoryEntry.findUniqueOrThrow({
+        where: { id: "rejected-definition-stamp" },
+      }),
+    ).toMatchObject({
+      namedFaceValueId: "approved-b",
+      namedFaceValueProposalId: null,
+    });
+    expect(
+      await prisma.stampProposalAction.findMany({
+        where: { stampId: "rejected-definition-stamp", resolvedAt: null },
+      }),
+    ).toEqual([]);
+
+    expect((await rejectionRequest("NAMED_DEFINITION", proposal.id)).status).toBe(409);
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: proposal.id },
+      }),
+    ).toMatchObject({
+      status: "REJECTED",
+      moderatedById: "moderator",
+      decisionNote: "The submitted source does not support this value.",
+    });
+  });
+
+  it("resubmits a corrected definition and repoints its affected inventory", async () => {
+    const rejected = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "definition-to-resubmit",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Unsupported",
+        normalizedCode: "unsupported",
+        currencyCode: "EUR",
+        sourceNote: "Unsupported source",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "definition-resubmission-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Definition resubmission stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: rejected.id,
+        quantityOwned: 1,
+      },
+    });
+    auth.userId = "moderator";
+    expect((await rejectionRequest("NAMED_DEFINITION", rejected.id)).status).toBe(200);
+
+    const corrected = await createDefinitionProposal("proposer", {
+      proposalType: "DEFINITION",
+      targetNamedFaceValueId: null,
+      replacesRejectedProposalId: rejected.id,
+      countryCode: "IT",
+      displayCode: "Corrected definition",
+      normalizedCode: "corrected definition",
+      currencyCode: "EUR",
+      sourceUrl: null,
+      sourceNote: "Published tariff",
+    });
+
+    expect(corrected).toMatchObject({ status: "PENDING" });
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: rejected.id },
+      }),
+    ).toMatchObject({
+      status: "REJECTED",
+      displayCode: "Unsupported",
+      decisionNote: "The submitted source does not support this value.",
+    });
+    expect(
+      await prisma.stampInventoryEntry.findUniqueOrThrow({
+        where: { id: "definition-resubmission-stamp" },
+      }),
+    ).toMatchObject({
+      namedFaceValueId: null,
+      namedFaceValueProposalId: corrected.id,
+    });
+    expect(
+      await prisma.stampProposalAction.findFirstOrThrow({
+        where: {
+          stampId: "definition-resubmission-stamp",
+          namedDefinitionProposalId: rejected.id,
+        },
+      }),
+    ).toMatchObject({
+      resolvedAt: expect.any(Date),
+      resolution: `RESUBMITTED:${corrected.id}`,
+    });
+    expect(
+      (await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })).find(({ id }) => id === "definition-resubmission-stamp"),
+    ).toMatchObject({
+      actionRequired: false,
+      namedFaceValueProposalId: corrected.id,
+      namedFaceValue: {
+        displayCode: "Corrected definition",
+        proposalStatus: "PENDING",
+      },
+    });
+    expect(
+      await searchNamedFaceValues("IT", "corrected", "normal-user"),
+    ).toEqual([]);
+  });
+
+  it("keeps replacement and rejection atomic when they race", async () => {
+    const rejected = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "race-original-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Race original",
+        normalizedCode: "race original",
+        currencyCode: "EUR",
+        sourceNote: "Unsupported source",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "race-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Race stamp",
+        faceValueType: "NAMED",
+        namedFaceValueProposalId: rejected.id,
+        quantityOwned: 1,
+      },
+    });
+    auth.userId = "moderator";
+    expect((await rejectionRequest("NAMED_DEFINITION", rejected.id)).status).toBe(200);
+    const replacement = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "race-replacement-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Race replacement",
+        normalizedCode: "race replacement",
+        currencyCode: "EUR",
+        sourceNote: "Replacement source",
+      },
+    });
+
+    const activeCountry = {
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      postalEntity: { countryCode: "IT" },
+    };
+    const [replacementResult, rejectionResult] = await Promise.allSettled([
+      updateStampRecord(
+        "proposer",
+        "race-stamp",
+        {
+          quantityOwned: 1,
+          quantityAnnulled: 0,
+          expired: false,
+          actionResolution: {
+            type: "NAMED_VALUE",
+            referenceType: "proposal",
+            id: replacement.id,
+          },
+        },
+        activeCountry,
+      ),
+      rejectionRequest("NAMED_DEFINITION", replacement.id),
+    ]);
+
+    expect(rejectionResult.status).toBe("fulfilled");
+    const stored = await prisma.stampInventoryEntry.findUniqueOrThrow({
+      where: { id: "race-stamp" },
+    });
+    const unresolvedActions = await prisma.stampProposalAction.findMany({
+      where: { stampId: stored.id, resolvedAt: null },
+    });
+    if (replacementResult.status === "fulfilled") {
+      expect(stored.namedFaceValueProposalId).toBe(replacement.id);
+      expect(unresolvedActions).toEqual([
+        expect.objectContaining({
+          namedDefinitionProposalId: replacement.id,
+        }),
+      ]);
+    } else {
+      expect(stored.namedFaceValueProposalId).toBe(rejected.id);
+      expect(unresolvedActions).toEqual([
+        expect.objectContaining({
+          namedDefinitionProposalId: rejected.id,
+        }),
+      ]);
+    }
+  });
+
+  it("keeps definition rejection atomic with new private references", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "creation-race-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    const definition = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "creation-race-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Race definition",
+        normalizedCode: "race definition",
+        currencyCode: "EUR",
+        sourceNote: "Unverified source",
+      },
+    });
+    const stampInput = {
+      countryCode: "IT",
+      postalEntityId: "private-postal-entity",
+      name: "Creation race stamp",
+      yearOfIssue: null,
+      faceValueType: "NAMED" as const,
+      faceAmount: null,
+      faceCurrencyCode: null,
+      namedFaceValueId: null,
+      namedFaceValueProposalId: definition.id,
+      manualPostageAmount: null,
+      manualPostageCurrencyCode: null,
+      quantityOwned: 1,
+      quantityAnnulled: 0,
+      expired: false,
+    };
+
+    const [stampResult, valueResult, rejectionResult] = await Promise.allSettled([
+      createStamp("proposer", stampInput),
+      createValueProposal(
+        "proposer",
+        {
+          proposalType: "VALUE",
+          targetNamedFaceValueId: null,
+          definitionProposalId: definition.id,
+          amount: "1.5",
+          effectiveOn: null,
+          sourceUrl: null,
+          sourceNote: "Unverified source",
+        },
+        "2026-08-28",
+      ),
+      rejectModerationProposal(
+        "NAMED_DEFINITION",
+        definition.id,
+        "moderator",
+        "The source is unsupported.",
+      ),
+    ]);
+
+    expect(rejectionResult.status).toBe("fulfilled");
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: definition.id },
+        select: { status: true },
+      }),
+    ).toEqual({ status: "REJECTED" });
+    if (stampResult.status === "fulfilled") {
+      expect(
+        await prisma.stampProposalAction.findFirst({
+          where: {
+            stampId: stampResult.value.id,
+            namedDefinitionProposalId: definition.id,
+            resolvedAt: null,
+          },
+        }),
+      ).not.toBeNull();
+    }
+    if (valueResult.status === "fulfilled") {
+      expect(
+        await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+          where: { id: valueResult.value.id },
+          select: { actionRequired: true },
+        }),
+      ).toEqual({ actionRequired: true });
+    }
+  });
+
+  it("does not block inventory when a rejected duplicate was superseded", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "superseded-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    const oldValue = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "older-duplicate-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.4",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Older source",
+        createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "newer-duplicate-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.5",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Newer source",
+        createdAt: new Date("2026-08-28T09:00:00.000Z"),
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "superseded-conversion-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Superseded conversion stamp",
+        faceValueType: "MONETARY",
+        faceAmount: "2",
+        faceCurrencyCode: "USD",
+        quantityOwned: 1,
+      },
+    });
+    const oldConversion = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "older-duplicate-conversion",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.92",
+        sourceNote: "Older source",
+        createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      },
+    });
+    await prisma.currencyConversionProposal.create({
+      data: {
+        id: "newer-duplicate-conversion",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.93",
+        sourceNote: "Newer source",
+        createdAt: new Date("2026-08-28T09:00:00.000Z"),
+      },
+    });
+
+    await rejectModerationProposal(
+      "NAMED_VALUE",
+      oldValue.id,
+      "moderator",
+      "Superseded submission.",
+    );
+    await rejectModerationProposal(
+      "FIXED_CONVERSION",
+      oldConversion.id,
+      "moderator",
+      "Superseded submission.",
+    );
+
+    expect(
+      await prisma.stampProposalAction.findMany({
+        where: {
+          resolvedAt: null,
+          OR: [
+            { namedValueProposalId: oldValue.id },
+            { currencyConversionProposalId: oldConversion.id },
+          ],
+        },
+      }),
+    ).toEqual([]);
+    const inventory = await listStamps("proposer", {
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      postalEntity: { countryCode: "IT" },
+    });
+    expect(inventory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "private-inventory-entry",
+          actionRequired: false,
+          unitPostageValue: expect.objectContaining({ amount: "1.5" }),
+        }),
+        expect.objectContaining({
+          id: "superseded-conversion-stamp",
+          actionRequired: false,
+          unitPostageValue: expect.objectContaining({ amount: "1.86" }),
+        }),
+      ]),
+    );
+  });
+
+  it("keeps a stamp blocked until every overlapping rejection is resolved", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "overlap-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    await prisma.valueSchedule.create({
+      data: {
+        id: "usd-named-schedule",
+        countryCode: "IT",
+        currencyCode: "USD",
+      },
+    });
+    await prisma.valueScheduleValue.create({
+      data: {
+        id: "usd-named-current",
+        valueScheduleId: "usd-named-schedule",
+        amount: "2",
+        effectiveOn: null,
+      },
+    });
+    await prisma.namedFaceValue.create({
+      data: {
+        id: "approved-usd-named",
+        countryCode: "IT",
+        displayCode: "USD named",
+        normalizedCode: "usd named",
+        valueScheduleId: "usd-named-schedule",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "overlap-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Overlapping rejection stamp",
+        faceValueType: "NAMED",
+        namedFaceValueId: "approved-usd-named",
+        quantityOwned: 1,
+      },
+    });
+    const valueProposal = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "overlap-value-proposal",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-usd-named",
+        amount: "2.5",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unsupported schedule",
+      },
+    });
+    const conversionProposal = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "overlap-conversion-proposal",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.95",
+        sourceNote: "Unsupported conversion",
+      },
+    });
+    auth.userId = "moderator";
+    expect((await rejectionRequest("NAMED_VALUE", valueProposal.id)).status).toBe(200);
+    expect((await rejectionRequest("FIXED_CONVERSION", conversionProposal.id)).status).toBe(200);
+    expect(
+      await prisma.stampProposalAction.count({
+        where: { stampId: "overlap-stamp", resolvedAt: null },
+      }),
+    ).toBe(2);
+
+    await createValueProposal(
+      "proposer",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: "approved-usd-named",
+        definitionProposalId: null,
+        amount: "2.4",
+        effectiveOn: null,
+        sourceUrl: null,
+        sourceNote: "Corrected published schedule",
+      },
+      "2026-08-28",
+    );
+
+    expect(
+      await prisma.stampProposalAction.findMany({
+        where: { stampId: "overlap-stamp", resolvedAt: null },
+        select: {
+          namedValueProposalId: true,
+          currencyConversionProposalId: true,
+        },
+      }),
+    ).toEqual([
+      {
+        namedValueProposalId: null,
+        currencyConversionProposalId: "overlap-conversion-proposal",
+      },
+    ]);
+    expect(
+      (await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })).find(({ id }) => id === "overlap-stamp"),
+    ).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      proposalActions: [
+        {
+          proposalType: "FIXED_CONVERSION",
+          proposalId: "overlap-conversion-proposal",
+        },
+      ],
+    });
+  });
+
+  it("does not resolve a rejected current value with a future resubmission", async () => {
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "schedule-slot-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Schedule slot stamp",
+        faceValueType: "NAMED",
+        namedFaceValueId: "approved-b",
+        quantityOwned: 1,
+      },
+    });
+    const rejected = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rejected-current-slot",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.5",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unsupported current value",
+      },
+    });
+    auth.userId = "moderator";
+    expect((await rejectionRequest("NAMED_VALUE", rejected.id)).status).toBe(200);
+
+    await createValueProposal(
+      "proposer",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: "approved-b",
+        definitionProposalId: null,
+        amount: "1.75",
+        effectiveOn: "2028-10-01",
+        sourceUrl: null,
+        sourceNote: "Published future schedule",
+      },
+      "2026-08-28",
+    );
+
+    expect(
+      await prisma.stampProposalAction.findFirstOrThrow({
+        where: {
+          stampId: "schedule-slot-stamp",
+          namedValueProposalId: rejected.id,
+        },
+      }),
+    ).toMatchObject({ resolvedAt: null, resolution: null });
+    expect(
+      (await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })).find(({ id }) => id === "schedule-slot-stamp"),
+    ).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      availableFallback: { amount: "1.25", source: "NAMED_SCHEDULE" },
+    });
+  });
+
+  it("requires explicit fallback selection after rejecting a used value or conversion", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "proposer-private-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    await prisma.stampInventoryEntry.createMany({
+      data: [
+        {
+          id: "rejected-value-stamp",
+          userId: "proposer",
+          countryCode: "IT",
+          postalEntityId: "private-postal-entity",
+          name: "Named stamp",
+          faceValueType: "NAMED",
+          namedFaceValueId: "approved-b",
+          quantityOwned: 1,
+        },
+        {
+          id: "rejected-conversion-stamp",
+          userId: "proposer",
+          countryCode: "IT",
+          postalEntityId: "private-postal-entity",
+          name: "Dollar stamp",
+          faceAmount: "2",
+          faceCurrencyCode: "USD",
+          quantityOwned: 1,
+        },
+      ],
+    });
+    const valueProposal = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "rejected-current-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.50",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unsupported value",
+      },
+    });
+    const conversionProposal = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "rejected-usd-conversion",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.95",
+        sourceNote: "Unsupported conversion",
+      },
+    });
+    auth.userId = "moderator";
+
+    expect((await rejectionRequest("NAMED_VALUE", valueProposal.id)).status).toBe(200);
+    expect((await rejectionRequest("FIXED_CONVERSION", conversionProposal.id)).status).toBe(200);
+
+    const activeCountry = {
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      postalEntity: { countryCode: "IT" },
+    };
+    const blocked = await listStamps("proposer", activeCountry);
+    expect(blocked.find(({ id }) => id === "rejected-value-stamp")).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      availableFallback: { amount: "1.25", source: "NAMED_SCHEDULE" },
+    });
+    expect(blocked.find(({ id }) => id === "rejected-conversion-stamp")).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      availableFallback: { amount: "1.8", source: "FIXED_CONVERSION" },
+    });
+
+    await updateStampRecord(
+      "proposer",
+      "rejected-conversion-stamp",
+      {
+        quantityOwned: 1,
+        quantityAnnulled: 0,
+        expired: false,
+        actionResolution: { type: "FALLBACK" },
+      },
+      activeCountry,
+    );
+    expect(
+      (await listStamps("proposer", activeCountry)).find(
+        ({ id }) => id === "rejected-conversion-stamp",
+      ),
+    ).toMatchObject({
+      actionRequired: false,
+      unitPostageValue: { amount: "1.8", source: "FIXED_CONVERSION" },
+    });
   });
 
   it("rejects a linked definition target from another country", async () => {

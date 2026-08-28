@@ -30,7 +30,7 @@ export type SavedStamp = {
     id: string;
     countryCode: string;
     displayCode: string;
-    proposalStatus?: "PENDING";
+    proposalStatus?: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
   } | null;
   currentNamedFaceValue: StampValue | null;
   upcomingNamedFaceValue: {
@@ -45,11 +45,17 @@ export type SavedStamp = {
   quantityAnnulled: number;
   usableQuantity: number;
   expired: boolean;
+  actionRequired?: boolean;
+  proposalActions?: Array<{
+    proposalType: "NAMED_DEFINITION" | "NAMED_VALUE" | "FIXED_CONVERSION";
+    proposalId: string;
+  }>;
+  availableFallback?: (StampValue & { source: string }) | null;
   unitPostageValue: (StampValue & { source: string }) | null;
   totalPostageValue: StampValue | null;
   valuation:
     | { status: "RESOLVED"; source: string }
-    | { status: "UNRESOLVED"; source: null };
+    | { status: "UNRESOLVED" | "ACTION_REQUIRED"; source: null };
   requiresPostalEntityReplacement?: boolean;
   createdAt: string;
 };
@@ -75,7 +81,8 @@ type StampErrors = Partial<
     | "manualPostageCurrencyCode"
     | "quantityOwned"
     | "quantityAnnulled"
-    | "expired",
+    | "expired"
+    | "actionResolution",
     string
   >
 >;
@@ -85,7 +92,7 @@ type NamedFaceValueOption = {
   countryCode: string;
   displayCode: string;
   namedFaceValueProposalId?: string;
-  proposalStatus?: "PENDING";
+  proposalStatus?: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 };
 
 export function formatMoney(value: StampValue) {
@@ -185,12 +192,55 @@ function StampEditor({
   const [errors, setErrors] = useState<StampErrors>({});
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [replacementOptions, setReplacementOptions] = useState<
+    NamedFaceValueOption[]
+  >([]);
+  const [replacementQuery, setReplacementQuery] = useState("");
+  const [replacementLoadError, setReplacementLoadError] = useState<
+    string | null
+  >(null);
   const ownedId = `stamp-${stamp.id}-owned-quantity`;
   const annulledId = `stamp-${stamp.id}-annulled-quantity`;
   const ownedErrorId = `${ownedId}-error`;
   const annulledErrorId = `${annulledId}-error`;
   const expiredId = `stamp-${stamp.id}-expired`;
   const expiredExplanationId = `${expiredId}-explanation`;
+  const actionResolutionId = `stamp-${stamp.id}-action-resolution`;
+  const actionResolutionErrorId = `${actionResolutionId}-error`;
+  const replacementSearchId = `stamp-${stamp.id}-replacement-search`;
+
+  useEffect(() => {
+    if (!stamp.actionRequired || stamp.faceValueType !== "NAMED") return;
+    const controller = new AbortController();
+    const parameters = new URLSearchParams({
+      countryCode: stamp.countryCode,
+      query: replacementQuery,
+    });
+    fetch(`/api/named-face-values?${parameters}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        return (await response.json()) as {
+          namedFaceValues: NamedFaceValueOption[];
+        };
+      })
+      .then(({ namedFaceValues }) => {
+        setReplacementOptions(namedFaceValues);
+        setReplacementLoadError(null);
+      })
+      .catch((caught: unknown) => {
+        if (!(caught instanceof Error && caught.name === "AbortError")) {
+          setReplacementLoadError("Eligible replacements could not be loaded.");
+        }
+      });
+    return () => controller.abort();
+  }, [
+    replacementQuery,
+    stamp.actionRequired,
+    stamp.countryCode,
+    stamp.faceValueType,
+  ]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -207,6 +257,7 @@ function StampEditor({
           quantityOwned: data.get("quantityOwned"),
           quantityAnnulled: data.get("quantityAnnulled"),
           expired: data.get("expired") === "on",
+          actionResolution: data.get("actionResolution"),
         }),
       });
       const result = (await response.json()) as {
@@ -296,6 +347,69 @@ function StampEditor({
           Stored stamp details and quantities stay unchanged.
         </p>
       </fieldset>
+      {stamp.actionRequired && (
+        <div className="sm:col-span-2">
+          {stamp.faceValueType === "NAMED" && (
+            <div>
+              <label htmlFor={replacementSearchId} className="block font-medium">
+                Search eligible named/code replacements
+              </label>
+              <input
+                id={replacementSearchId}
+                type="search"
+                value={replacementQuery}
+                onChange={(event) => setReplacementQuery(event.target.value)}
+                aria-describedby={
+                  replacementLoadError
+                    ? `${actionResolutionId}-load-error`
+                    : undefined
+                }
+                className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2"
+              />
+            </div>
+          )}
+          <label htmlFor={actionResolutionId} className="block font-medium">
+            Resolve rejected proposal reference
+          </label>
+          <select
+            id={actionResolutionId}
+            name="actionResolution"
+            defaultValue=""
+            aria-describedby={
+              errors.actionResolution
+                ? actionResolutionErrorId
+                : replacementLoadError
+                  ? `${actionResolutionId}-load-error`
+                  : undefined
+            }
+            className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2"
+          >
+            <option value="">Keep action required</option>
+            {stamp.availableFallback && (
+              <option value="FALLBACK">
+                Use {valuationSourceLabels[stamp.availableFallback.source] ?? stamp.availableFallback.source}: {formatMoney(stamp.availableFallback)}
+              </option>
+            )}
+            {replacementOptions.map((option) => (
+              <option
+                key={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`}
+                value={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`}
+              >
+                Use {option.displayCode}{option.proposalStatus ? ` (${option.proposalStatus})` : ""}
+              </option>
+            ))}
+          </select>
+          <FieldError
+            id={actionResolutionErrorId}
+            message={errors.actionResolution}
+          />
+          {replacementLoadError && (
+            <p id={`${actionResolutionId}-load-error`} role="alert">
+              {replacementLoadError}
+            </p>
+          )}
+        </div>
+      )}
       <button
         type="submit"
         disabled={saving}
@@ -459,6 +573,23 @@ export function StampInventoryResults({
               {stamp.namedFaceValue?.proposalStatus && (
                 <p>Definition status: {stamp.namedFaceValue.proposalStatus}</p>
               )}
+              {stamp.actionRequired && (
+                <div role="alert">
+                  <p>
+                    Action required: rejected proposal data is no longer used.
+                    Submit corrected data or choose a replacement below.
+                  </p>
+                  {stamp.proposalActions && stamp.proposalActions.length > 0 && (
+                    <ul>
+                      {stamp.proposalActions.map((action) => (
+                        <li key={`${action.proposalType}:${action.proposalId}`}>
+                          {action.proposalType.replaceAll("_", " ")}: {action.proposalId}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               {stamp.currentNamedFaceValue && stamp.upcomingNamedFaceValue && (
                 <div>
                   <p>
@@ -505,8 +636,10 @@ export function StampInventoryResults({
               </p>
               <p>
                 Valuation source:{" "}
-                {stamp.valuation.status === "UNRESOLVED"
-                  ? "Unresolved"
+                {stamp.valuation.status !== "RESOLVED"
+                  ? stamp.valuation.status === "ACTION_REQUIRED"
+                    ? "Action required"
+                    : "Unresolved"
                   : valuationSourceLabels[stamp.valuation.source] ??
                     stamp.valuation.source}
               </p>
