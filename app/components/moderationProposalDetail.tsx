@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatCalendarDate } from "@/lib/localization";
 
 type ProposalDetail = {
   id: string;
@@ -47,14 +48,27 @@ const labels: Record<string, string> = {
   sourceNote: "Source note",
 };
 
-function displayValue(value: unknown): string {
+export function displayValue(
+  value: unknown,
+  locale?: string,
+  fieldName?: string,
+): string {
   if (value === null || value === "") return "None";
+  if (
+    typeof value === "string" &&
+    (fieldName === "effectiveOn" || fieldName === "eligibleOn")
+  ) {
+    return formatCalendarDate(value, locale);
+  }
   if (Array.isArray(value)) {
-    return value.map(displayValue).join(", ");
+    return value.map((item) => displayValue(item, locale)).join(", ");
   }
   if (typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, item]) => `${labels[key] ?? key}: ${displayValue(item)}`)
+      .map(
+        ([key, item]) =>
+          `${labels[key] ?? key}: ${displayValue(item, locale, key)}`,
+      )
       .join("; ");
   }
   return String(value);
@@ -63,9 +77,11 @@ function displayValue(value: unknown): string {
 export function ModerationProposalDetail({
   proposalType,
   proposalId,
+  locale,
 }: {
   proposalType: string;
   proposalId: string;
+  locale?: string;
 }) {
   const [proposal, setProposal] = useState<ProposalDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +205,7 @@ export function ModerationProposalDetail({
           {Object.entries(proposal.proposedValues).map(([key, value]) => (
             <div key={key}>
               <dt className="font-medium">{labels[key] ?? key}</dt>
-              <dd>{displayValue(value)}</dd>
+              <dd>{displayValue(value, locale, key)}</dd>
             </div>
           ))}
         </dl>
@@ -213,7 +229,7 @@ export function ModerationProposalDetail({
           <ul className="mt-3 grid gap-3">
             {proposal.possibleMatches.map((match, index) => (
               <li key={String(match.id ?? index)} className="rounded-lg border border-zinc-300 p-4 dark:border-zinc-700">
-                {displayValue(match)}
+                {displayValue(match, locale)}
               </li>
             ))}
           </ul>
@@ -294,7 +310,7 @@ export function ModerationProposalDetail({
                           setMergeTargetId(event.target.value)
                         }
                       />
-                      <span>{displayValue(target)}</span>
+                      <span>{displayValue(target, locale)}</span>
                     </label>
                   );
                 })}

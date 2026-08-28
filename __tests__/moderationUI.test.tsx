@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ModerationProposalDetail } from "@/app/components/moderationProposalDetail";
 import { ModerationQueue } from "@/app/components/moderationQueue";
+import { formatCalendarDate } from "@/lib/localization";
 
 describe("moderation interface", () => {
   afterEach(() => {
@@ -70,6 +71,7 @@ describe("moderation interface", () => {
               fromCurrencyCode: "USD",
               toCurrencyCode: "EUR",
               multiplier: "0.91",
+              effectiveOn: "2028-10-01",
             },
             possibleMatches: [
               {
@@ -77,6 +79,7 @@ describe("moderation interface", () => {
                 fromCurrencyCode: "USD",
                 toCurrencyCode: "EUR",
                 multiplier: "0.90",
+                eligibleOn: "2028-10-02",
               },
             ],
             compatibleMergeTargets: [
@@ -95,6 +98,7 @@ describe("moderation interface", () => {
       <ModerationProposalDetail
         proposalType="FIXED_CONVERSION"
         proposalId="conversion-proposal"
+        locale="de-DE"
       />,
     );
 
@@ -104,6 +108,17 @@ describe("moderation interface", () => {
     expect(screen.getByText(/Central bank bulletin/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Possible approved matches" })).toBeTruthy();
     await waitFor(() => expect(screen.getByText(/Multiplier: 0.90/)).toBeTruthy());
+    expect(
+      screen.getByText(formatCalendarDate("2028-10-01", "de-DE")),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        new RegExp(
+          `Eligible date: ${formatCalendarDate("2028-10-02", "de-DE").replaceAll(".", "\\.")}`,
+        ),
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/2028-10-0[12]/)).toBeNull();
     expect(screen.getByRole("link", { name: "Back to proposal queue" })).toBeTruthy();
   });
 

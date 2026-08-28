@@ -6,6 +6,7 @@ import {
   NamedFaceValueProposals,
   ProposalStatusList,
 } from "@/app/components/namedFaceValueProposals";
+import { formatCalendarDate } from "@/lib/localization";
 
 describe("named/code proposal interface", () => {
   beforeEach(() => {
@@ -85,6 +86,38 @@ describe("named/code proposal interface", () => {
     );
 
     expect(screen.getByText("Status: PENDING")).toBeTruthy();
+  });
+
+  it("formats scheduled proposal dates in the requested locale", () => {
+    render(
+      <ProposalStatusList
+        locale="de-DE"
+        proposals={{
+          definitions: [],
+          values: [
+            {
+              id: "future-value",
+              proposalType: "VALUE",
+              namedFaceValueId: "named-value",
+              definitionProposalId: null,
+              amount: "1.25",
+              effectiveOn: "2028-10-01",
+              sourceUrl: null,
+              sourceNote: "Published tariff",
+              status: "PENDING",
+              createdAt: "2026-08-27T12:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        `1.25 from ${formatCalendarDate("2028-10-01", "de-DE")}`,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/2028-10-01/)).toBeNull();
   });
 
   it("shows the decision note and replacement prompt after rejection", () => {

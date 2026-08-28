@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
+import { formatCalendarDate } from "@/lib/localization";
 
 type ProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 
@@ -79,9 +80,11 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function ProposalStatusList({
   proposals,
   onResubmitDefinition,
+  locale,
 }: {
   proposals: ProposalsResponse;
   onResubmitDefinition?(proposal: DefinitionProposal): void;
+  locale?: string;
 }) {
   const entries = [...proposals.definitions, ...proposals.values].sort(
     (left, right) =>
@@ -101,7 +104,11 @@ export function ProposalStatusList({
           <p className="font-medium">
             {proposal.proposalType === "DEFINITION"
               ? proposal.displayCode
-              : `${proposal.amount} from ${proposal.effectiveOn ?? "the current schedule"}`}
+              : `${proposal.amount} from ${
+                  proposal.effectiveOn
+                    ? formatCalendarDate(proposal.effectiveOn, locale)
+                    : "the current schedule"
+                }`}
           </p>
           <p>Type: {proposal.proposalType === "DEFINITION" ? "Named definition" : "Schedule value"}</p>
           <p>Status: {proposal.status}</p>
@@ -349,7 +356,7 @@ export function NamedFaceValueProposals({
         </div>
         <div>
           <label htmlFor="proposal-search" className="block font-medium">Search existing definitions</label>
-          <input id="proposal-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-invalid={Boolean(searchError)} aria-describedby={searchError ? "proposal-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="proposal-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-describedby={searchError ? "proposal-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="proposal-search-error" message={searchError ?? undefined} />
         </div>
         <div>

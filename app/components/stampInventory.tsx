@@ -3,6 +3,12 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
 import { FixedConversionProposals } from "@/app/components/fixedConversionProposals";
+import {
+  formatCalendarDate,
+  formatInventoryDate,
+} from "@/lib/localization";
+
+export { formatCalendarDate, formatInventoryDate } from "@/lib/localization";
 
 export type StampValue = {
   amount: string;
@@ -95,11 +101,11 @@ type NamedFaceValueOption = {
   proposalStatus?: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 };
 
-export function formatMoney(value: StampValue) {
+export function formatMoney(value: StampValue, locale?: string) {
   try {
     const [integer, fraction = ""] = value.amount.split(".");
     const formattedFractionLength = Math.min(fraction.length, 20);
-    const formatter = new Intl.NumberFormat(undefined, {
+    const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: value.currencyCode,
       minimumFractionDigits: formattedFractionLength,
@@ -120,16 +126,6 @@ export function formatMoney(value: StampValue) {
   }
 }
 
-export function formatInventoryDate(value: string, locale?: string) {
-  return new Intl.DateTimeFormat(locale).format(new Date(value));
-}
-
-export function formatCalendarDate(value: string, locale?: string) {
-  return new Intl.DateTimeFormat(locale, { timeZone: "UTC" }).format(
-    new Date(`${value}T00:00:00.000Z`),
-  );
-}
-
 const valuationSourceLabels: Record<string, string> = {
   FACE_AMOUNT: "Face amount",
   FIXED_CONVERSION: "Fixed currency conversion",
@@ -140,8 +136,8 @@ const valuationSourceLabels: Record<string, string> = {
   OUTSIDE_ACTIVE_COUNTRY: "Outside active country",
 };
 
-function Money({ value }: { value: StampValue }) {
-  return formatMoney(value);
+function Money({ value, locale }: { value: StampValue; locale?: string }) {
+  return formatMoney(value, locale);
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -361,7 +357,6 @@ function StampEditor({
                 type="search"
                 value={replacementQuery}
                 onChange={(event) => setReplacementQuery(event.target.value)}
-                aria-invalid={Boolean(replacementLoadError)}
                 aria-describedby={
                   replacementLoadError
                     ? `${actionResolutionId}-load-error`
@@ -535,6 +530,7 @@ export function StampInventoryResults({
   inventory,
   onStampUpdated,
   onStampRemoved,
+  locale,
 }: {
   inventory: InventoryResponse;
   onStampUpdated?: (
@@ -542,11 +538,13 @@ export function StampInventoryResults({
     inventoryTotal: StampValue,
   ) => void;
   onStampRemoved?: (stampId: string, inventoryTotal: StampValue) => void;
+  locale?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-lg font-semibold">
-        Inventory total: <Money value={inventory.inventoryTotal} />
+        Inventory total:{" "}
+        <Money value={inventory.inventoryTotal} locale={locale} />
       </p>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Unresolved entries are excluded from the inventory total.
@@ -569,7 +567,13 @@ export function StampInventoryResults({
                 {stamp.faceValueType === "NAMED"
                   ? stamp.namedFaceValue?.displayCode
                   : stamp.faceValueType === "MONETARY"
-                    ? `${stamp.faceAmount} ${stamp.faceCurrencyCode}`
+                    ? <Money
+                        value={{
+                          amount: stamp.faceAmount!,
+                          currencyCode: stamp.faceCurrencyCode!,
+                        }}
+                        locale={locale}
+                      />
                     : "No face value"}
               </p>
               {stamp.requiresPostalEntityReplacement && (
@@ -601,13 +605,14 @@ export function StampInventoryResults({
                 <div>
                   <p>
                     Current named/code value:{" "}
-                    <Money value={stamp.currentNamedFaceValue} />
+                    <Money value={stamp.currentNamedFaceValue} locale={locale} />
                   </p>
                   <p>
                     Upcoming named/code value:{" "}
-                    <Money value={stamp.upcomingNamedFaceValue} />, effective{" "}
+                    <Money value={stamp.upcomingNamedFaceValue} locale={locale} />, effective{" "}
                     {formatCalendarDate(
                       stamp.upcomingNamedFaceValue.effectiveOn,
+                      locale,
                     )}
                   </p>
                 </div>
@@ -615,8 +620,14 @@ export function StampInventoryResults({
               {stamp.manualPostageAmount !== null &&
                 stamp.manualPostageCurrencyCode !== null && (
                   <p>
-                    Manual postage: {stamp.manualPostageAmount}{" "}
-                    {stamp.manualPostageCurrencyCode}
+                    Manual postage:{" "}
+                    <Money
+                      value={{
+                        amount: stamp.manualPostageAmount,
+                        currencyCode: stamp.manualPostageCurrencyCode,
+                      }}
+                      locale={locale}
+                    />
                   </p>
                 )}
               <p>
@@ -624,11 +635,11 @@ export function StampInventoryResults({
                 usable: {stamp.usableQuantity}
               </p>
               <p>{stamp.expired ? "Expired" : "Not expired"}</p>
-              <p>Added: {formatInventoryDate(stamp.createdAt)}</p>
+              <p>Added: {formatInventoryDate(stamp.createdAt, locale)}</p>
               <p>
                 Unit postage:{" "}
                 {stamp.unitPostageValue ? (
-                  <Money value={stamp.unitPostageValue} />
+                  <Money value={stamp.unitPostageValue} locale={locale} />
                 ) : (
                   "Unresolved"
                 )}
@@ -636,7 +647,7 @@ export function StampInventoryResults({
               <p>
                 Total postage:{" "}
                 {stamp.totalPostageValue ? (
-                  <Money value={stamp.totalPostageValue} />
+                  <Money value={stamp.totalPostageValue} locale={locale} />
                 ) : (
                   "Unresolved"
                 )}
@@ -687,7 +698,7 @@ export function NamedFaceValueFields({
       <legend className="font-medium">Named face value</legend>
       <div>
         <label htmlFor="named-face-value-search" className="block font-medium">Search names and codes</label>
-        <input id="named-face-value-search" type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} disabled={!countryCode} aria-invalid={Boolean(searchError)} aria-describedby={searchError ? "named-face-value-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+        <input id="named-face-value-search" type="search" value={query} onChange={(event) => onQueryChange(event.target.value)} disabled={!countryCode} aria-describedby={searchError ? "named-face-value-search-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
         {searchError && <p id="named-face-value-search-error" role="alert" className="text-sm text-red-700 dark:text-red-300">{searchError}</p>}
       </div>
       <div>
