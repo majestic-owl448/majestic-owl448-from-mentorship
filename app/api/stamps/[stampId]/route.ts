@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import supertokens from "supertokens-node";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import {
   PostalEntitySettingRequiredError,
   requireActivePostalEntitySetting,
@@ -16,25 +14,12 @@ import {
   updateStamp,
 } from "@/lib/stampInventory";
 import { validateStampUpdate } from "@/lib/stampUpdateValidation";
-import { upsertUserProfile } from "@/lib/userProfile";
-
-ensureSuperTokensInit();
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ stampId: string }> },
 ) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
+  return withAuthenticatedUser(request, async ({ userId, getProfile }) => {
     let body: unknown;
     try {
       body = await request.json();
@@ -50,9 +35,7 @@ export async function PATCH(
     }
 
     try {
-      const userId = session.getUserId();
-      const user = await supertokens.getUser(userId);
-      await upsertUserProfile(userId, user?.emails[0] ?? null);
+      await getProfile();
       const activePostalEntitySetting =
         await requireActivePostalEntitySetting(userId);
       const { stampId } = await context.params;
@@ -97,21 +80,9 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ stampId: string }> },
 ) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
+  return withAuthenticatedUser(request, async ({ userId, getProfile }) => {
     try {
-      const userId = session.getUserId();
-      const user = await supertokens.getUser(userId);
-      await upsertUserProfile(userId, user?.emails[0] ?? null);
+      await getProfile();
       const activePostalEntitySetting =
         await requireActivePostalEntitySetting(userId);
       const { stampId } = await context.params;

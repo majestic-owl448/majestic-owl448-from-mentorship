@@ -1,29 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import supertokens from "supertokens-node";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
-import { upsertUserProfile } from "@/lib/userProfile";
-
-ensureSuperTokensInit();
+import { withAuthenticatedUser } from "@/lib/auth";
 
 export function withModerator(
   request: NextRequest,
   handler: (moderatorId: string) => Promise<Response>,
 ) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
-    const userId = session.getUserId();
-    const user = await supertokens.getUser(userId);
-    const profile = await upsertUserProfile(userId, user?.emails[0] ?? null);
+  return withAuthenticatedUser(request, async ({ userId, getProfile }) => {
+    const profile = await getProfile();
     if (profile.role !== "MODERATOR") {
       return NextResponse.json(
         { error: "Moderator access required" },

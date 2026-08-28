@@ -1,26 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import {
   activatePostalEntitySetting,
   localDateInTimeZone,
   PostalEntitySettingNotFoundError,
 } from "@/lib/postalEntitySettings";
 
-ensureSuperTokensInit();
-
 export async function PATCH(request: NextRequest) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
+  return withAuthenticatedUser(request, async ({ userId }) => {
     let body: unknown;
     try {
       body = await request.json();
@@ -45,7 +32,7 @@ export async function PATCH(request: NextRequest) {
 
     try {
       const activePostalEntitySetting = await activatePostalEntitySetting(
-        session.getUserId(),
+        userId,
         settingId
       );
       return NextResponse.json({

@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { redirectToAuth } from "supertokens-auth-react";
-import { signOut, useSessionContext } from "supertokens-auth-react/recipe/session";
+import {
+  signOutAppSession,
+  useAppSession,
+} from "@/app/hooks/useAppSession";
+import { isDevelopmentAuthClientEnabled } from "@/lib/developmentAuth";
 
 const buttonClass =
   "flex h-12 w-full items-center justify-center rounded-full px-5 text-base font-medium transition-colors md:w-[158px]";
@@ -12,7 +17,7 @@ const secondaryClass = `${buttonClass} border border-solid border-black/[.08] ho
 
 export function AuthButtons() {
   const router = useRouter();
-  const session = useSessionContext();
+  const session = useAppSession();
   const [displayName, setDisplayName] = useState<{
     userId: string;
     value: string;
@@ -48,6 +53,27 @@ export function AuthButtons() {
   }
 
   if (!session.doesSessionExist) {
+    if (isDevelopmentAuthClientEnabled()) {
+      return (
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <Link
+            className={primaryClass}
+            href="/api/dev-auth/user"
+            prefetch={false}
+          >
+            Use normal test user
+          </Link>
+          <Link
+            className={secondaryClass}
+            href="/api/dev-auth/moderator"
+            prefetch={false}
+          >
+            Use moderator test user
+          </Link>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col gap-4 sm:flex-row">
         <button className={primaryClass} onClick={() => redirectToAuth({ show: "signup" })}>
@@ -61,7 +87,7 @@ export function AuthButtons() {
   }
 
   async function onSignOut() {
-    await signOut();
+    await signOutAppSession();
     router.refresh();
   }
 

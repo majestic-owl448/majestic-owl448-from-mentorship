@@ -20,6 +20,32 @@ Replace the placeholder SuperTokens and social login credentials in `.env` with
 values for your own development apps. The local site runs at
 [http://localhost:3000](http://localhost:3000).
 
+### Local role testing
+
+Run the development server with two fixed local profiles when you need to test
+normal-user and moderator behavior without social login:
+
+```bash
+pnpm dev:test-users
+```
+
+This command applies pending migrations to the ignored `data.db.test-users` file,
+clears every application table, seeds `local-test-user` with the `USER` role and
+`local-test-moderator` with the `MODERATOR` role, then starts one server connected
+to that database. No stamps, currencies, postal settings, proposals, or moderation
+records are seeded. Each server start clears records created during the previous
+local test session.
+
+Open [the normal-user login](http://localhost:3000/api/dev-auth/user) in one
+browser or browser profile. Open [the moderator login](http://localhost:3000/api/dev-auth/moderator)
+in a different browser or browser profile. Each login stores its selected fixture
+in that client's HTTP-only cookie, so both clients can use the same server and
+database at the same time.
+
+The bypass requires both development-auth flags and `next dev`. Production builds
+ignore it and continue to require a SuperTokens session. Use `pnpm dev` when you
+want to test the normal Google or Apple login flow.
+
 ## Project checks
 
 Run all three checks before committing a functional change:

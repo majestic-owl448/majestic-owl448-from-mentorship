@@ -1,25 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import { searchNamedFaceValues } from "@/lib/namedFaceValue";
 import { countryOptions } from "@/lib/postalEntitySettingValidation";
-
-ensureSuperTokensInit();
 
 const countryCodes = new Set(countryOptions().map(({ value }) => value));
 
 export async function GET(request: NextRequest) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
+  return withAuthenticatedUser(request, async ({ userId }) => {
     const countryCode = (
       request.nextUrl.searchParams.get("countryCode") ?? ""
     )
@@ -37,7 +24,7 @@ export async function GET(request: NextRequest) {
       namedFaceValues: await searchNamedFaceValues(
         countryCode,
         query,
-        session.getUserId(),
+        userId,
       ),
     });
   });

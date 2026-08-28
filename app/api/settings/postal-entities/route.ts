@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import supertokens from "supertokens-node";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import {
   addExistingPostalEntitySetting,
   PostalEntitySettingAlreadyExistsError,
@@ -12,22 +10,9 @@ import {
   validateInitialPostalEntitySetting,
   validatePostalEntitySettingValues,
 } from "@/lib/postalEntitySettingValidation";
-import { upsertUserProfile } from "@/lib/userProfile";
-
-ensureSuperTokensInit();
 
 export async function POST(request: NextRequest) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
+  return withAuthenticatedUser(request, async ({ userId, getProfile }) => {
     let body: unknown;
     try {
       body = await request.json();
@@ -54,10 +39,7 @@ export async function POST(request: NextRequest) {
     if (errors) {
       return NextResponse.json({ errors }, { status: 400 });
     }
-    const userId = session.getUserId();
-    const user = await supertokens.getUser(userId);
-    await upsertUserProfile(userId, user?.emails[0] ?? null);
-
+    await getProfile();
     try {
       let postalEntitySetting;
       if (existingValidation?.data) {

@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:test-users": "DATABASE_URL='file:./data.db.test-users' pnpm db:init && pnpm db:seed:test-users && DATABASE_URL='file:./data.db.test-users' DEV_AUTH_ENABLED=true NEXT_PUBLIC_DEV_AUTH_ENABLED=true next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
     "db:init": "prisma migrate deploy",
     "db:migrate": "prisma migrate dev",
+    "db:seed:test-users": "DATABASE_URL='file:./data.db.test-users' tsx scripts/seedDevelopmentUsers.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -36,6 +38,7 @@
     "jsdom": "^30.0.1",
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.0.18"
   }
