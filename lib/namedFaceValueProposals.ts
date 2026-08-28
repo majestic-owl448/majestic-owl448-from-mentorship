@@ -102,29 +102,29 @@ export async function createValueProposal(
   input: ValueProposalInput,
   localDate: string,
 ) {
-  if (input.targetNamedFaceValueId) {
-    const target = await prisma.namedFaceValue.findUnique({
-      where: { id: input.targetNamedFaceValueId },
-      select: { id: true },
-    });
-    if (!target) {
-      throw new ProposalTargetError("targetNamedFaceValueId");
-    }
-  } else {
-    const target = await prisma.namedFaceValueDefinitionProposal.findFirst({
-      where: {
-        id: input.definitionProposalId as string,
-        submittedById: userId,
-        status: "PENDING",
-      },
-      select: { id: true },
-    });
-    if (!target) {
-      throw new ProposalTargetError("definitionProposalId");
-    }
-  }
-
   return prisma.$transaction(async (tx) => {
+    if (input.targetNamedFaceValueId) {
+      const target = await tx.namedFaceValue.findUnique({
+        where: { id: input.targetNamedFaceValueId },
+        select: { id: true },
+      });
+      if (!target) {
+        throw new ProposalTargetError("targetNamedFaceValueId");
+      }
+    } else {
+      const target = await tx.namedFaceValueDefinitionProposal.updateMany({
+        where: {
+          id: input.definitionProposalId as string,
+          submittedById: userId,
+          status: "PENDING",
+        },
+        data: { status: "PENDING" },
+      });
+      if (target.count !== 1) {
+        throw new ProposalTargetError("definitionProposalId");
+      }
+    }
+
     const proposal = await tx.namedFaceValueValueProposal.create({
       data: {
         submittedById: userId,

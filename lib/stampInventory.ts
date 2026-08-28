@@ -298,57 +298,59 @@ export async function createStamp(
   userId: string,
   input: NewStampInput,
 ) {
-  const availableEntity = await prisma.userPostalEntitySetting.findFirst({
-    where: {
-      userId,
-      postalEntityId: input.postalEntityId,
-      postalEntity: {
-        countryCode: input.countryCode,
-        OR: [
-          { status: "APPROVED" },
-          { status: "PENDING", submittedById: userId },
-        ],
+  return prisma.$transaction(async (tx) => {
+    const availableEntity = await tx.userPostalEntitySetting.findFirst({
+      where: {
+        userId,
+        postalEntityId: input.postalEntityId,
+        postalEntity: {
+          countryCode: input.countryCode,
+          OR: [
+            { status: "APPROVED" },
+            { status: "PENDING", submittedById: userId },
+          ],
+        },
       },
-    },
-    select: { id: true },
-  });
-  if (!availableEntity) {
-    throw new StampPostalEntityError();
-  }
-
-  if (input.faceValueType === "NAMED") {
-    const availableNamedFaceValue = input.namedFaceValueId
-      ? await prisma.namedFaceValue.findUnique({
-          where: {
-            id_countryCode: {
-              id: input.namedFaceValueId,
-              countryCode: input.countryCode,
-            },
-          },
-          select: { id: true },
-        })
-      : await prisma.namedFaceValueDefinitionProposal.findFirst({
-          where: {
-            id: input.namedFaceValueProposalId as string,
-            countryCode: input.countryCode,
-            submittedById: userId,
-            status: "PENDING",
-          },
-          select: { id: true },
-        });
-    if (!availableNamedFaceValue) {
-      throw new StampNamedFaceValueError();
+      select: { id: true },
+    });
+    if (!availableEntity) {
+      throw new StampPostalEntityError();
     }
-  }
 
-  return prisma.stampInventoryEntry.create({
-    data: { userId, ...input },
-    include: {
-      postalEntity: true,
-      namedFaceValue: true,
-      namedFaceValueProposal: true,
-      proposalActions: { where: { resolvedAt: null } },
-    },
+    if (input.faceValueType === "NAMED") {
+      const availableNamedFaceValue = input.namedFaceValueId
+        ? (await tx.namedFaceValue.findUnique({
+            where: {
+              id_countryCode: {
+                id: input.namedFaceValueId,
+                countryCode: input.countryCode,
+              },
+            },
+            select: { id: true },
+          })) !== null
+        : (await tx.namedFaceValueDefinitionProposal.updateMany({
+            where: {
+              id: input.namedFaceValueProposalId as string,
+              countryCode: input.countryCode,
+              submittedById: userId,
+              status: "PENDING",
+            },
+            data: { status: "PENDING" },
+          })).count === 1;
+      if (!availableNamedFaceValue) {
+        throw new StampNamedFaceValueError();
+      }
+    }
+
+    return tx.stampInventoryEntry.create({
+      data: { userId, ...input },
+      include: {
+        postalEntity: true,
+        namedFaceValue: true,
+        namedFaceValueProposal: true,
+        proposalActions: { where: { resolvedAt: null } },
+      },
+    });
   });
 }
 

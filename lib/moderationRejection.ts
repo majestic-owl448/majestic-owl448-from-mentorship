@@ -96,11 +96,30 @@ async function markReferencedInventory(
     const proposal = await tx.namedFaceValueValueProposal.findUniqueOrThrow({
       where: { id: proposalId },
       select: {
+        id: true,
         submittedById: true,
         namedFaceValueId: true,
         definitionProposalId: true,
+        effectiveOn: true,
+        createdAt: true,
       },
     });
+    const supersedingProposal =
+      await tx.namedFaceValueValueProposal.findFirst({
+        where: {
+          status: "PENDING",
+          submittedById: proposal.submittedById,
+          namedFaceValueId: proposal.namedFaceValueId,
+          definitionProposalId: proposal.definitionProposalId,
+          effectiveOn: proposal.effectiveOn,
+          OR: [
+            { createdAt: { gt: proposal.createdAt } },
+            { createdAt: proposal.createdAt, id: { gt: proposal.id } },
+          ],
+        },
+        select: { id: true },
+      });
+    if (supersedingProposal) return;
     const stamps = await tx.stampInventoryEntry.findMany({
       where: {
         userId: proposal.submittedById,
@@ -124,11 +143,27 @@ async function markReferencedInventory(
   const proposal = await tx.currencyConversionProposal.findUniqueOrThrow({
     where: { id: proposalId },
     select: {
+      id: true,
       submittedById: true,
       fromCurrencyCode: true,
       toCurrencyCode: true,
+      createdAt: true,
     },
   });
+  const supersedingProposal = await tx.currencyConversionProposal.findFirst({
+    where: {
+      status: "PENDING",
+      submittedById: proposal.submittedById,
+      fromCurrencyCode: proposal.fromCurrencyCode,
+      toCurrencyCode: proposal.toCurrencyCode,
+      OR: [
+        { createdAt: { gt: proposal.createdAt } },
+        { createdAt: proposal.createdAt, id: { gt: proposal.id } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (supersedingProposal) return;
   const matchingPostalEntities = await tx.userPostalEntitySetting.findMany({
     where: {
       userId: proposal.submittedById,

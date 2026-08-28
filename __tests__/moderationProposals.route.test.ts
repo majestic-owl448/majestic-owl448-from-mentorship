@@ -37,7 +37,12 @@ import {
   createDefinitionProposal,
   createValueProposal,
 } from "@/lib/namedFaceValueProposals";
-import { listStamps, updateStamp as updateStampRecord } from "@/lib/stampInventory";
+import { rejectModerationProposal } from "@/lib/moderationRejection";
+import {
+  createStamp,
+  listStamps,
+  updateStamp as updateStampRecord,
+} from "@/lib/stampInventory";
 
 function queueRequest(query = "") {
   return new NextRequest(`http://localhost/api/moderation/proposals${query}`);
@@ -642,6 +647,214 @@ describe("moderation proposal API", () => {
         }),
       ]);
     }
+  });
+
+  it("keeps definition rejection atomic with new private references", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "creation-race-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    const definition = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "creation-race-definition",
+        submittedById: "proposer",
+        countryCode: "IT",
+        displayCode: "Race definition",
+        normalizedCode: "race definition",
+        currencyCode: "EUR",
+        sourceNote: "Unverified source",
+      },
+    });
+    const stampInput = {
+      countryCode: "IT",
+      postalEntityId: "private-postal-entity",
+      name: "Creation race stamp",
+      yearOfIssue: null,
+      faceValueType: "NAMED" as const,
+      faceAmount: null,
+      faceCurrencyCode: null,
+      namedFaceValueId: null,
+      namedFaceValueProposalId: definition.id,
+      manualPostageAmount: null,
+      manualPostageCurrencyCode: null,
+      quantityOwned: 1,
+      quantityAnnulled: 0,
+      expired: false,
+    };
+
+    const [stampResult, valueResult, rejectionResult] = await Promise.allSettled([
+      createStamp("proposer", stampInput),
+      createValueProposal(
+        "proposer",
+        {
+          proposalType: "VALUE",
+          targetNamedFaceValueId: null,
+          definitionProposalId: definition.id,
+          amount: "1.5",
+          effectiveOn: null,
+          sourceUrl: null,
+          sourceNote: "Unverified source",
+        },
+        "2026-08-28",
+      ),
+      rejectModerationProposal(
+        "NAMED_DEFINITION",
+        definition.id,
+        "moderator",
+        "The source is unsupported.",
+      ),
+    ]);
+
+    expect(rejectionResult.status).toBe("fulfilled");
+    expect(
+      await prisma.namedFaceValueDefinitionProposal.findUniqueOrThrow({
+        where: { id: definition.id },
+        select: { status: true },
+      }),
+    ).toEqual({ status: "REJECTED" });
+    if (stampResult.status === "fulfilled") {
+      expect(
+        await prisma.stampProposalAction.findFirst({
+          where: {
+            stampId: stampResult.value.id,
+            namedDefinitionProposalId: definition.id,
+            resolvedAt: null,
+          },
+        }),
+      ).not.toBeNull();
+    }
+    if (valueResult.status === "fulfilled") {
+      expect(
+        await prisma.namedFaceValueValueProposal.findUniqueOrThrow({
+          where: { id: valueResult.value.id },
+          select: { actionRequired: true },
+        }),
+      ).toEqual({ actionRequired: true });
+    }
+  });
+
+  it("does not block inventory when a rejected duplicate was superseded", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "superseded-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    const oldValue = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "older-duplicate-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.4",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Older source",
+        createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "newer-duplicate-value",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-b",
+        amount: "1.5",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Newer source",
+        createdAt: new Date("2026-08-28T09:00:00.000Z"),
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "superseded-conversion-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Superseded conversion stamp",
+        faceValueType: "MONETARY",
+        faceAmount: "2",
+        faceCurrencyCode: "USD",
+        quantityOwned: 1,
+      },
+    });
+    const oldConversion = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "older-duplicate-conversion",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.92",
+        sourceNote: "Older source",
+        createdAt: new Date("2026-08-28T08:00:00.000Z"),
+      },
+    });
+    await prisma.currencyConversionProposal.create({
+      data: {
+        id: "newer-duplicate-conversion",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.93",
+        sourceNote: "Newer source",
+        createdAt: new Date("2026-08-28T09:00:00.000Z"),
+      },
+    });
+
+    await rejectModerationProposal(
+      "NAMED_VALUE",
+      oldValue.id,
+      "moderator",
+      "Superseded submission.",
+    );
+    await rejectModerationProposal(
+      "FIXED_CONVERSION",
+      oldConversion.id,
+      "moderator",
+      "Superseded submission.",
+    );
+
+    expect(
+      await prisma.stampProposalAction.findMany({
+        where: {
+          resolvedAt: null,
+          OR: [
+            { namedValueProposalId: oldValue.id },
+            { currencyConversionProposalId: oldConversion.id },
+          ],
+        },
+      }),
+    ).toEqual([]);
+    const inventory = await listStamps("proposer", {
+      displayCurrencyCode: "EUR",
+      timeZone: "Europe/Rome",
+      postalEntity: { countryCode: "IT" },
+    });
+    expect(inventory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "private-inventory-entry",
+          actionRequired: false,
+          unitPostageValue: expect.objectContaining({ amount: "1.5" }),
+        }),
+        expect.objectContaining({
+          id: "superseded-conversion-stamp",
+          actionRequired: false,
+          unitPostageValue: expect.objectContaining({ amount: "1.86" }),
+        }),
+      ]),
+    );
   });
 
   it("keeps a stamp blocked until every overlapping rejection is resolved", async () => {
