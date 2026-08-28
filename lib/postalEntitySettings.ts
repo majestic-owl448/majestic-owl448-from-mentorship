@@ -55,8 +55,26 @@ export class PostalEntitySettingRequiredError extends Error {
   }
 }
 
+export class PostalEntityCountryChangeError extends Error {
+  constructor() {
+    super(
+      "Replace or remove linked named face-value stamps before changing the postal entity country.",
+    );
+    this.name = "PostalEntityCountryChangeError";
+  }
+}
+
+const postalEntityPublicSelect = {
+  id: true,
+  name: true,
+  countryCode: true,
+  issuingAuthority: true,
+  scope: true,
+  status: true,
+} satisfies Prisma.PostalEntitySelect;
+
 const settingWithEntity = {
-  postalEntity: true,
+  postalEntity: { select: postalEntityPublicSelect },
 } satisfies Prisma.UserPostalEntitySettingInclude;
 
 function isAvailableEntity(userId: string) {
@@ -254,6 +272,7 @@ export const createInitialPostalEntitySetting = createPostalEntitySetting;
 export async function listAvailablePostalEntities(userId: string) {
   return prisma.postalEntity.findMany({
     where: isAvailableEntity(userId),
+    select: postalEntityPublicSelect,
     orderBy: [{ countryCode: "asc" }, { name: "asc" }, { id: "asc" }],
   });
 }
@@ -304,6 +323,14 @@ export async function replaceRejectedPostalEntity(
         });
     if (!replacementEntity) throw new PostalEntityUnavailableError();
 
+    await ensurePostalEntityCountryChange(
+      transaction,
+      userId,
+      setting.postalEntityId,
+      setting.postalEntity.countryCode,
+      replacementEntity.countryCode,
+    );
+
     const duplicate = await transaction.userPostalEntitySetting.findUnique({
       where: {
         userId_postalEntityId: {
@@ -331,4 +358,26 @@ export async function replaceRejectedPostalEntity(
       include: settingWithEntity,
     });
   });
+}
+
+export async function ensurePostalEntityCountryChange(
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  postalEntityId: string,
+  currentCountryCode: string,
+  replacementCountryCode: string,
+) {
+  if (currentCountryCode === replacementCountryCode) return;
+  const linkedNamedStamp = await transaction.stampInventoryEntry.findFirst({
+    where: {
+      userId,
+      postalEntityId,
+      OR: [
+        { namedFaceValueId: { not: null } },
+        { namedFaceValueProposalId: { not: null } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (linkedNamedStamp) throw new PostalEntityCountryChangeError();
 }

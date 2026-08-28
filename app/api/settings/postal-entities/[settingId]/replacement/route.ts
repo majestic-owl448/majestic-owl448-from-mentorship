@@ -4,6 +4,7 @@ import { ensureSuperTokensInit } from "@/app/config/backend";
 import { prisma } from "@/lib/db";
 import {
   PostalEntitySettingAlreadyExistsError,
+  PostalEntityCountryChangeError,
   PostalEntitySettingNotFoundError,
   PostalEntityUnavailableError,
   replaceRejectedPostalEntity,
@@ -66,6 +67,9 @@ export async function POST(
         return NextResponse.json({ error: caught.message }, { status: 400 });
       }
       if (caught instanceof PostalEntitySettingAlreadyExistsError) {
+        return NextResponse.json({ error: caught.message }, { status: 409 });
+      }
+      if (caught instanceof PostalEntityCountryChangeError) {
         return NextResponse.json({ error: caught.message }, { status: 409 });
       }
       throw caught;

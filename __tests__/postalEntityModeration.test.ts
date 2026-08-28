@@ -6,6 +6,7 @@ import {
   replaceRejectedPostalEntity,
   requireActivePostalEntitySetting,
   PostalEntitySettingRequiredError,
+  PostalEntityCountryChangeError,
 } from "@/lib/postalEntitySettings";
 import {
   approvePostalEntity,
@@ -34,6 +35,12 @@ async function createUser(id: string, role: "USER" | "MODERATOR" = "USER") {
 describe("postal entity moderation", () => {
   beforeEach(async () => {
     await prisma.stampInventoryEntry.deleteMany();
+    await prisma.namedFaceValueValueProposal.deleteMany();
+    await prisma.namedFaceValueDefinitionProposal.deleteMany();
+    await prisma.namedFaceValue.deleteMany();
+    await prisma.valueScheduleValue.deleteMany();
+    await prisma.valueSchedule.deleteMany();
+    await prisma.currency.deleteMany();
     await prisma.userProfile.updateMany({ data: { activePostalEntitySettingId: null } });
     await prisma.userPostalEntitySetting.deleteMany();
     await prisma.postalEntity.updateMany({ data: { mergedIntoId: null } });
@@ -198,5 +205,92 @@ describe("postal entity moderation", () => {
     expect(replacement.postalEntity.status).toBe("PENDING");
     await expect(requireActivePostalEntitySetting("proposer")).resolves.toMatchObject({ id: setting.id });
     await expect(prisma.stampInventoryEntry.findUniqueOrThrow({ where: { id: stamp.id } })).resolves.toMatchObject({ postalEntityId: replacement.postalEntityId, countryCode: "US" });
+  });
+
+  it("blocks country changes while linked stamps retain country-bound named references", async () => {
+    await Promise.all([createUser("proposer"), createUser("moderator", "MODERATOR")]);
+    await prisma.currency.create({ data: { code: "CAD", displayName: "Canadian Dollar" } });
+    const schedule = await prisma.valueSchedule.create({
+      data: { countryCode: "CA", currencyCode: "CAD" },
+    });
+    const approvedNamed = await prisma.namedFaceValue.create({
+      data: {
+        countryCode: "CA",
+        displayCode: "P",
+        normalizedCode: "p",
+        valueScheduleId: schedule.id,
+      },
+    });
+    const pendingNamed = await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        submittedById: "proposer",
+        countryCode: "CA",
+        displayCode: "Oversize",
+        normalizedCode: "oversize",
+        currencyCode: "CAD",
+        sourceNote: "Postal bulletin",
+      },
+    });
+    const setting = await createPostalEntitySetting("proposer", {
+      ...baseSubmission,
+      countryCode: "CA",
+    });
+    await prisma.stampInventoryEntry.createMany({
+      data: [
+        {
+          userId: "proposer",
+          countryCode: "CA",
+          postalEntityId: setting.postalEntityId,
+          name: "Approved named stamp",
+          faceValueType: "NAMED",
+          namedFaceValueId: approvedNamed.id,
+          quantityOwned: 1,
+        },
+        {
+          userId: "proposer",
+          countryCode: "CA",
+          postalEntityId: setting.postalEntityId,
+          name: "Pending named stamp",
+          faceValueType: "NAMED",
+          namedFaceValueProposalId: pendingNamed.id,
+          quantityOwned: 1,
+        },
+      ],
+    });
+    const target = await prisma.postalEntity.create({
+      data: {
+        name: "United States Postal Service",
+        normalizedName: "united states postal service",
+        countryCode: "US",
+        status: "APPROVED",
+      },
+    });
+
+    await expect(
+      approvePostalEntity(
+        setting.postalEntityId,
+        "moderator",
+        "Correct submitted country.",
+        { ...baseSubmission, sourceNote: "Verified correction." },
+      ),
+    ).rejects.toBeInstanceOf(PostalEntityCountryChangeError);
+    await expect(
+      mergePostalEntity(
+        setting.postalEntityId,
+        target.id,
+        "moderator",
+        "Match corrected canonical entity.",
+      ),
+    ).rejects.toBeInstanceOf(PostalEntityCountryChangeError);
+    await expect(prisma.postalEntity.findUniqueOrThrow({ where: { id: setting.postalEntityId } })).resolves.toMatchObject({ status: "PENDING", countryCode: "CA" });
+
+    await rejectPostalEntity(setting.postalEntityId, "moderator", "User must replace named references first.");
+    await expect(
+      replaceRejectedPostalEntity("proposer", setting.id, { postalEntityId: target.id }),
+    ).rejects.toBeInstanceOf(PostalEntityCountryChangeError);
+    await expect(prisma.stampInventoryEntry.findMany({
+      where: { postalEntityId: setting.postalEntityId },
+      orderBy: { name: "asc" },
+    })).resolves.toHaveLength(2);
   });
 });

@@ -25,6 +25,7 @@ import {
   mergePostalEntity,
   rejectPostalEntity,
 } from "@/lib/postalEntityModeration";
+import { PostalEntityCountryChangeError } from "@/lib/postalEntitySettings";
 
 export async function GET(
   request: NextRequest,
@@ -143,7 +144,8 @@ export async function POST(
       if (
         caught instanceof ProposalAlreadyDecidedError ||
         caught instanceof ApprovalTargetError ||
-        caught instanceof MergeTargetError
+        caught instanceof MergeTargetError ||
+        caught instanceof PostalEntityCountryChangeError
       ) {
         return NextResponse.json({ error: caught.message }, { status: 409 });
       }

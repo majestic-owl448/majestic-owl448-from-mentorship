@@ -9,6 +9,7 @@ import {
   MergeTargetError,
 } from "@/lib/moderationMerge";
 import { validatePostalEntitySubmission } from "@/lib/postalEntitySettingValidation";
+import { ensurePostalEntityCountryChange } from "@/lib/postalEntitySettings";
 
 type Transaction = Prisma.TransactionClient;
 
@@ -65,6 +66,15 @@ export async function approvePostalEntity(
     const entity = await tx.postalEntity.findUniqueOrThrow({
       where: { id: proposalId },
     });
+    if (entity.submittedById) {
+      await ensurePostalEntityCountryChange(
+        tx,
+        entity.submittedById,
+        entity.id,
+        entity.countryCode,
+        corrected.countryCode,
+      );
+    }
     await tx.postalEntity.update({
       where: { id: entity.id },
       data: {
@@ -114,6 +124,13 @@ export async function mergePostalEntity(
     }
     const proposerId = proposal.submittedById;
     if (proposerId) {
+      await ensurePostalEntityCountryChange(
+        tx,
+        proposerId,
+        proposal.id,
+        proposal.countryCode,
+        target.countryCode,
+      );
       await tx.stampInventoryEntry.updateMany({
         where: { userId: proposerId, postalEntityId: proposal.id },
         data: { postalEntityId: target.id, countryCode: target.countryCode },

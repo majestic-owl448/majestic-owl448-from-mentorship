@@ -112,7 +112,7 @@ describe("postal entity settings", () => {
     await expect(requireActivePostalEntitySetting("first-user")).resolves.toMatchObject(
       {
         userId: "first-user",
-        postalEntity: { submittedById: "first-user", status: "PENDING" },
+        postalEntity: { name: "Poste Italiane", status: "PENDING" },
       }
     );
   });
