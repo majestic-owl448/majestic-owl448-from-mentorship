@@ -82,7 +82,7 @@ async function seedDeletionScenario() {
         status: "APPROVED",
         submittedById: "other-user",
         moderatedById: "other-user",
-        sourceNote: "Other source",
+        sourceNote: "Other source mentions delete@example.com",
       },
     ],
   });
@@ -276,7 +276,7 @@ async function seedDeletionScenario() {
         fromCurrencyCode: "USD",
         toCurrencyCode: "EUR",
         multiplier: "0.92",
-        sourceNote: "Other conversion source",
+        sourceNote: "Other conversion source for deleting-user",
       },
       {
         id: "other-moderated-conversion",
@@ -448,6 +448,14 @@ describe("account deletion", () => {
       submittedById: "other-user",
       status: "PENDING",
       multiplier: "0.92",
+      sourceNote: "Other conversion source for [deleted account]",
+    });
+    await expect(
+      prisma.postalEntity.findUniqueOrThrow({ where: { id: "other-post" } }),
+    ).resolves.toMatchObject({
+      submittedById: "other-user",
+      moderatedById: "other-user",
+      sourceNote: "Other source mentions [deleted account]",
     });
     await expect(
       prisma.currencyConversionProposal.findUniqueOrThrow({
@@ -482,5 +490,56 @@ describe("account deletion", () => {
       upsertUserProfile("blocked-user", "blocked@example.com"),
     ).rejects.toBeInstanceOf(AccountAccessBlockedError);
     expect(identityDeletion.deleteIdentity).not.toHaveBeenCalled();
+  });
+
+  it("removes a private proposal written after the first cleanup pass", async () => {
+    await prisma.userProfile.create({
+      data: { id: "racing-user", email: "racing@example.com" },
+    });
+    await prisma.currency.createMany({
+      data: [
+        { code: "EUR", displayName: "Euro" },
+        { code: "USD", displayName: "US dollar" },
+      ],
+    });
+    let identityDeletionStarted!: () => void;
+    let finishIdentityDeletion!: () => void;
+    const reachedIdentityDeletion = new Promise<void>((resolve) => {
+      identityDeletionStarted = resolve;
+    });
+    const identityDeletionMayFinish = new Promise<void>((resolve) => {
+      finishIdentityDeletion = resolve;
+    });
+    const identityDeletion: AccountIdentityDeletion = {
+      revokeSessions: vi.fn(async () => undefined),
+      deleteIdentity: vi.fn(async () => {
+        identityDeletionStarted();
+        await identityDeletionMayFinish;
+      }),
+    };
+
+    const deletion = deleteAccount("racing-user", identityDeletion);
+    await reachedIdentityDeletion;
+    await prisma.currencyConversionProposal.create({
+      data: {
+        id: "late-private-proposal",
+        submittedById: "racing-user",
+        fromCurrencyCode: "EUR",
+        toCurrencyCode: "USD",
+        multiplier: "1.1",
+        sourceNote: "Late private proposal",
+      },
+    });
+    finishIdentityDeletion();
+    await deletion;
+
+    await expect(
+      prisma.currencyConversionProposal.findUnique({
+        where: { id: "late-private-proposal" },
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.userProfile.findUnique({ where: { id: "racing-user" } }),
+    ).resolves.toBeNull();
   });
 });

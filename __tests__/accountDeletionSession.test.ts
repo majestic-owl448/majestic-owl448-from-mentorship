@@ -78,6 +78,22 @@ describe("account deletion session block", () => {
     original.getSession.mockResolvedValue(session);
 
     await expect(functions.getSession({})).resolves.toBeUndefined();
+    expect(original.getSession).toHaveBeenCalledWith({
+      options: { checkDatabase: true },
+    });
+  });
+
+  it("requires a core check after the deletion job has been removed", async () => {
+    const staleSession = { getUserId: () => "deleted-user" };
+    const { functions, original } = overriddenFunctions();
+    original.getSession.mockImplementation(async (input) =>
+      input.options?.checkDatabase ? undefined : staleSession,
+    );
+
+    await expect(functions.getSession({})).resolves.toBeUndefined();
+    expect(original.getSession).toHaveBeenCalledWith({
+      options: { checkDatabase: true },
+    });
   });
 
   it("retries deletion before rejecting a refreshed session", async () => {

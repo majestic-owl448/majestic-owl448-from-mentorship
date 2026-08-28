@@ -71,7 +71,10 @@ export function backendConfig(): TypeInput {
               return original.createNewSession(input);
             },
             getSession: async (input) => {
-              const session = await original.getSession(input);
+              const session = await original.getSession({
+                ...input,
+                options: { ...input.options, checkDatabase: true },
+              });
               if (
                 session &&
                 (await isAccountDeletionPending(session.getUserId()))

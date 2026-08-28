@@ -53,6 +53,39 @@ async function anonymizePreservedRecords(
   const identifiers = [userId, email].filter(
     (value): value is string => value !== null && value.length > 0,
   );
+  const postalTextReferences = identifiers.flatMap<Prisma.PostalEntityWhereInput>(
+    (identifier) => [
+      { sourceUrl: { contains: identifier } },
+      { sourceNote: { contains: identifier } },
+      { submittedSourceUrl: { contains: identifier } },
+      { submittedSourceNote: { contains: identifier } },
+      { decisionNote: { contains: identifier } },
+    ],
+  );
+  const definitionTextReferences =
+    identifiers.flatMap<Prisma.NamedFaceValueDefinitionProposalWhereInput>(
+      (identifier) => [
+        { sourceUrl: { contains: identifier } },
+        { sourceNote: { contains: identifier } },
+        { decisionNote: { contains: identifier } },
+      ],
+    );
+  const valueTextReferences =
+    identifiers.flatMap<Prisma.NamedFaceValueValueProposalWhereInput>(
+      (identifier) => [
+        { sourceUrl: { contains: identifier } },
+        { sourceNote: { contains: identifier } },
+        { decisionNote: { contains: identifier } },
+      ],
+    );
+  const conversionTextReferences =
+    identifiers.flatMap<Prisma.CurrencyConversionProposalWhereInput>(
+      (identifier) => [
+        { sourceUrl: { contains: identifier } },
+        { sourceNote: { contains: identifier } },
+        { decisionNote: { contains: identifier } },
+      ],
+    );
   const [postalEntities, definitions, values, conversions] = await Promise.all([
     tx.postalEntity.findMany({
       where: {
@@ -62,6 +95,7 @@ async function anonymizePreservedRecords(
             status: { in: ["APPROVED", "MERGED"] },
           },
           { moderatedById: userId },
+          ...postalTextReferences,
         ],
       },
     }),
@@ -73,6 +107,7 @@ async function anonymizePreservedRecords(
             status: { in: ["APPROVED", "MERGED"] },
           },
           { moderatedById: userId },
+          ...definitionTextReferences,
         ],
       },
     }),
@@ -84,6 +119,7 @@ async function anonymizePreservedRecords(
             status: { in: ["APPROVED", "MERGED"] },
           },
           { moderatedById: userId },
+          ...valueTextReferences,
         ],
       },
     }),
@@ -95,6 +131,7 @@ async function anonymizePreservedRecords(
             status: { in: ["APPROVED", "MERGED"] },
           },
           { moderatedById: userId },
+          ...conversionTextReferences,
         ],
       },
     }),
@@ -257,6 +294,7 @@ export async function processAccountDeletionJob(
     );
     await identityDeletion.deleteIdentity(userId);
     await prisma.$transaction(async (tx) => {
+      await deletePrivateAccountData(tx, userId, profile?.email ?? null);
       await tx.userProfile.deleteMany({ where: { id: userId } });
       await tx.accountDeletionJob.deleteMany({ where: { userId } });
     });
