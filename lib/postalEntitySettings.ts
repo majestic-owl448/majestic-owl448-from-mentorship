@@ -11,6 +11,20 @@ export type NewPostalEntitySettingInput = PostalEntitySettingValues & {
   postalEntityName: string;
   normalizedPostalEntityName: string;
   countryCode: string;
+  issuingAuthority?: string;
+  scope?: string;
+  sourceUrl?: string | null;
+  sourceNote?: string | null;
+};
+
+export type PostalEntitySubmissionInput = {
+  postalEntityName: string;
+  normalizedPostalEntityName: string;
+  countryCode: string;
+  issuingAuthority: string;
+  scope: string;
+  sourceUrl: string | null;
+  sourceNote: string | null;
 };
 
 export class PostalEntitySettingAlreadyExistsError extends Error {
@@ -41,14 +55,34 @@ export class PostalEntitySettingRequiredError extends Error {
   }
 }
 
+export class PostalEntityCountryChangeError extends Error {
+  constructor() {
+    super(
+      "Replace or remove linked named face-value stamps before changing the postal entity country.",
+    );
+    this.name = "PostalEntityCountryChangeError";
+  }
+}
+
+const postalEntityPublicSelect = {
+  id: true,
+  name: true,
+  countryCode: true,
+  issuingAuthority: true,
+  scope: true,
+  status: true,
+} satisfies Prisma.PostalEntitySelect;
+
 const settingWithEntity = {
-  postalEntity: true,
+  postalEntity: { select: postalEntityPublicSelect },
 } satisfies Prisma.UserPostalEntitySettingInclude;
 
-function isEligiblePendingEntity(userId: string) {
+function isAvailableEntity(userId: string) {
   return {
-    status: "PENDING" as const,
-    submittedById: userId,
+    OR: [
+      { status: "APPROVED" as const },
+      { status: "PENDING" as const, submittedById: userId },
+    ],
   };
 }
 
@@ -73,10 +107,7 @@ export function localDateInTimeZone(timeZone: string, instant = new Date()) {
 
 export async function listPostalEntitySettings(userId: string) {
   return prisma.userPostalEntitySetting.findMany({
-    where: {
-      userId,
-      postalEntity: isEligiblePendingEntity(userId),
-    },
+    where: { userId },
     include: settingWithEntity,
     orderBy: [{ postalEntity: { name: "asc" } }, { createdAt: "asc" }],
   });
@@ -88,7 +119,7 @@ export async function requireActivePostalEntitySetting(userId: string) {
       id: userId,
       activePostalEntitySetting: {
         userId,
-        postalEntity: isEligiblePendingEntity(userId),
+        postalEntity: isAvailableEntity(userId),
       },
     },
     select: {
@@ -115,6 +146,17 @@ export async function createPostalEntitySetting(
         name: input.postalEntityName,
         normalizedName: input.normalizedPostalEntityName,
         countryCode: input.countryCode,
+        issuingAuthority: input.issuingAuthority ?? "",
+        scope: input.scope ?? "",
+        sourceUrl: input.sourceUrl ?? null,
+        sourceNote: input.sourceNote ?? null,
+        submittedName: input.postalEntityName,
+        submittedNormalizedName: input.normalizedPostalEntityName,
+        submittedCountryCode: input.countryCode,
+        submittedIssuingAuthority: input.issuingAuthority ?? "",
+        submittedScope: input.scope ?? "",
+        submittedSourceUrl: input.sourceUrl ?? null,
+        submittedSourceNote: input.sourceNote ?? null,
         submittedById: userId,
       },
     });
@@ -147,7 +189,7 @@ export async function addExistingPostalEntitySetting(
   const postalEntity = await prisma.postalEntity.findFirst({
     where: {
       id: postalEntityId,
-      ...isEligiblePendingEntity(userId),
+      ...isAvailableEntity(userId),
     },
     select: { id: true },
   });
@@ -185,7 +227,7 @@ export async function updatePostalEntitySetting(
     where: {
       id: settingId,
       userId,
-      postalEntity: isEligiblePendingEntity(userId),
+      postalEntity: isAvailableEntity(userId),
     },
     data: input,
   });
@@ -208,7 +250,7 @@ export async function activatePostalEntitySetting(
     where: {
       id: settingId,
       userId,
-      postalEntity: isEligiblePendingEntity(userId),
+      postalEntity: isAvailableEntity(userId),
     },
     include: settingWithEntity,
   });
@@ -226,3 +268,116 @@ export async function activatePostalEntitySetting(
 }
 
 export const createInitialPostalEntitySetting = createPostalEntitySetting;
+
+export async function listAvailablePostalEntities(userId: string) {
+  return prisma.postalEntity.findMany({
+    where: isAvailableEntity(userId),
+    select: postalEntityPublicSelect,
+    orderBy: [{ countryCode: "asc" }, { name: "asc" }, { id: "asc" }],
+  });
+}
+
+export async function replaceRejectedPostalEntity(
+  userId: string,
+  settingId: string,
+  replacement: { postalEntityId: string } | { submission: PostalEntitySubmissionInput },
+) {
+  return prisma.$transaction(async (transaction) => {
+    const setting = await transaction.userPostalEntitySetting.findFirst({
+      where: {
+        id: settingId,
+        userId,
+        postalEntity: { status: "REJECTED", submittedById: userId },
+      },
+      include: { postalEntity: true },
+    });
+    if (!setting) throw new PostalEntitySettingNotFoundError();
+
+    const replacementEntity = "postalEntityId" in replacement
+      ? await transaction.postalEntity.findFirst({
+          where: {
+            id: replacement.postalEntityId,
+            ...isAvailableEntity(userId),
+          },
+        })
+      : await transaction.postalEntity.create({
+          data: {
+            name: replacement.submission.postalEntityName,
+            normalizedName: replacement.submission.normalizedPostalEntityName,
+            countryCode: replacement.submission.countryCode,
+            issuingAuthority: replacement.submission.issuingAuthority,
+            scope: replacement.submission.scope,
+            sourceUrl: replacement.submission.sourceUrl,
+            sourceNote: replacement.submission.sourceNote,
+            submittedName: replacement.submission.postalEntityName,
+            submittedNormalizedName:
+              replacement.submission.normalizedPostalEntityName,
+            submittedCountryCode: replacement.submission.countryCode,
+            submittedIssuingAuthority:
+              replacement.submission.issuingAuthority,
+            submittedScope: replacement.submission.scope,
+            submittedSourceUrl: replacement.submission.sourceUrl,
+            submittedSourceNote: replacement.submission.sourceNote,
+            submittedById: userId,
+          },
+        });
+    if (!replacementEntity) throw new PostalEntityUnavailableError();
+
+    await ensurePostalEntityCountryChange(
+      transaction,
+      userId,
+      setting.postalEntityId,
+      setting.postalEntity.countryCode,
+      replacementEntity.countryCode,
+    );
+
+    const duplicate = await transaction.userPostalEntitySetting.findUnique({
+      where: {
+        userId_postalEntityId: {
+          userId,
+          postalEntityId: replacementEntity.id,
+        },
+      },
+    });
+    if (duplicate && duplicate.id !== setting.id) {
+      throw new PostalEntitySettingAlreadyExistsError(
+        "A setting for the replacement postal entity already exists.",
+      );
+    }
+
+    await transaction.stampInventoryEntry.updateMany({
+      where: { userId, postalEntityId: setting.postalEntityId },
+      data: {
+        postalEntityId: replacementEntity.id,
+        countryCode: replacementEntity.countryCode,
+      },
+    });
+    return transaction.userPostalEntitySetting.update({
+      where: { id: setting.id },
+      data: { postalEntityId: replacementEntity.id },
+      include: settingWithEntity,
+    });
+  });
+}
+
+export async function ensurePostalEntityCountryChange(
+  transaction: Prisma.TransactionClient,
+  userId: string,
+  postalEntityId: string,
+  currentCountryCode: string,
+  replacementCountryCode: string,
+) {
+  if (currentCountryCode === replacementCountryCode) return;
+  const linkedNamedStamp = await transaction.stampInventoryEntry.findFirst({
+    where: {
+      userId,
+      postalEntityId,
+      OR: [
+        { namedFaceValueId: { not: null } },
+        { namedFaceValueProposalId: { not: null } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (linkedNamedStamp) throw new PostalEntityCountryChangeError();
+}

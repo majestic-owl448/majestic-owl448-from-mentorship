@@ -173,11 +173,12 @@ async function presentStampRecord(
               stamp.userId,
             )
           : null;
-  const availableFallback = await resolveUnitPostageValue(
-    stamp,
-    activeCountry,
-    namedValue,
-  );
+  const entityResolves =
+    stamp.postalEntity.status === "PENDING" ||
+    stamp.postalEntity.status === "APPROVED";
+  const availableFallback = entityResolves
+    ? await resolveUnitPostageValue(stamp, activeCountry, namedValue)
+    : null;
   const unitPostageValue = actionRequired ? null : availableFallback;
   const usableQuantity = stamp.expired
     ? 0
@@ -206,6 +207,7 @@ async function presentStampRecord(
       id: stamp.postalEntity.id,
       name: stamp.postalEntity.name,
       countryCode: stamp.postalEntity.countryCode,
+      status: stamp.postalEntity.status,
     },
     name: stamp.name,
     yearOfIssue: stamp.yearOfIssue,
@@ -270,6 +272,7 @@ async function presentStampRecord(
       : unitPostageValue
       ? { status: "RESOLVED" as const, source: unitPostageValue.source }
       : { status: "UNRESOLVED" as const, source: null },
+    requiresPostalEntityReplacement: !entityResolves,
     createdAt: stamp.createdAt.toISOString(),
     updatedAt: stamp.updatedAt.toISOString(),
   };
@@ -301,8 +304,10 @@ export async function createStamp(
       postalEntityId: input.postalEntityId,
       postalEntity: {
         countryCode: input.countryCode,
-        status: "PENDING",
-        submittedById: userId,
+        OR: [
+          { status: "APPROVED" },
+          { status: "PENDING", submittedById: userId },
+        ],
       },
     },
     select: { id: true },

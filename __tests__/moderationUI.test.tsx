@@ -374,4 +374,97 @@ describe("moderation interface", () => {
       }),
     );
   });
+
+  it("labels postal-entity corrections and supports keyboard rejection", async () => {
+    const user = userEvent.setup();
+    const pendingProposal = {
+      id: "postal-entity",
+      proposalType: "POSTAL_ENTITY",
+      status: "PENDING",
+      proposer: { id: "proposer", email: "proposer@example.com" },
+      submittedAt: "2026-08-28T10:00:00.000Z",
+      source: { url: "https://example.com/entity", note: null },
+      decision: null,
+      canonicalTargetId: null,
+      proposedValues: {
+        postalEntityName: "UN-NY",
+        countryCode: "US",
+        issuingAuthority: "UNPA",
+        scope: "New York office",
+        sourceUrl: "https://example.com/entity",
+        sourceNote: null,
+      },
+      currentValues: {
+        postalEntityName: "UN-NY",
+        countryCode: "US",
+        issuingAuthority: "UNPA",
+        scope: "New York office",
+        sourceUrl: "https://example.com/entity",
+        sourceNote: null,
+      },
+      possibleMatches: [],
+      compatibleMergeTargets: [],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ proposal: pendingProposal }))
+      .mockResolvedValueOnce(
+        Response.json({
+          proposal: {
+            ...pendingProposal,
+            status: "REJECTED",
+            decision: {
+              moderator: { id: "moderator", email: "moderator@example.com" },
+              decidedAt: "2026-08-28T11:00:00.000Z",
+              note: "The submitted source does not support this entity.",
+            },
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <ModerationProposalDetail
+        proposalType="POSTAL_ENTITY"
+        proposalId="postal-entity"
+      />,
+    );
+    await screen.findByLabelText("Postal entity name");
+    expect(screen.getByLabelText("Issuing authority")).toBeTruthy();
+    expect(screen.getByLabelText("Geographic or office scope")).toBeTruthy();
+    expect(screen.getByLabelText("Source URL")).toBeTruthy();
+    expect(screen.getByLabelText("Source note")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Reject unsupported or nonsensical data",
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("Decision note"),
+      "The submitted source does not support this entity.",
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /unsupported submission should stop resolving/,
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Reject postal entity" }),
+    );
+    expect(
+      await screen.findByText(
+        "Postal entity rejected. Linked private data now requires replacement.",
+      ),
+    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/moderation/proposals/POSTAL_ENTITY/postal-entity",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          action: "REJECT",
+          decisionNote: "The submitted source does not support this entity.",
+        }),
+      }),
+    );
+  });
 });
