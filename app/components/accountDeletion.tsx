@@ -1,27 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "supertokens-auth-react/recipe/session";
 
 export function AccountDeletion() {
   const router = useRouter();
   const openButton = useRef<HTMLButtonElement>(null);
-  const cancelButton = useRef<HTMLButtonElement>(null);
-  const [confirming, setConfirming] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
   const [confirmation, setConfirmation] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (confirming) cancelButton.current?.focus();
-  }, [confirming]);
-
   function cancel() {
-    setConfirming(false);
+    dialog.current?.close();
     setConfirmation("");
     setError(null);
-    queueMicrotask(() => openButton.current?.focus());
+    openButton.current?.focus();
   }
 
   async function deleteAccount() {
@@ -70,69 +65,70 @@ export function AccountDeletion() {
       <button
         ref={openButton}
         type="button"
-        onClick={() => setConfirming(true)}
+        onClick={() => {
+          setConfirmation("");
+          setError(null);
+          dialog.current?.showModal();
+        }}
         className="h-10 w-fit rounded-full border border-red-700 px-5 text-sm font-medium text-red-800 dark:border-red-400 dark:text-red-300"
       >
         Delete my account
       </button>
 
-      {confirming && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="account-deletion-title"
-          aria-describedby="account-deletion-description"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && !deleting) cancel();
-          }}
-          className="rounded-2xl border border-red-300 p-5 dark:border-red-900"
+      <dialog
+        ref={dialog}
+        aria-labelledby="account-deletion-title"
+        aria-describedby="account-deletion-description"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!deleting) cancel();
+        }}
+        className="m-auto max-w-lg rounded-2xl border border-red-300 bg-background p-5 text-foreground backdrop:bg-black/50 dark:border-red-900"
+      >
+        <h3 id="account-deletion-title" className="text-lg font-semibold">
+          Permanently delete your account?
+        </h3>
+        <p
+          id="account-deletion-description"
+          className="mt-2 text-sm text-zinc-600 dark:text-zinc-400"
         >
-          <h3 id="account-deletion-title" className="text-lg font-semibold">
-            Permanently delete your account?
-          </h3>
-          <p
-            id="account-deletion-description"
-            className="mt-2 text-sm text-zinc-600 dark:text-zinc-400"
+          This removes your sign-in, settings, inventory, and private proposals.
+          This action cannot be undone.
+        </p>
+        <label className="mt-4 flex max-w-sm flex-col gap-2 text-sm font-medium">
+          Type DELETE to confirm
+          <input
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+            disabled={deleting}
+            autoComplete="off"
+            className="h-10 rounded-lg border border-zinc-300 bg-transparent px-3 dark:border-zinc-700"
+          />
+        </label>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={cancel}
+            disabled={deleting}
+            className="h-10 rounded-full border border-zinc-300 px-5 text-sm font-medium dark:border-zinc-700"
           >
-            This removes your sign-in, settings, inventory, and private
-            proposals. This action cannot be undone.
-          </p>
-          <label className="mt-4 flex max-w-sm flex-col gap-2 text-sm font-medium">
-            Type DELETE to confirm
-            <input
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.target.value)}
-              disabled={deleting}
-              autoComplete="off"
-              className="h-10 rounded-lg border border-zinc-300 bg-transparent px-3 dark:border-zinc-700"
-            />
-          </label>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              ref={cancelButton}
-              type="button"
-              onClick={cancel}
-              disabled={deleting}
-              className="h-10 rounded-full border border-zinc-300 px-5 text-sm font-medium dark:border-zinc-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={deleteAccount}
-              disabled={confirmation !== "DELETE" || deleting}
-              className="h-10 rounded-full bg-red-700 px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {deleting ? "Deleting account…" : "Permanently delete my account"}
-            </button>
-          </div>
-          {error && (
-            <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">
-              {error}
-            </p>
-          )}
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={deleteAccount}
+            disabled={confirmation !== "DELETE" || deleting}
+            className="h-10 rounded-full bg-red-700 px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deleting ? "Deleting account…" : "Permanently delete my account"}
+          </button>
         </div>
-      )}
+        {error && (
+          <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">
+            {error}
+          </p>
+        )}
+      </dialog>
     </section>
   );
 }
