@@ -77,6 +77,12 @@ export async function listModerationProposals(filters: QueueFilters) {
             status: true,
             createdAt: true,
             submittedBy: { select: { id: true, email: true } },
+            namedFaceValue: {
+              select: {
+                valueSchedule: { select: { currencyCode: true } },
+              },
+            },
+            definitionProposal: { select: { currencyCode: true } },
           },
         }),
     filters.proposalType && filters.proposalType !== "FIXED_CONVERSION"
@@ -116,13 +122,14 @@ export async function listModerationProposals(filters: QueueFilters) {
         `${proposal.countryCode} ${proposal.displayCode}`,
       ),
     ),
-    ...values.map((proposal) =>
-      queueItem(
-        proposal,
-        "NAMED_VALUE",
-        `${proposal.amount}${proposal.effectiveOn ? ` from ${proposal.effectiveOn}` : " current"}`,
-      ),
-    ),
+    ...values.map((proposal) => ({
+      ...queueItem(proposal, "NAMED_VALUE", "Named/code schedule value"),
+      amount: proposal.amount,
+      currencyCode:
+        proposal.namedFaceValue?.valueSchedule.currencyCode ??
+        proposal.definitionProposal?.currencyCode,
+      effectiveOn: proposal.effectiveOn,
+    })),
     ...conversions.map((proposal) =>
       queueItem(
         proposal,
@@ -277,6 +284,12 @@ async function namedValueDetail(proposalId: string) {
           approvedNamedFaceValueId: true,
           countryCode: true,
           normalizedCode: true,
+          currencyCode: true,
+        },
+      },
+      namedFaceValue: {
+        select: {
+          valueSchedule: { select: { currencyCode: true } },
         },
       },
     },
@@ -339,6 +352,9 @@ async function namedValueDetail(proposalId: string) {
       namedFaceValueId: proposal.namedFaceValueId,
       definitionProposalId: proposal.definitionProposalId,
       amount: proposal.amount,
+      currencyCode:
+        proposal.namedFaceValue?.valueSchedule.currencyCode ??
+        proposal.definitionProposal?.currencyCode,
       effectiveOn: proposal.effectiveOn,
       eligibleOn: proposal.eligibleOn,
     },

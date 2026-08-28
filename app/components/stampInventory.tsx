@@ -3,6 +3,17 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
 import { FixedConversionProposals } from "@/app/components/fixedConversionProposals";
+import {
+  formatCalendarDate,
+  formatInventoryDate,
+  formatMoney,
+} from "@/lib/localization";
+
+export {
+  formatCalendarDate,
+  formatInventoryDate,
+  formatMoney,
+} from "@/lib/localization";
 
 export type StampValue = {
   amount: string;
@@ -95,41 +106,6 @@ type NamedFaceValueOption = {
   proposalStatus?: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 };
 
-export function formatMoney(value: StampValue) {
-  try {
-    const [integer, fraction = ""] = value.amount.split(".");
-    const formattedFractionLength = Math.min(fraction.length, 20);
-    const formatter = new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: value.currencyCode,
-      minimumFractionDigits: formattedFractionLength,
-      maximumFractionDigits: 20,
-    });
-    const formattedValue = fraction
-      ? `${integer}.${fraction.slice(0, formattedFractionLength)}`
-      : integer;
-    const remainingFraction = fraction.slice(formattedFractionLength);
-    return formatter
-      .formatToParts(formattedValue as unknown as number)
-      .map((part) =>
-        part.type === "fraction" ? `${part.value}${remainingFraction}` : part.value,
-      )
-      .join("");
-  } catch {
-    return `${value.amount} ${value.currencyCode}`;
-  }
-}
-
-export function formatInventoryDate(value: string, locale?: string) {
-  return new Intl.DateTimeFormat(locale).format(new Date(value));
-}
-
-export function formatCalendarDate(value: string, locale?: string) {
-  return new Intl.DateTimeFormat(locale, { timeZone: "UTC" }).format(
-    new Date(`${value}T00:00:00.000Z`),
-  );
-}
-
 const valuationSourceLabels: Record<string, string> = {
   FACE_AMOUNT: "Face amount",
   FIXED_CONVERSION: "Fixed currency conversion",
@@ -140,8 +116,8 @@ const valuationSourceLabels: Record<string, string> = {
   OUTSIDE_ACTIVE_COUNTRY: "Outside active country",
 };
 
-function Money({ value }: { value: StampValue }) {
-  return formatMoney(value);
+function Money({ value, locale }: { value: StampValue; locale?: string }) {
+  return formatMoney(value, locale);
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -299,6 +275,7 @@ function StampEditor({
           max="2147483647"
           step="1"
           defaultValue={stamp.quantityOwned}
+          aria-invalid={Boolean(errors.quantityOwned)}
           aria-describedby={errors.quantityOwned ? ownedErrorId : undefined}
           className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2"
         />
@@ -316,6 +293,7 @@ function StampEditor({
           max="2147483647"
           step="1"
           defaultValue={stamp.quantityAnnulled}
+          aria-invalid={Boolean(errors.quantityAnnulled)}
           aria-describedby={
             errors.quantityAnnulled ? annulledErrorId : undefined
           }
@@ -375,6 +353,7 @@ function StampEditor({
             id={actionResolutionId}
             name="actionResolution"
             defaultValue=""
+            aria-invalid={Boolean(errors.actionResolution)}
             aria-describedby={
               errors.actionResolution
                 ? actionResolutionErrorId
@@ -431,6 +410,7 @@ function StampRemoval({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const removeButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const confirmationId = `stamp-${stamp.id}-remove-confirmation`;
@@ -478,6 +458,7 @@ function StampRemoval({
         onClick={() => {
           setError(null);
           dialogRef.current?.showModal();
+          cancelButtonRef.current?.focus();
         }}
         className="mt-3 h-10 rounded-full border border-red-700 px-5 font-medium text-red-700 dark:border-red-300 dark:text-red-300"
       >
@@ -503,6 +484,7 @@ function StampRemoval({
         )}
         <div className="mt-4 flex flex-wrap gap-3">
           <button
+            ref={cancelButtonRef}
             type="button"
             disabled={removing}
             onClick={closeDialog}
@@ -528,6 +510,7 @@ export function StampInventoryResults({
   inventory,
   onStampUpdated,
   onStampRemoved,
+  locale,
 }: {
   inventory: InventoryResponse;
   onStampUpdated?: (
@@ -535,11 +518,13 @@ export function StampInventoryResults({
     inventoryTotal: StampValue,
   ) => void;
   onStampRemoved?: (stampId: string, inventoryTotal: StampValue) => void;
+  locale?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-lg font-semibold">
-        Inventory total: <Money value={inventory.inventoryTotal} />
+        Inventory total:{" "}
+        <Money value={inventory.inventoryTotal} locale={locale} />
       </p>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Unresolved entries are excluded from the inventory total.
@@ -562,7 +547,13 @@ export function StampInventoryResults({
                 {stamp.faceValueType === "NAMED"
                   ? stamp.namedFaceValue?.displayCode
                   : stamp.faceValueType === "MONETARY"
-                    ? `${stamp.faceAmount} ${stamp.faceCurrencyCode}`
+                    ? <Money
+                        value={{
+                          amount: stamp.faceAmount!,
+                          currencyCode: stamp.faceCurrencyCode!,
+                        }}
+                        locale={locale}
+                      />
                     : "No face value"}
               </p>
               {stamp.requiresPostalEntityReplacement && (
@@ -594,13 +585,14 @@ export function StampInventoryResults({
                 <div>
                   <p>
                     Current named/code value:{" "}
-                    <Money value={stamp.currentNamedFaceValue} />
+                    <Money value={stamp.currentNamedFaceValue} locale={locale} />
                   </p>
                   <p>
                     Upcoming named/code value:{" "}
-                    <Money value={stamp.upcomingNamedFaceValue} />, effective{" "}
+                    <Money value={stamp.upcomingNamedFaceValue} locale={locale} />, effective{" "}
                     {formatCalendarDate(
                       stamp.upcomingNamedFaceValue.effectiveOn,
+                      locale,
                     )}
                   </p>
                 </div>
@@ -608,8 +600,14 @@ export function StampInventoryResults({
               {stamp.manualPostageAmount !== null &&
                 stamp.manualPostageCurrencyCode !== null && (
                   <p>
-                    Manual postage: {stamp.manualPostageAmount}{" "}
-                    {stamp.manualPostageCurrencyCode}
+                    Manual postage:{" "}
+                    <Money
+                      value={{
+                        amount: stamp.manualPostageAmount,
+                        currencyCode: stamp.manualPostageCurrencyCode,
+                      }}
+                      locale={locale}
+                    />
                   </p>
                 )}
               <p>
@@ -617,11 +615,11 @@ export function StampInventoryResults({
                 usable: {stamp.usableQuantity}
               </p>
               <p>{stamp.expired ? "Expired" : "Not expired"}</p>
-              <p>Added: {formatInventoryDate(stamp.createdAt)}</p>
+              <p>Added: {formatInventoryDate(stamp.createdAt, locale)}</p>
               <p>
                 Unit postage:{" "}
                 {stamp.unitPostageValue ? (
-                  <Money value={stamp.unitPostageValue} />
+                  <Money value={stamp.unitPostageValue} locale={locale} />
                 ) : (
                   "Unresolved"
                 )}
@@ -629,7 +627,7 @@ export function StampInventoryResults({
               <p>
                 Total postage:{" "}
                 {stamp.totalPostageValue ? (
-                  <Money value={stamp.totalPostageValue} />
+                  <Money value={stamp.totalPostageValue} locale={locale} />
                 ) : (
                   "Unresolved"
                 )}
@@ -685,7 +683,7 @@ export function NamedFaceValueFields({
       </div>
       <div>
         <label htmlFor="named-face-value" className="block font-medium">Name or code</label>
-        <select id="named-face-value" name="namedFaceValueReference" defaultValue="" disabled={!countryCode} aria-describedby={selectionError ? "named-face-value-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+        <select id="named-face-value" name="namedFaceValueReference" defaultValue="" disabled={!countryCode} aria-invalid={Boolean(selectionError)} aria-describedby={selectionError ? "named-face-value-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
           <option value="">Select a named face value</option>
           {options.map((option) => <option key={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`} value={`${option.namedFaceValueProposalId ? "proposal" : "approved"}:${option.id}`}>{option.displayCode}{option.proposalStatus ? ` (${option.proposalStatus})` : ""}</option>)}
         </select>
@@ -867,31 +865,31 @@ export function StampInventory({
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
         <div>
           <label htmlFor="stamp-country" className="block font-medium">Country</label>
-          <select id="stamp-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-describedby={errors.countryCode ? "stamp-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="stamp-country" name="countryCode" value={countryCode} onChange={(event) => setCountryCode(event.target.value)} aria-invalid={Boolean(errors.countryCode)} aria-describedby={errors.countryCode ? "stamp-country-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             {countries.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           <FieldError id="stamp-country-error" message={errors.countryCode} />
         </div>
         <div>
           <label htmlFor="stamp-name" className="block font-medium">Stamp name</label>
-          <input id="stamp-name" name="name" aria-describedby={errors.name ? "stamp-name-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="stamp-name" name="name" aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? "stamp-name-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="stamp-name-error" message={errors.name} />
         </div>
         <div>
           <label htmlFor="stamp-postal-entity" className="block font-medium">Postal entity</label>
-          <select id="stamp-postal-entity" name="postalEntityId" defaultValue={activePostalEntityId} aria-describedby={errors.postalEntityId ? "stamp-postal-entity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="stamp-postal-entity" name="postalEntityId" defaultValue={activePostalEntityId} aria-invalid={Boolean(errors.postalEntityId)} aria-describedby={errors.postalEntityId ? "stamp-postal-entity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             {postalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name} ({entity.countryCode})</option>)}
           </select>
           <FieldError id="stamp-postal-entity-error" message={errors.postalEntityId} />
         </div>
         <div>
           <label htmlFor="stamp-year" className="block font-medium">Year of issue (optional)</label>
-          <input id="stamp-year" name="yearOfIssue" inputMode="numeric" aria-describedby={errors.yearOfIssue ? "stamp-year-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="stamp-year" name="yearOfIssue" inputMode="numeric" aria-invalid={Boolean(errors.yearOfIssue)} aria-describedby={errors.yearOfIssue ? "stamp-year-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="stamp-year-error" message={errors.yearOfIssue} />
         </div>
         <div>
           <label htmlFor="face-value-type" className="block font-medium">Face value type</label>
-          <select id="face-value-type" name="faceValueType" value={faceValueType} onChange={(event) => setFaceValueType(event.target.value as "MONETARY" | "NAMED" | "NONE")} aria-describedby={errors.faceValueType ? "face-value-type-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="face-value-type" name="faceValueType" value={faceValueType} onChange={(event) => setFaceValueType(event.target.value as "MONETARY" | "NAMED" | "NONE")} aria-invalid={Boolean(errors.faceValueType)} aria-describedby={errors.faceValueType ? "face-value-type-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="MONETARY">Monetary amount</option>
             <option value="NAMED">Country-specific name or code</option>
             <option value="NONE">No face value</option>
@@ -902,12 +900,12 @@ export function StampInventory({
           <>
             <div>
               <label htmlFor="face-amount" className="block font-medium">Monetary face amount</label>
-              <input id="face-amount" name="faceAmount" inputMode="decimal" aria-describedby={errors.faceAmount ? "face-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <input id="face-amount" name="faceAmount" inputMode="decimal" aria-invalid={Boolean(errors.faceAmount)} aria-describedby={errors.faceAmount ? "face-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
               <FieldError id="face-amount-error" message={errors.faceAmount} />
             </div>
             <div>
               <label htmlFor="face-currency" className="block font-medium">Face currency</label>
-              <input id="face-currency" name="faceCurrencyCode" list="stamp-currency-options" defaultValue={activeDisplayCurrencyCode} maxLength={3} autoCapitalize="characters" aria-describedby={errors.faceCurrencyCode ? "face-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+              <input id="face-currency" name="faceCurrencyCode" list="stamp-currency-options" defaultValue={activeDisplayCurrencyCode} maxLength={3} autoCapitalize="characters" aria-invalid={Boolean(errors.faceCurrencyCode)} aria-describedby={errors.faceCurrencyCode ? "face-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
               <FieldError id="face-currency-error" message={errors.faceCurrencyCode} />
             </div>
           </>
@@ -923,12 +921,12 @@ export function StampInventory({
         ) : null}
         <div>
           <label htmlFor="owned-quantity" className="block font-medium">Owned quantity</label>
-          <input id="owned-quantity" name="quantityOwned" type="number" min="1" max="2147483647" step="1" defaultValue="1" aria-describedby={errors.quantityOwned ? "owned-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="owned-quantity" name="quantityOwned" type="number" min="1" max="2147483647" step="1" defaultValue="1" aria-invalid={Boolean(errors.quantityOwned)} aria-describedby={errors.quantityOwned ? "owned-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="owned-quantity-error" message={errors.quantityOwned} />
         </div>
         <div>
           <label htmlFor="annulled-quantity" className="block font-medium">Annulled quantity</label>
-          <input id="annulled-quantity" name="quantityAnnulled" type="number" min="0" max="2147483647" step="1" defaultValue="0" aria-describedby={errors.quantityAnnulled ? "annulled-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="annulled-quantity" name="quantityAnnulled" type="number" min="0" max="2147483647" step="1" defaultValue="0" aria-invalid={Boolean(errors.quantityAnnulled)} aria-describedby={errors.quantityAnnulled ? "annulled-quantity-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="annulled-quantity-error" message={errors.quantityAnnulled} />
         </div>
         <div className="flex items-center gap-2 self-end pb-2">
@@ -943,12 +941,12 @@ export function StampInventory({
           </legend>
           <div>
             <label htmlFor="manual-amount" className="block font-medium">Manual postage amount</label>
-            <input id="manual-amount" name="manualPostageAmount" inputMode="decimal" required={faceValueType === "NONE"} aria-describedby={errors.manualPostageAmount ? "manual-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+            <input id="manual-amount" name="manualPostageAmount" inputMode="decimal" required={faceValueType === "NONE"} aria-invalid={Boolean(errors.manualPostageAmount)} aria-describedby={errors.manualPostageAmount ? "manual-amount-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
             <FieldError id="manual-amount-error" message={errors.manualPostageAmount} />
           </div>
           <div>
             <label htmlFor="manual-currency" className="block font-medium">Manual postage currency</label>
-            <input id="manual-currency" name="manualPostageCurrencyCode" list="stamp-currency-options" maxLength={3} autoCapitalize="characters" placeholder={activeDisplayCurrencyCode} required={faceValueType === "NONE"} aria-describedby={errors.manualPostageCurrencyCode ? "manual-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+            <input id="manual-currency" name="manualPostageCurrencyCode" list="stamp-currency-options" maxLength={3} autoCapitalize="characters" placeholder={activeDisplayCurrencyCode} required={faceValueType === "NONE"} aria-invalid={Boolean(errors.manualPostageCurrencyCode)} aria-describedby={errors.manualPostageCurrencyCode ? "manual-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
             <FieldError id="manual-currency-error" message={errors.manualPostageCurrencyCode} />
           </div>
         </fieldset>

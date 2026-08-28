@@ -224,7 +224,7 @@ export function FixedConversionProposals({
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
         <div>
           <label htmlFor="conversion-proposal-kind" className="block font-medium">Proposal type</label>
-          <select id="conversion-proposal-kind" value={proposalKind} onChange={(event) => { const kind = event.target.value as "MISSING" | "CORRECTION"; setProposalKind(kind); if (kind === "MISSING") { setTargetId(""); } }} aria-describedby={errors.proposalKind ? "conversion-proposal-kind-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="conversion-proposal-kind" value={proposalKind} onChange={(event) => { const kind = event.target.value as "MISSING" | "CORRECTION"; setProposalKind(kind); if (kind === "MISSING") { setTargetId(""); } }} aria-invalid={Boolean(errors.proposalKind)} aria-describedby={errors.proposalKind ? "conversion-proposal-kind-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="MISSING">Missing conversion</option>
             <option value="CORRECTION">Correction</option>
           </select>
@@ -233,7 +233,7 @@ export function FixedConversionProposals({
         {proposalKind === "CORRECTION" && (
           <div>
             <label htmlFor="conversion-to-correct" className="block font-medium">Approved conversion to correct</label>
-            <select id="conversion-to-correct" value={targetId} onChange={(event) => selectCorrection(event.target.value)} aria-describedby={errors.targetCurrencyConversionId ? "conversion-to-correct-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+            <select id="conversion-to-correct" value={targetId} onChange={(event) => selectCorrection(event.target.value)} aria-invalid={Boolean(errors.targetCurrencyConversionId)} aria-describedby={errors.targetCurrencyConversionId ? "conversion-to-correct-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
               <option value="">Select an approved conversion</option>
               {workflow?.approvedConversions.map((conversion) => <option key={conversion.id} value={conversion.id}>{conversion.fromCurrencyCode} to {conversion.toCurrencyCode} at {conversion.multiplier}</option>)}
             </select>
@@ -242,7 +242,7 @@ export function FixedConversionProposals({
         )}
         <div>
           <label htmlFor="proposal-source-currency" className="block font-medium">Proposed source currency</label>
-          <select id="proposal-source-currency" value={fromCurrencyCode} onChange={(event) => setFromCurrencyCode(event.target.value)} aria-describedby={errors.fromCurrencyCode ? "proposal-source-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="proposal-source-currency" value={fromCurrencyCode} onChange={(event) => setFromCurrencyCode(event.target.value)} aria-invalid={Boolean(errors.fromCurrencyCode)} aria-describedby={errors.fromCurrencyCode ? "proposal-source-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="">Select a source currency</option>
             {currencies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -250,7 +250,7 @@ export function FixedConversionProposals({
         </div>
         <div>
           <label htmlFor="proposal-target-currency" className="block font-medium">Proposed target currency</label>
-          <select id="proposal-target-currency" value={toCurrencyCode} onChange={(event) => setToCurrencyCode(event.target.value)} aria-describedby={errors.toCurrencyCode ? "proposal-target-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
+          <select id="proposal-target-currency" value={toCurrencyCode} onChange={(event) => setToCurrencyCode(event.target.value)} aria-invalid={Boolean(errors.toCurrencyCode)} aria-describedby={errors.toCurrencyCode ? "proposal-target-currency-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2">
             <option value="">Select a target currency</option>
             {currencies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -258,17 +258,17 @@ export function FixedConversionProposals({
         </div>
         <div>
           <label htmlFor="proposal-multiplier" className="block font-medium">Exact multiplier</label>
-          <input id="proposal-multiplier" value={multiplier} onChange={(event) => setMultiplier(event.target.value)} inputMode="decimal" aria-describedby={errors.multiplier ? "proposal-multiplier-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="proposal-multiplier" value={multiplier} onChange={(event) => setMultiplier(event.target.value)} inputMode="decimal" aria-invalid={Boolean(errors.multiplier)} aria-describedby={errors.multiplier ? "proposal-multiplier-error" : undefined} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="proposal-multiplier-error" message={errors.multiplier} />
         </div>
         <div>
           <label htmlFor="conversion-source-url" className="block font-medium">Source URL</label>
-          <input id="conversion-source-url" name="sourceUrl" type="url" aria-describedby={`conversion-source-help${errors.sourceUrl ? " conversion-source-url-error" : ""}`} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
+          <input id="conversion-source-url" name="sourceUrl" type="url" aria-invalid={Boolean(errors.sourceUrl)} aria-describedby={`conversion-source-help${errors.sourceUrl ? " conversion-source-url-error" : ""}`} className="mt-1 h-10 w-full rounded border border-zinc-400 bg-transparent px-2" />
           <FieldError id="conversion-source-url-error" message={errors.sourceUrl} />
         </div>
         <div className="sm:col-span-2">
           <label htmlFor="conversion-source-note" className="block font-medium">Source note</label>
-          <textarea id="conversion-source-note" name="sourceNote" rows={3} aria-describedby={`conversion-source-help${errors.sourceNote ? " conversion-source-note-error" : ""}`} className="mt-1 w-full rounded border border-zinc-400 bg-transparent p-2" />
+          <textarea id="conversion-source-note" name="sourceNote" rows={3} aria-invalid={Boolean(errors.sourceNote)} aria-describedby={`conversion-source-help${errors.sourceNote ? " conversion-source-note-error" : ""}`} className="mt-1 w-full rounded border border-zinc-400 bg-transparent p-2" />
           <p id="conversion-source-help" className="text-sm text-zinc-600 dark:text-zinc-400">Enter a source URL, a source note, or both.</p>
           <FieldError id="conversion-source-note-error" message={errors.sourceNote} />
         </div>

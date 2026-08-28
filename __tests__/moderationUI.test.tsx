@@ -4,6 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ModerationProposalDetail } from "@/app/components/moderationProposalDetail";
 import { ModerationQueue } from "@/app/components/moderationQueue";
+import { formatCalendarDate, formatMoney } from "@/lib/localization";
 
 describe("moderation interface", () => {
   afterEach(() => {
@@ -51,14 +52,46 @@ describe("moderation interface", () => {
     expect(document.activeElement).toBe(detailLink);
   });
 
+  it("localizes named-value amounts and dates in the moderation queue", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          proposals: [
+            {
+              id: "named-value-proposal",
+              proposalType: "NAMED_VALUE",
+              status: "PENDING",
+              summary: "Named/code schedule value",
+              amount: "1234.50",
+              currencyCode: "EUR",
+              effectiveOn: "2028-10-01",
+              proposer: { id: "proposer", email: null },
+              submittedAt: "2026-08-28T10:00:00.000Z",
+            },
+          ],
+        }),
+      ),
+    );
+    render(<ModerationQueue locale="de-DE" />);
+
+    const expectedSummary = `${formatMoney(
+      { amount: "1234.50", currencyCode: "EUR" },
+      "de-DE",
+    )} from ${formatCalendarDate("2028-10-01", "de-DE")}`;
+    const link = await screen.findByRole("link");
+    expect(link.textContent).toContain(expectedSummary);
+    expect(screen.queryByText(/2028-10-01/)).toBeNull();
+  });
+
   it("labels proposal data, submitted source, and possible matches", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         Response.json({
           proposal: {
-            id: "conversion-proposal",
-            proposalType: "FIXED_CONVERSION",
+            id: "named-value-proposal",
+            proposalType: "NAMED_VALUE",
             status: "PENDING",
             proposer: { id: "proposer", email: "proposer@example.com" },
             submittedAt: "2026-08-28T10:00:00.000Z",
@@ -66,25 +99,24 @@ describe("moderation interface", () => {
             decision: null,
             canonicalTargetId: null,
             proposedValues: {
-              targetCurrencyConversionId: "approved-usd-eur",
-              fromCurrencyCode: "USD",
-              toCurrencyCode: "EUR",
-              multiplier: "0.91",
+              namedFaceValueId: "approved-b",
+              amount: "1234.50",
+              currencyCode: "EUR",
+              effectiveOn: "2028-10-01",
             },
             possibleMatches: [
               {
-                id: "approved-usd-eur",
-                fromCurrencyCode: "USD",
-                toCurrencyCode: "EUR",
-                multiplier: "0.90",
+                id: "approved-b-value",
+                amount: "1234.50",
+                currencyCode: "EUR",
+                eligibleOn: "2028-10-02",
               },
             ],
             compatibleMergeTargets: [
               {
-                id: "approved-usd-eur",
-                fromCurrencyCode: "USD",
-                toCurrencyCode: "EUR",
-                multiplier: "0.90",
+                id: "approved-b-value",
+                amount: "1234.50",
+                currencyCode: "EUR",
               },
             ],
           },
@@ -93,8 +125,9 @@ describe("moderation interface", () => {
     );
     render(
       <ModerationProposalDetail
-        proposalType="FIXED_CONVERSION"
-        proposalId="conversion-proposal"
+        proposalType="NAMED_VALUE"
+        proposalId="named-value-proposal"
+        locale="de-DE"
       />,
     );
 
@@ -103,7 +136,32 @@ describe("moderation interface", () => {
     expect(screen.getByRole("heading", { name: "Submitted source" })).toBeTruthy();
     expect(screen.getByText(/Central bank bulletin/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Possible approved matches" })).toBeTruthy();
-    await waitFor(() => expect(screen.getByText(/Multiplier: 0.90/)).toBeTruthy());
+    const localizedAmount = formatMoney(
+      { amount: "1234.50", currencyCode: "EUR" },
+      "de-DE",
+    );
+    expect(
+      screen.getByText((_, element) => element?.textContent === localizedAmount),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        screen.getByText((_, element) =>
+          element?.tagName === "LI" &&
+          (element.textContent?.includes(`Amount: ${localizedAmount}`) ?? false),
+        ),
+      ).toBeTruthy(),
+    );
+    expect(
+      screen.getByText(formatCalendarDate("2028-10-01", "de-DE")),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        new RegExp(
+          `Eligible date: ${formatCalendarDate("2028-10-02", "de-DE").replaceAll(".", "\\.")}`,
+        ),
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/2028-10-0[12]/)).toBeNull();
     expect(screen.getByRole("link", { name: "Back to proposal queue" })).toBeTruthy();
   });
 

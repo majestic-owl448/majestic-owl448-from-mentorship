@@ -6,6 +6,7 @@ import {
   NamedFaceValueProposals,
   ProposalStatusList,
 } from "@/app/components/namedFaceValueProposals";
+import { formatCalendarDate, formatMoney } from "@/lib/localization";
 
 describe("named/code proposal interface", () => {
   beforeEach(() => {
@@ -87,6 +88,41 @@ describe("named/code proposal interface", () => {
     expect(screen.getByText("Status: PENDING")).toBeTruthy();
   });
 
+  it("formats scheduled proposal dates in the requested locale", () => {
+    render(
+      <ProposalStatusList
+        locale="de-DE"
+        proposals={{
+          definitions: [],
+          values: [
+            {
+              id: "future-value",
+              proposalType: "VALUE",
+              namedFaceValueId: "named-value",
+              definitionProposalId: null,
+              amount: "1.25",
+              currencyCode: "EUR",
+              effectiveOn: "2028-10-01",
+              sourceUrl: null,
+              sourceNote: "Published tariff",
+              status: "PENDING",
+              createdAt: "2026-08-27T12:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    const expected = `${formatMoney(
+      { amount: "1.25", currencyCode: "EUR" },
+      "de-DE",
+    )} from ${formatCalendarDate("2028-10-01", "de-DE")}`;
+    expect(
+      screen.getByText((_, element) => element?.textContent === expected),
+    ).toBeTruthy();
+    expect(screen.queryByText(/2028-10-01/)).toBeNull();
+  });
+
   it("shows the decision note and replacement prompt after rejection", () => {
     render(
       <ProposalStatusList
@@ -115,6 +151,7 @@ describe("named/code proposal interface", () => {
               namedFaceValueId: null,
               definitionProposalId: "rejected-definition",
               amount: "0.75",
+              currencyCode: "EUR",
               effectiveOn: null,
               sourceUrl: null,
               sourceNote: "Same source",
@@ -194,6 +231,11 @@ describe("named/code proposal interface", () => {
         name: "Resubmit corrected definition",
       }),
     );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText("Proposed display name or code"),
+      ),
+    );
     expect(
       screen.getByText(/Correcting rejected definition rejected-definition/),
     ).toBeTruthy();
@@ -216,6 +258,46 @@ describe("named/code proposal interface", () => {
         countryCode: "IT",
         displayCode: "Corrected",
       }),
+    );
+  });
+
+  it("programmatically associates validation errors with invalid fields", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input).includes("named-face-values?")) {
+          return Response.json({ namedFaceValues: [] });
+        }
+        if (init?.method === "POST") {
+          return Response.json(
+            {
+              error: "Correct the proposal fields.",
+              errors: { displayCode: "Enter a display name or code." },
+            },
+            { status: 400 },
+          );
+        }
+        return Response.json({ definitions: [], values: [] });
+      }),
+    );
+    render(
+      <NamedFaceValueProposals
+        activeCountryCode="IT"
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit proposal" }));
+
+    const field = screen.getByLabelText("Proposed display name or code");
+    await waitFor(() => expect(field.getAttribute("aria-invalid")).toBe("true"));
+    expect(field.getAttribute("aria-describedby")).toBe(
+      "proposal-display-code-error",
+    );
+    expect(screen.getByText("Enter a display name or code.").id).toBe(
+      "proposal-display-code-error",
     );
   });
 

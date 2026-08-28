@@ -193,6 +193,12 @@ export async function listUserNamedFaceValueProposals(userId: string) {
         decisionNote: true,
         actionRequired: true,
         createdAt: true,
+        namedFaceValue: {
+          select: {
+            valueSchedule: { select: { currencyCode: true } },
+          },
+        },
+        definitionProposal: { select: { currencyCode: true } },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
@@ -204,10 +210,15 @@ export async function listUserNamedFaceValueProposals(userId: string) {
       proposalType: "DEFINITION" as const,
       createdAt: proposal.createdAt.toISOString(),
     })),
-    values: values.map((proposal) => ({
-      ...proposal,
-      proposalType: "VALUE" as const,
-      createdAt: proposal.createdAt.toISOString(),
-    })),
+    values: values.map(
+      ({ namedFaceValue, definitionProposal, ...proposal }) => ({
+        ...proposal,
+        proposalType: "VALUE" as const,
+        currencyCode:
+          namedFaceValue?.valueSchedule.currencyCode ??
+          definitionProposal?.currencyCode,
+        createdAt: proposal.createdAt.toISOString(),
+      }),
+    ),
   };
 }

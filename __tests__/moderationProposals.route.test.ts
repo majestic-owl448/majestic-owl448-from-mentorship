@@ -257,12 +257,22 @@ describe("moderation proposal API", () => {
 
     const allResponse = await GET_QUEUE(queueRequest());
     expect(allResponse.status).toBe(200);
-    expect((await allResponse.json()).proposals).toEqual(
+    const allProposals = (await allResponse.json()).proposals;
+    expect(allProposals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ proposalType: "NAMED_DEFINITION" }),
         expect.objectContaining({ proposalType: "NAMED_VALUE" }),
         expect.objectContaining({ proposalType: "FIXED_CONVERSION" }),
       ]),
+    );
+    expect(allProposals).toContainEqual(
+      expect.objectContaining({
+        id: "value-proposal",
+        proposalType: "NAMED_VALUE",
+        amount: "1.25",
+        currencyCode: "EUR",
+        effectiveOn: null,
+      }),
     );
 
     const typeResponse = await GET_QUEUE(
@@ -321,6 +331,11 @@ describe("moderation proposal API", () => {
     const valueBody = await (
       await detailRequest("NAMED_VALUE", "value-proposal")
     ).json();
+    expect(valueBody.proposal.proposedValues).toMatchObject({
+      amount: "1.25",
+      currencyCode: "EUR",
+      eligibleOn: "2026-08-28",
+    });
     expect(valueBody.proposal.possibleMatches).toEqual([
       expect.objectContaining({ id: "approved-current-value", amount: "1.25" }),
     ]);

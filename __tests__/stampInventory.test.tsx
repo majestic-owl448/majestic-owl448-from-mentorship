@@ -116,6 +116,31 @@ describe("stamp inventory interface", () => {
     expect(formatCalendarDate("2028-10-01", "en-US")).toBe("10/1/2028");
   });
 
+  it("formats face and manual postage amounts as localized currency", () => {
+    const stamp = savedStamp("localized", null, null);
+    stamp.faceAmount = "1234.50";
+    stamp.manualPostageAmount = "1234.50";
+    stamp.manualPostageCurrencyCode = "EUR";
+    const markup = renderToStaticMarkup(
+      <StampInventoryResults
+        locale="de-DE"
+        inventory={{
+          activeCountryCode: "IT",
+          displayCurrencyCode: "EUR",
+          inventoryTotal: { amount: "0", currencyCode: "EUR" },
+          stamps: [stamp],
+        }}
+      />,
+    );
+    const localizedAmount = formatMoney(
+      { amount: "1234.50", currencyCode: "EUR" },
+      "de-DE",
+    );
+
+    expect(markup.split(localizedAmount)).toHaveLength(3);
+    expect(markup).not.toContain("1234.50 EUR");
+  });
+
   it("shows the inventory total, valuation sources, zero reason, and unresolved state in text", () => {
     const markup = renderToStaticMarkup(
       <StampInventoryResults
@@ -274,6 +299,23 @@ describe("stamp inventory interface", () => {
     );
     expect(markup).toContain("Use Manual postage value:");
     expect(markup).toContain("Valuation source: Action required");
+  });
+
+  it("associates search failures without marking the query invalid", () => {
+    const markup = renderToStaticMarkup(
+      <NamedFaceValueFields
+        countryCode="IT"
+        query="B Zona"
+        onQueryChange={() => undefined}
+        options={[]}
+        searchError="Named face values could not be loaded."
+      />,
+    );
+
+    expect(markup).toContain(
+      'aria-describedby="named-face-value-search-error"',
+    );
+    expect(markup).not.toContain('aria-invalid="true"');
   });
 
   it("replaces the updated line and inventory total from an update response", () => {
