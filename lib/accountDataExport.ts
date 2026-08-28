@@ -239,6 +239,17 @@ export async function createAccountDataExport(
     orderBy: { id: "asc" },
   });
 
+  const referencedDefinitionProposals =
+    await prisma.namedFaceValueDefinitionProposal.findMany({
+      where: {
+        id: { in: unique(values.map((proposal) => proposal.definitionProposalId)) },
+      },
+      select: {
+        targetNamedFaceValueId: true,
+        approvedNamedFaceValueId: true,
+      },
+    });
+
   const namedFaceValueIds = unique([
     ...inventory.map((entry) => entry.namedFaceValueId),
     ...definitions.flatMap((proposal) => [
@@ -246,6 +257,10 @@ export async function createAccountDataExport(
       proposal.approvedNamedFaceValueId,
     ]),
     ...values.map((proposal) => proposal.namedFaceValueId),
+    ...referencedDefinitionProposals.flatMap((proposal) => [
+      proposal.targetNamedFaceValueId,
+      proposal.approvedNamedFaceValueId,
+    ]),
   ]);
   const namedFaceValues = await prisma.namedFaceValue.findMany({
     where: { id: { in: namedFaceValueIds } },

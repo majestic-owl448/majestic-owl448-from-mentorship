@@ -103,6 +103,7 @@ describe("GET /api/account/export", () => {
     await prisma.userProfile.createMany({
       data: [
         { id: "export-user", email: "export@example.com", role: "MODERATOR" },
+        { id: "definition-moderator", role: "MODERATOR" },
         { id: "other-user", email: "other-private@example.com" },
       ],
     });
@@ -179,6 +180,30 @@ describe("GET /api/account/export", () => {
         displayCode: "B",
         normalizedCode: "b",
         valueScheduleId: schedule.id,
+      },
+    });
+    const moderatedSchedule = await prisma.valueSchedule.create({
+      data: {
+        id: "moderated-linked-schedule",
+        countryCode: "CH",
+        currencyCode: "CHF",
+      },
+    });
+    const moderatedScheduleValue = await prisma.valueScheduleValue.create({
+      data: {
+        id: "moderated-linked-schedule-value",
+        valueScheduleId: moderatedSchedule.id,
+        amount: "2.7500",
+        effectiveOn: "2026-08-01",
+      },
+    });
+    const moderatedNamedValue = await prisma.namedFaceValue.create({
+      data: {
+        id: "moderated-linked-named-value",
+        countryCode: "CH",
+        displayCode: "A Post",
+        normalizedCode: "a post",
+        valueScheduleId: moderatedSchedule.id,
       },
     });
     const stamp = await prisma.stampInventoryEntry.create({
@@ -283,6 +308,20 @@ describe("GET /api/account/export", () => {
         moderatedById: "export-user",
       },
     });
+    await prisma.namedFaceValueDefinitionProposal.create({
+      data: {
+        id: "foreign-approved-definition",
+        submittedById: "other-user",
+        approvedNamedFaceValueId: moderatedNamedValue.id,
+        countryCode: "CH",
+        displayCode: "A Post",
+        normalizedCode: "a post",
+        currencyCode: "CHF",
+        sourceNote: "Foreign definition source",
+        status: "APPROVED",
+        moderatedById: "definition-moderator",
+      },
+    });
     await prisma.namedFaceValueValueProposal.create({
       data: {
         id: "own-value-proposal",
@@ -294,6 +333,20 @@ describe("GET /api/account/export", () => {
         eligibleOn: "2026-06-21",
         sourceNote: "Published tariff",
         status: "MERGED",
+      },
+    });
+    await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "moderated-linked-value",
+        submittedById: "other-user",
+        definitionProposalId: "foreign-approved-definition",
+        mergedValueScheduleValueId: moderatedScheduleValue.id,
+        amount: "2.7500",
+        effectiveOn: "2026-08-01",
+        eligibleOn: "2026-07-22",
+        sourceNote: "Value moderated by export user",
+        status: "APPROVED",
+        moderatedById: "export-user",
       },
     });
     await prisma.stampProposalAction.create({
@@ -357,6 +410,12 @@ describe("GET /api/account/export", () => {
     ]);
     expect(document.proposalsAndModeration.namedFaceValueValues).toEqual([
       expect.objectContaining({
+        id: "moderated-linked-value",
+        definitionProposalId: "foreign-approved-definition",
+        submittedById: null,
+        moderatedById: "export-user",
+      }),
+      expect.objectContaining({
         amount: "1.2300",
         effectiveOn: "2026-07-01",
         eligibleOn: "2026-06-21",
@@ -364,11 +423,22 @@ describe("GET /api/account/export", () => {
     ]);
     expect(document.linkedSharedData).toMatchObject({
       postalEntities: [expect.objectContaining({ sourceUrl: "https://example.com/postal-source" })],
-      namedFaceValues: [expect.objectContaining({ id: "linked-named-value" })],
-      valueSchedules: [expect.objectContaining({ id: "linked-schedule" })],
-      valueScheduleValues: [
+      namedFaceValues: expect.arrayContaining([
+        expect.objectContaining({ id: "linked-named-value" }),
+        expect.objectContaining({ id: "moderated-linked-named-value" }),
+      ]),
+      valueSchedules: expect.arrayContaining([
+        expect.objectContaining({ id: "linked-schedule" }),
+        expect.objectContaining({ id: "moderated-linked-schedule" }),
+      ]),
+      valueScheduleValues: expect.arrayContaining([
         expect.objectContaining({ amount: "1.2300", effectiveOn: "2026-07-01" }),
-      ],
+        expect.objectContaining({
+          id: "moderated-linked-schedule-value",
+          amount: "2.7500",
+          effectiveOn: "2026-08-01",
+        }),
+      ]),
       currencyConversions: expect.arrayContaining([
         expect.objectContaining({ multiplier: "0.000516456899089" }),
         expect.objectContaining({
