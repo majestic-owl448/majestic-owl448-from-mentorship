@@ -218,6 +218,13 @@ async function presentStampRecord(
             proposalStatus: stamp.namedFaceValueProposal.status,
           }
         : null,
+    currentNamedFaceValue:
+      namedValue?.status === "RESOLVED"
+        ? {
+            amount: namedValue.amount.toFixed(),
+            currencyCode: namedValue.currencyCode,
+          }
+        : null,
     upcomingNamedFaceValue:
       namedValue && "upcoming" in namedValue && namedValue.upcoming
         ? {

@@ -27,6 +27,7 @@ export type SavedStamp = {
     displayCode: string;
     proposalStatus?: "PENDING";
   } | null;
+  currentNamedFaceValue: StampValue | null;
   upcomingNamedFaceValue: {
     amount: string;
     currencyCode: string;
@@ -108,6 +109,12 @@ export function formatMoney(value: StampValue) {
 
 export function formatInventoryDate(value: string, locale?: string) {
   return new Intl.DateTimeFormat(locale).format(new Date(value));
+}
+
+export function formatCalendarDate(value: string, locale?: string) {
+  return new Intl.DateTimeFormat(locale, { timeZone: "UTC" }).format(
+    new Date(`${value}T00:00:00.000Z`),
+  );
 }
 
 const valuationSourceLabels: Record<string, string> = {
@@ -441,12 +448,20 @@ export function StampInventoryResults({
               {stamp.namedFaceValue?.proposalStatus && (
                 <p>Definition status: {stamp.namedFaceValue.proposalStatus}</p>
               )}
-              {stamp.upcomingNamedFaceValue && (
-                <p>
-                  Upcoming named/code value: {stamp.upcomingNamedFaceValue.amount}{" "}
-                  {stamp.upcomingNamedFaceValue.currencyCode} from{" "}
-                  {stamp.upcomingNamedFaceValue.effectiveOn}
-                </p>
+              {stamp.currentNamedFaceValue && stamp.upcomingNamedFaceValue && (
+                <div>
+                  <p>
+                    Current named/code value:{" "}
+                    <Money value={stamp.currentNamedFaceValue} />
+                  </p>
+                  <p>
+                    Upcoming named/code value:{" "}
+                    <Money value={stamp.upcomingNamedFaceValue} />, effective{" "}
+                    {formatCalendarDate(
+                      stamp.upcomingNamedFaceValue.effectiveOn,
+                    )}
+                  </p>
+                </div>
               )}
               {stamp.manualPostageAmount !== null &&
                 stamp.manualPostageCurrencyCode !== null && (
