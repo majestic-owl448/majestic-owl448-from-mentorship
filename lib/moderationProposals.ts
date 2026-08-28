@@ -5,6 +5,7 @@ export const moderationProposalTypes = [
   "NAMED_DEFINITION",
   "NAMED_VALUE",
   "FIXED_CONVERSION",
+  "POSTAL_ENTITY",
 ] as const;
 
 export const moderationProposalStatuses = [
@@ -33,7 +34,7 @@ function queueItem(
     id: string;
     status: ModerationProposalStatus;
     createdAt: Date;
-    submittedBy: { id: string; email: string | null };
+    submittedBy: { id: string; email: string | null } | null;
   },
   proposalType: ModerationProposalType,
   summary: string,
@@ -43,7 +44,7 @@ function queueItem(
     proposalType,
     status: proposal.status,
     summary,
-    proposer: proposal.submittedBy,
+    proposer: proposal.submittedBy ?? { id: "Deleted account", email: null },
     submittedAt: proposal.createdAt.toISOString(),
     detailUrl: `/api/moderation/proposals/${proposalType}/${proposal.id}`,
   };
@@ -51,7 +52,7 @@ function queueItem(
 
 export async function listModerationProposals(filters: QueueFilters) {
   const where = filters.status ? { status: filters.status } : undefined;
-  const [definitions, values, conversions] = await Promise.all([
+  const [definitions, values, conversions, postalEntities] = await Promise.all([
     filters.proposalType && filters.proposalType !== "NAMED_DEFINITION"
       ? []
       : prisma.namedFaceValueDefinitionProposal.findMany({
@@ -92,6 +93,19 @@ export async function listModerationProposals(filters: QueueFilters) {
             submittedBy: { select: { id: true, email: true } },
           },
         }),
+    filters.proposalType && filters.proposalType !== "POSTAL_ENTITY"
+      ? []
+      : prisma.postalEntity.findMany({
+          where,
+          select: {
+            id: true,
+            countryCode: true,
+            name: true,
+            status: true,
+            createdAt: true,
+            submittedBy: { select: { id: true, email: true } },
+          },
+        }),
   ]);
 
   return [
@@ -116,6 +130,13 @@ export async function listModerationProposals(filters: QueueFilters) {
         `${proposal.fromCurrencyCode} to ${proposal.toCurrencyCode} at ${proposal.multiplier}`,
       ),
     ),
+    ...postalEntities.map((proposal) =>
+      queueItem(
+        proposal,
+        "POSTAL_ENTITY",
+        `${proposal.name} (${proposal.countryCode})`,
+      ),
+    ),
   ].sort(
     (left, right) =>
       right.submittedAt.localeCompare(left.submittedAt) ||
@@ -130,7 +151,7 @@ function sharedDetail(
     sourceUrl: string | null;
     sourceNote: string | null;
     createdAt: Date;
-    submittedBy: { id: string; email: string | null };
+    submittedBy: { id: string; email: string | null } | null;
     moderatedBy: { id: string; email: string | null } | null;
     decidedAt: Date | null;
     decisionNote: string | null;
@@ -141,7 +162,7 @@ function sharedDetail(
     id: proposal.id,
     proposalType,
     status: proposal.status,
-    proposer: proposal.submittedBy,
+    proposer: proposal.submittedBy ?? { id: "Deleted account", email: null },
     submittedAt: proposal.createdAt.toISOString(),
     source: {
       url: proposal.sourceUrl,
@@ -409,6 +430,82 @@ async function fixedConversionDetail(proposalId: string) {
   };
 }
 
+async function postalEntityDetail(proposalId: string) {
+  const proposal = await prisma.postalEntity.findUnique({
+    where: { id: proposalId },
+    select: {
+      id: true,
+      name: true,
+      normalizedName: true,
+      countryCode: true,
+      issuingAuthority: true,
+      scope: true,
+      sourceUrl: true,
+      sourceNote: true,
+      submittedName: true,
+      submittedNormalizedName: true,
+      submittedCountryCode: true,
+      submittedIssuingAuthority: true,
+      submittedScope: true,
+      submittedSourceUrl: true,
+      submittedSourceNote: true,
+      status: true,
+      mergedIntoId: true,
+      createdAt: true,
+      submittedBy: { select: { id: true, email: true } },
+      moderatedBy: { select: { id: true, email: true } },
+      decidedAt: true,
+      decisionNote: true,
+    },
+  });
+  if (!proposal) return null;
+  const possibleMatches = await prisma.postalEntity.findMany({
+    where: {
+      status: "APPROVED",
+      id: { not: proposal.id },
+    },
+    select: {
+      id: true,
+      name: true,
+      countryCode: true,
+      issuingAuthority: true,
+      scope: true,
+    },
+    orderBy: [{ countryCode: "asc" }, { name: "asc" }, { id: "asc" }],
+  });
+  return {
+    ...sharedDetail(
+      {
+        ...proposal,
+        sourceUrl: proposal.submittedSourceUrl,
+        sourceNote: proposal.submittedSourceNote,
+      },
+      "POSTAL_ENTITY",
+    ),
+    canonicalTargetId: proposal.status === "MERGED" ? proposal.mergedIntoId : null,
+    proposedValues: {
+      postalEntityName: proposal.submittedName,
+      normalizedPostalEntityName: proposal.submittedNormalizedName,
+      countryCode: proposal.submittedCountryCode,
+      issuingAuthority: proposal.submittedIssuingAuthority,
+      scope: proposal.submittedScope,
+      sourceUrl: proposal.submittedSourceUrl,
+      sourceNote: proposal.submittedSourceNote,
+    },
+    currentValues: {
+      postalEntityName: proposal.name,
+      normalizedPostalEntityName: proposal.normalizedName,
+      countryCode: proposal.countryCode,
+      issuingAuthority: proposal.issuingAuthority,
+      scope: proposal.scope,
+      sourceUrl: proposal.sourceUrl,
+      sourceNote: proposal.sourceNote,
+    },
+    possibleMatches,
+    compatibleMergeTargets: possibleMatches,
+  };
+}
+
 export function getModerationProposalDetail(
   proposalType: ModerationProposalType,
   proposalId: string,
@@ -420,5 +517,7 @@ export function getModerationProposalDetail(
       return namedValueDetail(proposalId);
     case "FIXED_CONVERSION":
       return fixedConversionDetail(proposalId);
+    case "POSTAL_ENTITY":
+      return postalEntityDetail(proposalId);
   }
 }

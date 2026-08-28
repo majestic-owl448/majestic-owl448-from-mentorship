@@ -13,7 +13,12 @@ export type SavedStamp = {
   id: string;
   countryCode: string;
   postalEntityId: string;
-  postalEntity: { id: string; name: string; countryCode: string };
+  postalEntity: {
+    id: string;
+    name: string;
+    countryCode: string;
+    status?: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
+  };
   name: string;
   yearOfIssue: number | null;
   faceValueType: "MONETARY" | "NAMED" | "NONE";
@@ -45,6 +50,7 @@ export type SavedStamp = {
   valuation:
     | { status: "RESOLVED"; source: string }
     | { status: "UNRESOLVED"; source: null };
+  requiresPostalEntityReplacement?: boolean;
   createdAt: string;
 };
 
@@ -445,6 +451,11 @@ export function StampInventoryResults({
                     ? `${stamp.faceAmount} ${stamp.faceCurrencyCode}`
                     : "No face value"}
               </p>
+              {stamp.requiresPostalEntityReplacement && (
+                <p role="alert">
+                  This stamp cannot resolve because its postal entity was rejected. Replace or resubmit the postal entity in settings.
+                </p>
+              )}
               {stamp.namedFaceValue?.proposalStatus && (
                 <p>Definition status: {stamp.namedFaceValue.proposalStatus}</p>
               )}

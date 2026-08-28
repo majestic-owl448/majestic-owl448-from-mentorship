@@ -45,6 +45,10 @@ import { GET as GET_INVENTORY } from "@/app/api/inventory/route";
 const validSetting = {
   postalEntityName: "Poste Italiane",
   countryCode: "IT",
+  issuingAuthority: "Italian Republic",
+  scope: "Italy",
+  sourceUrl: "https://example.com/poste-italiane",
+  sourceNote: "",
   displayCurrencyCode: "EUR",
   timeZone: "Europe/Rome",
   timeZoneMode: "SYSTEM",
@@ -97,10 +101,10 @@ describe("postal entity settings API", () => {
         timeZoneMode: "SYSTEM",
         postalEntity: {
           name: "Poste Italiane",
-          normalizedName: "poste italiane",
           countryCode: "IT",
+          issuingAuthority: "Italian Republic",
+          scope: "Italy",
           status: "PENDING",
-          submittedById: "first-user",
         },
       },
     });
@@ -147,6 +151,53 @@ describe("postal entity settings API", () => {
     });
   });
 
+  it("returns only canonical public fields for another user's approved entity", async () => {
+    await prisma.userProfile.createMany({
+      data: [
+        { id: "contributor", email: "contributor@example.com" },
+        { id: "moderator", email: "moderator@example.com", role: "MODERATOR" },
+      ],
+    });
+    const approved = await prisma.postalEntity.create({
+      data: {
+        name: "Approved Post",
+        normalizedName: "approved post",
+        countryCode: "IT",
+        issuingAuthority: "Italian Republic",
+        scope: "Italy",
+        sourceUrl: "https://example.com/canonical",
+        submittedName: "Original private submission",
+        submittedNormalizedName: "original private submission",
+        submittedCountryCode: "IT",
+        submittedIssuingAuthority: "Original authority",
+        submittedScope: "Original scope",
+        submittedSourceNote: "Private audit evidence",
+        status: "APPROVED",
+        submittedById: "contributor",
+        moderatedById: "moderator",
+        decidedAt: new Date("2026-08-28T10:00:00.000Z"),
+        decisionNote: "Private moderation note",
+      },
+    });
+    auth.userId = "viewer";
+    auth.email = "viewer@example.com";
+
+    const response = await GET_SETTINGS(
+      new NextRequest("http://localhost/api/settings"),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).availablePostalEntities).toEqual([
+      {
+        id: approved.id,
+        name: "Approved Post",
+        countryCode: "IT",
+        issuingAuthority: "Italian Republic",
+        scope: "Italy",
+        status: "APPROVED",
+      },
+    ]);
+  });
+
   it("returns associated field errors for invalid values", async () => {
     auth.userId = "first-user";
 
@@ -154,6 +205,10 @@ describe("postal entity settings API", () => {
       postRequest({
         postalEntityName: " ",
         countryCode: "XX",
+        issuingAuthority: "",
+        scope: "",
+        sourceUrl: "ftp://example.com/entity",
+        sourceNote: "",
         displayCurrencyCode: "XXX",
         timeZone: "Mars/Olympus",
         timeZoneMode: "AUTOMATIC",
@@ -165,6 +220,10 @@ describe("postal entity settings API", () => {
       errors: {
         postalEntityName: "Enter the postal entity name.",
         countryCode: "Select a valid ISO 3166-1 country.",
+        issuingAuthority: "Enter the issuing authority.",
+        scope: "Enter the geographic or office scope.",
+        sourceUrl: "Enter an HTTP or HTTPS URL.",
+        sourceNote: "Enter a source URL or source note.",
         displayCurrencyCode:
           "Select a currency supported by this application.",
         timeZoneMode: "Select system or custom timezone mode.",
@@ -209,7 +268,7 @@ describe("postal entity settings API", () => {
         userId: "second-user",
         postalEntity: {
           name: "Poste Italiane",
-          submittedById: "second-user",
+          status: "PENDING",
         },
       },
     });
@@ -246,7 +305,6 @@ describe("postal entity settings API", () => {
         postalEntity: {
           name: "Poste Italiane",
           status: "PENDING",
-          submittedById: "first-user",
         },
       },
     });

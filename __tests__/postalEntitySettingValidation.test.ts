@@ -7,6 +7,10 @@ import {
 const validInput = {
   postalEntityName: "Poste Italiane",
   countryCode: "IT",
+  issuingAuthority: "Italian Republic",
+  scope: "Italy",
+  sourceUrl: "https://example.com/poste-italiane",
+  sourceNote: "",
   displayCurrencyCode: "EUR",
   timeZone: "Europe/Rome",
   timeZoneMode: "SYSTEM",
@@ -15,6 +19,7 @@ const validInput = {
 const validData = {
   ...validInput,
   normalizedPostalEntityName: "poste italiane",
+  sourceNote: null,
 };
 
 describe("postal entity setting validation", () => {
@@ -45,6 +50,8 @@ describe("postal entity setting validation", () => {
   it.each([
     ["postalEntityName", "  ", "Enter the postal entity name."],
     ["countryCode", "XX", "Select a valid ISO 3166-1 country."],
+    ["issuingAuthority", " ", "Enter the issuing authority."],
+    ["scope", " ", "Enter the geographic or office scope."],
     [
       "displayCurrencyCode",
       "XXX",
@@ -61,6 +68,20 @@ describe("postal entity setting validation", () => {
     expect(
       validateInitialPostalEntitySetting({ ...validInput, [field]: value })
     ).toEqual({ errors: { [field]: message } });
+  });
+
+  it("requires a valid URL or a source note", () => {
+    expect(
+      validateInitialPostalEntitySetting({
+        ...validInput,
+        sourceUrl: "ftp://example.com",
+      }),
+    ).toEqual({
+      errors: {
+        sourceUrl: "Enter an HTTP or HTTPS URL.",
+        sourceNote: "Enter a source URL or source note.",
+      },
+    });
   });
 
   it("provides valid country and runtime currency options", () => {

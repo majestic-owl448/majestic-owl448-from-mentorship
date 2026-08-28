@@ -22,7 +22,9 @@ export type SavedPostalEntitySetting = {
     id: string;
     name: string;
     countryCode: string;
-    status: "PENDING";
+    issuingAuthority?: string;
+    scope?: string;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
   };
 };
 
@@ -75,6 +77,10 @@ export function InitialPostalEntitySettingForm({
     : "UTC";
   const [postalEntityName, setPostalEntityName] = useState("");
   const [countryCode, setCountryCode] = useState("");
+  const [issuingAuthority, setIssuingAuthority] = useState("");
+  const [scope, setScope] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceNote, setSourceNote] = useState("");
   const [displayCurrencyCode, setDisplayCurrencyCode] = useState("");
   const [timeZoneMode, setTimeZoneMode] = useState<"SYSTEM" | "CUSTOM">(
     "SYSTEM"
@@ -97,6 +103,10 @@ export function InitialPostalEntitySettingForm({
         body: JSON.stringify({
           postalEntityName,
           countryCode,
+          issuingAuthority,
+          scope,
+          sourceUrl,
+          sourceNote,
           displayCurrencyCode,
           timeZoneMode,
           timeZone:
@@ -155,6 +165,83 @@ export function InitialPostalEntitySettingForm({
           required
         />
         <FieldError field="postalEntityName" errors={errors} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="issuingAuthority" className="font-medium">
+          Issuing authority
+        </label>
+        <p id="issuingAuthority-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
+          Name the organization that authorizes this entity&apos;s postage.
+        </p>
+        <input
+          id="issuingAuthority"
+          name="issuingAuthority"
+          type="text"
+          value={issuingAuthority}
+          onChange={(event) => setIssuingAuthority(event.target.value)}
+          aria-invalid={Boolean(errors.issuingAuthority)}
+          aria-describedby={describedBy("issuingAuthority", Boolean(errors.issuingAuthority))}
+          className={inputClass}
+          required
+        />
+        <FieldError field="issuingAuthority" errors={errors} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="scope" className="font-medium">
+          Geographic or office scope
+        </label>
+        <p id="scope-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
+          Describe the territory or office served, such as Italy or UN Office at New York.
+        </p>
+        <input
+          id="scope"
+          name="scope"
+          type="text"
+          value={scope}
+          onChange={(event) => setScope(event.target.value)}
+          aria-invalid={Boolean(errors.scope)}
+          aria-describedby={describedBy("scope", Boolean(errors.scope))}
+          className={inputClass}
+          required
+        />
+        <FieldError field="scope" errors={errors} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="sourceUrl" className="font-medium">Source URL</label>
+        <p id="sourceUrl-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
+          Enter an HTTP or HTTPS source, or provide a source note below.
+        </p>
+        <input
+          id="sourceUrl"
+          name="sourceUrl"
+          type="url"
+          value={sourceUrl}
+          onChange={(event) => setSourceUrl(event.target.value)}
+          aria-invalid={Boolean(errors.sourceUrl)}
+          aria-describedby={describedBy("sourceUrl", Boolean(errors.sourceUrl))}
+          className={inputClass}
+        />
+        <FieldError field="sourceUrl" errors={errors} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="sourceNote" className="font-medium">Source note</label>
+        <p id="sourceNote-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
+          Describe where the entity information came from if no URL is available.
+        </p>
+        <textarea
+          id="sourceNote"
+          name="sourceNote"
+          value={sourceNote}
+          onChange={(event) => setSourceNote(event.target.value)}
+          aria-invalid={Boolean(errors.sourceNote)}
+          aria-describedby={describedBy("sourceNote", Boolean(errors.sourceNote))}
+          className="min-h-24 rounded-lg border border-zinc-300 bg-white p-3 text-zinc-950 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50"
+        />
+        <FieldError field="sourceNote" errors={errors} />
       </div>
 
       <div className="flex flex-col gap-2">
