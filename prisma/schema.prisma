@@ -74,7 +74,7 @@ model StampInventoryEntry {
   expired                   Boolean                           @default(false)
   user                      UserProfile                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   postalEntity              PostalEntity                      @relation(fields: [postalEntityId, countryCode], references: [id, countryCode], onDelete: Restrict)
-  namedFaceValue            NamedFaceValue?                   @relation(fields: [namedFaceValueId, countryCode], references: [id, countryCode], onDelete: Restrict)
+  namedFaceValue            NamedFaceValue?                   @relation(fields: [namedFaceValueId], references: [id], onDelete: Restrict)
   namedFaceValueProposal    NamedFaceValueDefinitionProposal? @relation(fields: [namedFaceValueProposalId, countryCode], references: [id, countryCode], onDelete: Restrict)
   createdAt                 DateTime                          @default(now()) @map("created_at")
   updatedAt                 DateTime                          @updatedAt @map("updated_at")

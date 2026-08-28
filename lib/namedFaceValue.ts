@@ -243,12 +243,7 @@ export async function resolveNamedFaceValueById(
 ): Promise<NamedFaceValueResolution> {
   const normalizedCountryCode = normalizeCountryCode(countryCode);
   const namedFaceValue = await prisma.namedFaceValue.findUnique({
-    where: {
-      id_countryCode: {
-        id: namedFaceValueId,
-        countryCode: normalizedCountryCode,
-      },
-    },
+    where: { id: namedFaceValueId },
     include: { valueSchedule: { include: { values: true } } },
   });
 

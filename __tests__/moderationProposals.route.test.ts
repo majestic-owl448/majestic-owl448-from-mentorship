@@ -421,16 +421,21 @@ describe("moderation proposal API", () => {
   it("updates the intended named definition without creating a duplicate", async () => {
     const stampBefore = await prisma.stampInventoryEntry.findUniqueOrThrow({
       where: { id: "private-inventory-entry" },
-      select: { namedFaceValueId: true, updatedAt: true },
+      select: {
+        countryCode: true,
+        postalEntityId: true,
+        namedFaceValueId: true,
+        updatedAt: true,
+      },
     });
     const proposal = await prisma.namedFaceValueDefinitionProposal.create({
       data: {
         id: "definition-correction",
         submittedById: "proposer",
         targetNamedFaceValueId: "approved-b",
-        countryCode: "IT",
-        displayCode: "B prioritario",
-        normalizedCode: "b prioritario",
+        countryCode: "FR",
+        displayCode: "Lettre prioritaire",
+        normalizedCode: "lettre prioritaire",
         currencyCode: "EUR",
         sourceNote: "Published naming correction",
       },
@@ -447,17 +452,43 @@ describe("moderation proposal API", () => {
         where: { id: "approved-b" },
       }),
     ).toMatchObject({
-      countryCode: "IT",
-      displayCode: "B prioritario",
-      normalizedCode: "b prioritario",
+      countryCode: "FR",
+      displayCode: "Lettre prioritaire",
+      normalizedCode: "lettre prioritaire",
       valueScheduleId: "italy-b-schedule",
     });
     expect(
       await prisma.stampInventoryEntry.findUniqueOrThrow({
         where: { id: "private-inventory-entry" },
-        select: { namedFaceValueId: true, updatedAt: true },
+        select: {
+          countryCode: true,
+          postalEntityId: true,
+          namedFaceValueId: true,
+          updatedAt: true,
+        },
       }),
     ).toEqual(stampBefore);
+    expect(await searchNamedFaceValues("IT", "prioritaire", "normal-user")).toEqual(
+      [],
+    );
+    expect(await searchNamedFaceValues("FR", "prioritaire", "normal-user")).toEqual([
+      expect.objectContaining({
+        id: "approved-b",
+        displayCode: "Lettre prioritaire",
+      }),
+    ]);
+    expect(
+      (await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })).find(({ id }) => id === "private-inventory-entry"),
+    ).toMatchObject({
+      countryCode: "IT",
+      postalEntityId: "private-postal-entity",
+      namedFaceValueId: "approved-b",
+      unitPostageValue: { amount: "1.25", source: "NAMED_SCHEDULE" },
+    });
   });
 
   it("updates one current schedule value and recalculates another user's inventory", async () => {
