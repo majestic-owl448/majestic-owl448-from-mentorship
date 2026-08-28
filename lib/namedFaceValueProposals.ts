@@ -82,15 +82,20 @@ export async function createValueProposal(
         sourceNote: input.sourceNote,
       },
     });
-    await tx.stampInventoryEntry.updateMany({
+    await tx.stampProposalAction.updateMany({
       where: {
-        userId,
-        actionRequired: true,
-        ...(input.targetNamedFaceValueId
-          ? { namedFaceValueId: input.targetNamedFaceValueId }
-          : { namedFaceValueProposalId: input.definitionProposalId }),
+        resolvedAt: null,
+        stamp: { userId },
+        namedValueProposal: {
+          is: {
+            submittedById: userId,
+            ...(input.targetNamedFaceValueId
+              ? { namedFaceValueId: input.targetNamedFaceValueId }
+              : { definitionProposalId: input.definitionProposalId }),
+          },
+        },
       },
-      data: { actionRequired: false },
+      data: { resolvedAt: new Date(), resolution: "RESUBMITTED" },
     });
     return proposal;
   });

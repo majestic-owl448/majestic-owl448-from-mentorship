@@ -67,13 +67,21 @@ async function markReferencedInventory(
       where: { id: proposalId },
       select: { submittedById: true },
     });
-    await tx.stampInventoryEntry.updateMany({
+    const stamps = await tx.stampInventoryEntry.findMany({
       where: {
         userId: proposal.submittedById,
         namedFaceValueProposalId: proposalId,
       },
-      data: { actionRequired: true },
+      select: { id: true },
     });
+    if (stamps.length > 0) {
+      await tx.stampProposalAction.createMany({
+        data: stamps.map(({ id: stampId }) => ({
+          stampId,
+          namedDefinitionProposalId: proposalId,
+        })),
+      });
+    }
     await tx.namedFaceValueValueProposal.updateMany({
       where: {
         submittedById: proposal.submittedById,
@@ -93,15 +101,23 @@ async function markReferencedInventory(
         definitionProposalId: true,
       },
     });
-    await tx.stampInventoryEntry.updateMany({
+    const stamps = await tx.stampInventoryEntry.findMany({
       where: {
         userId: proposal.submittedById,
         ...(proposal.namedFaceValueId
           ? { namedFaceValueId: proposal.namedFaceValueId }
           : { namedFaceValueProposalId: proposal.definitionProposalId }),
       },
-      data: { actionRequired: true },
+      select: { id: true },
     });
+    if (stamps.length > 0) {
+      await tx.stampProposalAction.createMany({
+        data: stamps.map(({ id: stampId }) => ({
+          stampId,
+          namedValueProposalId: proposalId,
+        })),
+      });
+    }
     return;
   }
 
@@ -120,7 +136,7 @@ async function markReferencedInventory(
     },
     select: { postalEntityId: true },
   });
-  await tx.stampInventoryEntry.updateMany({
+  const stamps = await tx.stampInventoryEntry.findMany({
     where: {
       userId: proposal.submittedById,
       postalEntityId: {
@@ -131,11 +147,36 @@ async function markReferencedInventory(
           faceValueType: "MONETARY",
           faceCurrencyCode: proposal.fromCurrencyCode,
         },
+        {
+          faceValueType: "NAMED",
+          OR: [
+            {
+              namedFaceValue: {
+                valueSchedule: {
+                  currencyCode: proposal.fromCurrencyCode,
+                },
+              },
+            },
+            {
+              namedFaceValueProposal: {
+                currencyCode: proposal.fromCurrencyCode,
+              },
+            },
+          ],
+        },
         { manualPostageCurrencyCode: proposal.fromCurrencyCode },
       ],
     },
-    data: { actionRequired: true },
+    select: { id: true },
   });
+  if (stamps.length > 0) {
+    await tx.stampProposalAction.createMany({
+      data: stamps.map(({ id: stampId }) => ({
+        stampId,
+        currencyConversionProposalId: proposalId,
+      })),
+    });
+  }
 }
 
 export async function rejectModerationProposal(

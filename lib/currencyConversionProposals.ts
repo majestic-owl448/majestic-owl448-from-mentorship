@@ -72,29 +72,19 @@ export async function createCurrencyConversionProposal(
     const proposal = await tx.currencyConversionProposal.create({
       data: { submittedById: userId, ...input },
     });
-    const matchingPostalEntities = await tx.userPostalEntitySetting.findMany({
+    await tx.stampProposalAction.updateMany({
       where: {
-        userId,
-        displayCurrencyCode: input.toCurrencyCode,
-      },
-      select: { postalEntityId: true },
-    });
-    await tx.stampInventoryEntry.updateMany({
-      where: {
-        userId,
-        actionRequired: true,
-        postalEntityId: {
-          in: matchingPostalEntities.map(({ postalEntityId }) => postalEntityId),
-        },
-        OR: [
-          {
-            faceValueType: "MONETARY",
-            faceCurrencyCode: input.fromCurrencyCode,
+        resolvedAt: null,
+        stamp: { userId },
+        currencyConversionProposal: {
+          is: {
+            submittedById: userId,
+            fromCurrencyCode: input.fromCurrencyCode,
+            toCurrencyCode: input.toCurrencyCode,
           },
-          { manualPostageCurrencyCode: input.fromCurrencyCode },
-        ],
+        },
       },
-      data: { actionRequired: false },
+      data: { resolvedAt: new Date(), resolution: "RESUBMITTED" },
     });
     return proposal;
   });

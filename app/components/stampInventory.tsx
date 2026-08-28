@@ -40,6 +40,10 @@ export type SavedStamp = {
   usableQuantity: number;
   expired: boolean;
   actionRequired?: boolean;
+  proposalActions?: Array<{
+    proposalType: "NAMED_DEFINITION" | "NAMED_VALUE" | "FIXED_CONVERSION";
+    proposalId: string;
+  }>;
   availableFallback?: (StampValue & { source: string }) | null;
   unitPostageValue: (StampValue & { source: string }) | null;
   totalPostageValue: StampValue | null;
@@ -523,10 +527,21 @@ export function StampInventoryResults({
                 <p>Definition status: {stamp.namedFaceValue.proposalStatus}</p>
               )}
               {stamp.actionRequired && (
-                <p role="alert">
-                  Action required: rejected proposal data is no longer used.
-                  Submit corrected data or choose a replacement below.
-                </p>
+                <div role="alert">
+                  <p>
+                    Action required: rejected proposal data is no longer used.
+                    Submit corrected data or choose a replacement below.
+                  </p>
+                  {stamp.proposalActions && stamp.proposalActions.length > 0 && (
+                    <ul>
+                      {stamp.proposalActions.map((action) => (
+                        <li key={`${action.proposalType}:${action.proposalId}`}>
+                          {action.proposalType.replaceAll("_", " ")}: {action.proposalId}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
               {stamp.upcomingNamedFaceValue && (
                 <p>

@@ -33,6 +33,7 @@ import {
 import { approveModerationProposal } from "@/lib/moderationApproval";
 import { resolveCurrencyConversion } from "@/lib/currencyConversion";
 import { resolveNamedFaceValueById, searchNamedFaceValues } from "@/lib/namedFaceValue";
+import { createValueProposal } from "@/lib/namedFaceValueProposals";
 import { listStamps, updateStamp as updateStampRecord } from "@/lib/stampInventory";
 
 function queueRequest(query = "") {
@@ -446,10 +447,14 @@ describe("moderation proposal API", () => {
         where: { id: "rejected-definition-stamp" },
       }),
     ).toMatchObject({
-      actionRequired: false,
       namedFaceValueId: "approved-b",
       namedFaceValueProposalId: null,
     });
+    expect(
+      await prisma.stampProposalAction.findMany({
+        where: { stampId: "rejected-definition-stamp", resolvedAt: null },
+      }),
+    ).toEqual([]);
 
     expect((await rejectionRequest("NAMED_DEFINITION", proposal.id)).status).toBe(409);
     expect(
@@ -460,6 +465,130 @@ describe("moderation proposal API", () => {
       status: "REJECTED",
       moderatedById: "moderator",
       decisionNote: "The submitted source does not support this value.",
+    });
+  });
+
+  it("keeps a stamp blocked until every overlapping rejection is resolved", async () => {
+    await prisma.userPostalEntitySetting.create({
+      data: {
+        id: "overlap-setting",
+        userId: "proposer",
+        postalEntityId: "private-postal-entity",
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        timeZoneMode: "CUSTOM",
+      },
+    });
+    await prisma.valueSchedule.create({
+      data: {
+        id: "usd-named-schedule",
+        countryCode: "IT",
+        currencyCode: "USD",
+      },
+    });
+    await prisma.valueScheduleValue.create({
+      data: {
+        id: "usd-named-current",
+        valueScheduleId: "usd-named-schedule",
+        amount: "2",
+        effectiveOn: null,
+      },
+    });
+    await prisma.namedFaceValue.create({
+      data: {
+        id: "approved-usd-named",
+        countryCode: "IT",
+        displayCode: "USD named",
+        normalizedCode: "usd named",
+        valueScheduleId: "usd-named-schedule",
+      },
+    });
+    await prisma.stampInventoryEntry.create({
+      data: {
+        id: "overlap-stamp",
+        userId: "proposer",
+        countryCode: "IT",
+        postalEntityId: "private-postal-entity",
+        name: "Overlapping rejection stamp",
+        faceValueType: "NAMED",
+        namedFaceValueId: "approved-usd-named",
+        quantityOwned: 1,
+      },
+    });
+    const valueProposal = await prisma.namedFaceValueValueProposal.create({
+      data: {
+        id: "overlap-value-proposal",
+        submittedById: "proposer",
+        namedFaceValueId: "approved-usd-named",
+        amount: "2.5",
+        effectiveOn: null,
+        eligibleOn: "2026-08-28",
+        sourceNote: "Unsupported schedule",
+      },
+    });
+    const conversionProposal = await prisma.currencyConversionProposal.create({
+      data: {
+        id: "overlap-conversion-proposal",
+        submittedById: "proposer",
+        targetCurrencyConversionId: "approved-usd-eur",
+        fromCurrencyCode: "USD",
+        toCurrencyCode: "EUR",
+        multiplier: "0.95",
+        sourceNote: "Unsupported conversion",
+      },
+    });
+    auth.userId = "moderator";
+    expect((await rejectionRequest("NAMED_VALUE", valueProposal.id)).status).toBe(200);
+    expect((await rejectionRequest("FIXED_CONVERSION", conversionProposal.id)).status).toBe(200);
+    expect(
+      await prisma.stampProposalAction.count({
+        where: { stampId: "overlap-stamp", resolvedAt: null },
+      }),
+    ).toBe(2);
+
+    await createValueProposal(
+      "proposer",
+      {
+        proposalType: "VALUE",
+        targetNamedFaceValueId: "approved-usd-named",
+        definitionProposalId: null,
+        amount: "2.4",
+        effectiveOn: null,
+        sourceUrl: null,
+        sourceNote: "Corrected published schedule",
+      },
+      "2026-08-28",
+    );
+
+    expect(
+      await prisma.stampProposalAction.findMany({
+        where: { stampId: "overlap-stamp", resolvedAt: null },
+        select: {
+          namedValueProposalId: true,
+          currencyConversionProposalId: true,
+        },
+      }),
+    ).toEqual([
+      {
+        namedValueProposalId: null,
+        currencyConversionProposalId: "overlap-conversion-proposal",
+      },
+    ]);
+    expect(
+      (await listStamps("proposer", {
+        displayCurrencyCode: "EUR",
+        timeZone: "Europe/Rome",
+        postalEntity: { countryCode: "IT" },
+      })).find(({ id }) => id === "overlap-stamp"),
+    ).toMatchObject({
+      actionRequired: true,
+      unitPostageValue: null,
+      proposalActions: [
+        {
+          proposalType: "FIXED_CONVERSION",
+          proposalId: "overlap-conversion-proposal",
+        },
+      ],
     });
   });
 
