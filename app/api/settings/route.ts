@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const userId = session.getUserId();
     const user = await supertokens.getUser(userId);
-    await upsertUserProfile(userId, user?.emails[0] ?? null);
+    const profile = await upsertUserProfile(userId, user?.emails[0] ?? null);
 
     let activePostalEntitySetting = null;
     try {
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     const postalEntitySettings = await listPostalEntitySettings(userId);
 
     return NextResponse.json({
+      role: profile.role,
       complete: activePostalEntitySetting !== null,
       activePostalEntitySetting,
       activeLocalDate:

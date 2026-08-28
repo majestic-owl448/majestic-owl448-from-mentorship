@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSessionContext } from "supertokens-auth-react/recipe/session";
 import type {
@@ -13,6 +14,7 @@ import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
 
 type SettingsResponse = {
+  role: "USER" | "MODERATOR";
   complete: boolean;
   activePostalEntitySetting: SavedPostalEntitySetting | null;
   activeLocalDate: string | null;
@@ -178,6 +180,15 @@ function DashboardContent() {
             )}
           />
         </>
+      )}
+
+      {settings.role === "MODERATOR" && (
+        <Link
+          href="/moderation"
+          className="w-fit rounded-full border border-zinc-300 px-5 py-2 text-sm font-medium dark:border-zinc-700"
+        >
+          Open proposal moderation
+        </Link>
       )}
 
       <button
