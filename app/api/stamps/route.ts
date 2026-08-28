@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import supertokens from "supertokens-node";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import {
   PostalEntitySettingRequiredError,
   requireActivePostalEntitySetting,
@@ -15,14 +13,11 @@ import {
   StampPostalEntityError,
 } from "@/lib/stampInventory";
 import { validateNewStamp } from "@/lib/stampValidation";
-import { upsertUserProfile } from "@/lib/userProfile";
+import type { AuthenticatedUser } from "@/lib/auth";
 
-ensureSuperTokensInit();
-
-async function authenticatedContext(session: { getUserId(): string }) {
-  const userId = session.getUserId();
-  const user = await supertokens.getUser(userId);
-  await upsertUserProfile(userId, user?.emails[0] ?? null);
+async function authenticatedContext(authenticatedUser: AuthenticatedUser) {
+  await authenticatedUser.getProfile();
+  const { userId } = authenticatedUser;
   const activePostalEntitySetting =
     await requireActivePostalEntitySetting(userId);
   return { userId, activePostalEntitySetting };
@@ -36,24 +31,11 @@ function settingsRequiredResponse(error: PostalEntitySettingRequiredError) {
 }
 
 export async function GET(request: NextRequest) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
+  return withAuthenticatedUser(request, async (authenticatedUser) => {
     try {
       const { userId, activePostalEntitySetting } =
-        await authenticatedContext(session);
-      const stamps = await listStamps(
-        userId,
-        activePostalEntitySetting,
-      );
+        await authenticatedContext(authenticatedUser);
+      const stamps = await listStamps(userId, activePostalEntitySetting);
       return NextResponse.json({
         activeCountryCode:
           activePostalEntitySetting.postalEntity.countryCode,
@@ -75,17 +57,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
+  return withAuthenticatedUser(request, async (authenticatedUser) => {
     let body: unknown;
     try {
       body = await request.json();
@@ -102,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const { userId, activePostalEntitySetting } =
-        await authenticatedContext(session);
+        await authenticatedContext(authenticatedUser);
       const created = await createStamp(userId, validation.data);
       const stamp = await presentStamp(
         created,

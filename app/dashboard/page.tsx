@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signOut, useSessionContext } from "supertokens-auth-react/recipe/session";
+import {
+  signOutAppSession,
+  useAppSession,
+} from "@/app/hooks/useAppSession";
 import type {
   SavedPostalEntitySetting,
   SettingOption,
@@ -30,7 +33,7 @@ type SettingsResponse = {
 
 function DashboardContent() {
   const router = useRouter();
-  const session = useSessionContext();
+  const session = useAppSession();
   const userId =
     !session.loading && session.doesSessionExist ? session.userId : null;
   const [loaded, setLoaded] = useState<{
@@ -81,7 +84,7 @@ function DashboardContent() {
   }
 
   async function onSignOut() {
-    await signOut();
+    await signOutAppSession();
     router.push("/auth");
   }
 

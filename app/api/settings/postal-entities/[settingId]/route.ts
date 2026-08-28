@@ -1,29 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import {
   PostalEntitySettingNotFoundError,
   updatePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
 import { validatePostalEntitySettingValues } from "@/lib/postalEntitySettingValidation";
 
-ensureSuperTokensInit();
-
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ settingId: string }> }
 ) {
-  return withSession(request, async (error, session) => {
-    if (error) {
-      return NextResponse.json(error, { status: 500 });
-    }
-    if (!session) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
+  return withAuthenticatedUser(request, async ({ userId }) => {
     let body: unknown;
     try {
       body = await request.json();
@@ -42,7 +29,7 @@ export async function PATCH(
     try {
       const { settingId } = await context.params;
       const postalEntitySetting = await updatePostalEntitySetting(
-        session.getUserId(),
+        userId,
         settingId,
         validation.data
       );

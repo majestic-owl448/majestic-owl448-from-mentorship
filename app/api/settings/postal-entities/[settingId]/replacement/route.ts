@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withSession } from "supertokens-node/nextjs";
-import { ensureSuperTokensInit } from "@/app/config/backend";
+import { withAuthenticatedUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   PostalEntitySettingAlreadyExistsError,
@@ -12,17 +11,11 @@ import {
 } from "@/lib/postalEntitySettings";
 import { validatePostalEntitySubmission } from "@/lib/postalEntitySettingValidation";
 
-ensureSuperTokensInit();
-
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ settingId: string }> },
 ) {
-  return withSession(request, async (error, session) => {
-    if (error) return NextResponse.json(error, { status: 500 });
-    if (!session) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    }
+  return withAuthenticatedUser(request, async ({ userId }) => {
     let body: unknown;
     try {
       body = await request.json();
@@ -45,14 +38,14 @@ export async function POST(
     try {
       const { settingId } = await context.params;
       const postalEntitySetting = await replaceRejectedPostalEntity(
-        session.getUserId(),
+        userId,
         settingId,
         postalEntityId
           ? { postalEntityId }
           : { submission: validation!.data as PostalEntitySubmissionInput },
       );
       const profile = await prisma.userProfile.findUnique({
-        where: { id: session.getUserId() },
+        where: { id: userId },
         select: { activePostalEntitySettingId: true },
       });
       return NextResponse.json({

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "supertokens-auth-react/recipe/session";
+import { signOutAppSession } from "@/app/hooks/useAppSession";
 
 export function AccountDeletion() {
   const router = useRouter();
@@ -37,7 +37,7 @@ export function AccountDeletion() {
         );
       }
 
-      await signOut().catch(() => undefined);
+      await signOutAppSession().catch(() => undefined);
       router.replace("/auth?accountDeleted=true");
       router.refresh();
     } catch (caught) {
