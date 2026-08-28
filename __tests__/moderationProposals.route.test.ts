@@ -119,7 +119,7 @@ describe("moderation proposal API", () => {
       data: {
         id: "value-proposal",
         submittedById: "proposer",
-        namedFaceValueId: "approved-b",
+        definitionProposalId: "definition-proposal",
         amount: "1.25",
         effectiveOn: null,
         eligibleOn: "2026-08-28",

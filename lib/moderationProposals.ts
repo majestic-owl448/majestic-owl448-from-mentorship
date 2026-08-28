@@ -215,7 +215,11 @@ async function namedValueDetail(proposalId: string) {
       createdAt: true,
       submittedBy: { select: { id: true, email: true } },
       definitionProposal: {
-        select: { countryCode: true, normalizedCode: true },
+        select: {
+          targetNamedFaceValueId: true,
+          countryCode: true,
+          normalizedCode: true,
+        },
       },
     },
   });
@@ -225,8 +229,15 @@ async function namedValueDetail(proposalId: string) {
     ? [{ id: proposal.namedFaceValueId }]
     : await prisma.namedFaceValue.findMany({
         where: {
-          countryCode: proposal.definitionProposal?.countryCode,
-          normalizedCode: proposal.definitionProposal?.normalizedCode,
+          OR: [
+            {
+              countryCode: proposal.definitionProposal?.countryCode,
+              normalizedCode: proposal.definitionProposal?.normalizedCode,
+            },
+            ...(proposal.definitionProposal?.targetNamedFaceValueId
+              ? [{ id: proposal.definitionProposal.targetNamedFaceValueId }]
+              : []),
+          ],
         },
         select: { id: true },
       });
