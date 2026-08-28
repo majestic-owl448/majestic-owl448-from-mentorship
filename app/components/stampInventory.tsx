@@ -6,9 +6,14 @@ import { FixedConversionProposals } from "@/app/components/fixedConversionPropos
 import {
   formatCalendarDate,
   formatInventoryDate,
+  formatMoney,
 } from "@/lib/localization";
 
-export { formatCalendarDate, formatInventoryDate } from "@/lib/localization";
+export {
+  formatCalendarDate,
+  formatInventoryDate,
+  formatMoney,
+} from "@/lib/localization";
 
 export type StampValue = {
   amount: string;
@@ -100,31 +105,6 @@ type NamedFaceValueOption = {
   namedFaceValueProposalId?: string;
   proposalStatus?: "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 };
-
-export function formatMoney(value: StampValue, locale?: string) {
-  try {
-    const [integer, fraction = ""] = value.amount.split(".");
-    const formattedFractionLength = Math.min(fraction.length, 20);
-    const formatter = new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: value.currencyCode,
-      minimumFractionDigits: formattedFractionLength,
-      maximumFractionDigits: 20,
-    });
-    const formattedValue = fraction
-      ? `${integer}.${fraction.slice(0, formattedFractionLength)}`
-      : integer;
-    const remainingFraction = fraction.slice(formattedFractionLength);
-    return formatter
-      .formatToParts(formattedValue as unknown as number)
-      .map((part) =>
-        part.type === "fraction" ? `${part.value}${remainingFraction}` : part.value,
-      )
-      .join("");
-  } catch {
-    return `${value.amount} ${value.currencyCode}`;
-  }
-}
 
 const valuationSourceLabels: Record<string, string> = {
   FACE_AMOUNT: "Face amount",

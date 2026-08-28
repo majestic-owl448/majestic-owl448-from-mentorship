@@ -120,7 +120,13 @@ describe("named/code proposal API", () => {
     expect(listResponse.status).toBe(200);
     expect(await listResponse.json()).toMatchObject({
       definitions: [{ id: definition.id, status: "PENDING" }],
-      values: [{ definitionProposalId: definition.id, status: "PENDING" }],
+      values: [
+        {
+          definitionProposalId: definition.id,
+          currencyCode: "EUR",
+          status: "PENDING",
+        },
+      ],
     });
   });
 });

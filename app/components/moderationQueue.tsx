@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatCalendarDate, formatMoney } from "@/lib/localization";
 
 type ProposalType =
   | "NAMED_DEFINITION"
@@ -17,6 +18,9 @@ type QueueItem = {
   summary: string;
   proposer: { id: string; email: string | null };
   submittedAt: string;
+  amount?: string;
+  currencyCode?: string;
+  effectiveOn?: string | null;
 };
 
 const typeLabels: Record<ProposalType, string> = {
@@ -26,7 +30,24 @@ const typeLabels: Record<ProposalType, string> = {
   POSTAL_ENTITY: "Postal entity",
 };
 
-export function ModerationQueue() {
+function queueSummary(proposal: QueueItem, locale?: string) {
+  if (
+    proposal.proposalType === "NAMED_VALUE" &&
+    proposal.amount &&
+    proposal.currencyCode
+  ) {
+    const amount = formatMoney(
+      { amount: proposal.amount, currencyCode: proposal.currencyCode },
+      locale,
+    );
+    return proposal.effectiveOn
+      ? `${amount} from ${formatCalendarDate(proposal.effectiveOn, locale)}`
+      : `${amount} current`;
+  }
+  return proposal.summary;
+}
+
+export function ModerationQueue({ locale }: { locale?: string } = {}) {
   const [proposalType, setProposalType] = useState("ALL");
   const [status, setStatus] = useState("PENDING");
   const [result, setResult] = useState<{
@@ -129,7 +150,9 @@ export function ModerationQueue() {
                 href={`/moderation/${proposal.proposalType}/${proposal.id}`}
                 className="block rounded-lg border border-zinc-300 p-4 focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-zinc-700"
               >
-                <span className="font-medium">{proposal.summary}</span>
+                <span className="font-medium">
+                  {queueSummary(proposal, locale)}
+                </span>
                 <span className="mt-1 block text-sm">
                   {typeLabels[proposal.proposalType]} · Status: {proposal.status}
                 </span>

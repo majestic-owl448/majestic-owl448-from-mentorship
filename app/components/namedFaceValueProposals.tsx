@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { SettingOption } from "@/app/components/initialPostalEntitySettingForm";
-import { formatCalendarDate } from "@/lib/localization";
+import { formatCalendarDate, formatMoney } from "@/lib/localization";
 
 type ProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "MERGED";
 
@@ -54,6 +54,7 @@ type ValueProposal = {
   namedFaceValueId: string | null;
   definitionProposalId: string | null;
   amount: string;
+  currencyCode: string;
   effectiveOn: string | null;
   sourceUrl: string | null;
   sourceNote: string | null;
@@ -104,7 +105,13 @@ export function ProposalStatusList({
           <p className="font-medium">
             {proposal.proposalType === "DEFINITION"
               ? proposal.displayCode
-              : `${proposal.amount} from ${
+              : `${formatMoney(
+                  {
+                    amount: proposal.amount,
+                    currencyCode: proposal.currencyCode,
+                  },
+                  locale,
+                )} from ${
                   proposal.effectiveOn
                     ? formatCalendarDate(proposal.effectiveOn, locale)
                     : "the current schedule"

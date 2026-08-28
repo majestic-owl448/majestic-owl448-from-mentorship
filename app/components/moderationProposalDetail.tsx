@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatCalendarDate } from "@/lib/localization";
+import { formatCalendarDate, formatMoney } from "@/lib/localization";
 
 type ProposalDetail = {
   id: string;
@@ -52,6 +52,7 @@ export function displayValue(
   value: unknown,
   locale?: string,
   fieldName?: string,
+  currencyCode?: string,
 ): string {
   if (value === null || value === "") return "None";
   if (
@@ -60,14 +61,25 @@ export function displayValue(
   ) {
     return formatCalendarDate(value, locale);
   }
+  if (typeof value === "string" && fieldName === "amount" && currencyCode) {
+    return formatMoney({ amount: value, currencyCode }, locale);
+  }
   if (Array.isArray(value)) {
     return value.map((item) => displayValue(item, locale)).join(", ");
   }
   if (typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>)
+    const record = value as Record<string, unknown>;
+    const nestedCurrencyCode =
+      typeof record.currencyCode === "string" ? record.currencyCode : undefined;
+    return Object.entries(record)
       .map(
         ([key, item]) =>
-          `${labels[key] ?? key}: ${displayValue(item, locale, key)}`,
+          `${labels[key] ?? key}: ${displayValue(
+            item,
+            locale,
+            key,
+            nestedCurrencyCode,
+          )}`,
       )
       .join("; ");
   }
@@ -205,7 +217,14 @@ export function ModerationProposalDetail({
           {Object.entries(proposal.proposedValues).map(([key, value]) => (
             <div key={key}>
               <dt className="font-medium">{labels[key] ?? key}</dt>
-              <dd>{displayValue(value, locale, key)}</dd>
+              <dd>
+                {displayValue(
+                  value,
+                  locale,
+                  key,
+                  proposal.proposedValues.currencyCode ?? undefined,
+                )}
+              </dd>
             </div>
           ))}
         </dl>

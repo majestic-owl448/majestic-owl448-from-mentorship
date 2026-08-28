@@ -6,7 +6,7 @@ import {
   NamedFaceValueProposals,
   ProposalStatusList,
 } from "@/app/components/namedFaceValueProposals";
-import { formatCalendarDate } from "@/lib/localization";
+import { formatCalendarDate, formatMoney } from "@/lib/localization";
 
 describe("named/code proposal interface", () => {
   beforeEach(() => {
@@ -101,6 +101,7 @@ describe("named/code proposal interface", () => {
               namedFaceValueId: "named-value",
               definitionProposalId: null,
               amount: "1.25",
+              currencyCode: "EUR",
               effectiveOn: "2028-10-01",
               sourceUrl: null,
               sourceNote: "Published tariff",
@@ -112,10 +113,12 @@ describe("named/code proposal interface", () => {
       />,
     );
 
+    const expected = `${formatMoney(
+      { amount: "1.25", currencyCode: "EUR" },
+      "de-DE",
+    )} from ${formatCalendarDate("2028-10-01", "de-DE")}`;
     expect(
-      screen.getByText(
-        `1.25 from ${formatCalendarDate("2028-10-01", "de-DE")}`,
-      ),
+      screen.getByText((_, element) => element?.textContent === expected),
     ).toBeTruthy();
     expect(screen.queryByText(/2028-10-01/)).toBeNull();
   });
@@ -148,6 +151,7 @@ describe("named/code proposal interface", () => {
               namedFaceValueId: null,
               definitionProposalId: "rejected-definition",
               amount: "0.75",
+              currencyCode: "EUR",
               effectiveOn: null,
               sourceUrl: null,
               sourceNote: "Same source",
