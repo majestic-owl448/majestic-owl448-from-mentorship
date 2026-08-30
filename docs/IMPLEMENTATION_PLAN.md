@@ -34,7 +34,7 @@ chore: restore passing project checks
 Work:
 
 1. Fix the React effect lint errors in the authentication components.
-2. Remove the empty `combRep` test and unused helper unless the future postage-combination feature is intentionally retained. If retained, add real unit tests without connecting it to the inventory release.
+2. Retain the `combRep` helper for future postage-combination work and cover it with unit tests without connecting it to the inventory release.
 3. Configure database tests to use a disposable test database.
 4. Replace the generated home-page text and metadata with inventory product copy.
 5. Confirm `pnpm lint`, `pnpm test --run`, and `pnpm build` pass.
