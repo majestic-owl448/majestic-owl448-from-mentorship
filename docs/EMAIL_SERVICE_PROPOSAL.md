@@ -35,7 +35,7 @@ A named/code value or fixed conversion can remain pending after the user leaves 
 
 ### Future values have known dates
 
-The application already models named/code changes that become valid on a future calendar date. An optional email can warn affected users before the change. The saved country timezone determines the relevant date, while the inventory screen remains authoritative for the current value.
+The application already models named/code changes that become valid on a future calendar date. An optional email can warn affected users before the change. The active postal-entity setting's saved IANA timezone determines the relevant date, while the inventory screen remains authoritative for the current value.
 
 ### Moderator work can arrive irregularly
 
@@ -176,7 +176,7 @@ Those tasks do not improve stamp inventory or moderation. A delivery provider le
 
 The prices below were checked on August 21, 2026. They are public list prices in US dollars, before taxes. Providers can change prices, included features, and volume bands, so the selected plan must be checked again before launch.
 
-All of these providers can be called from the application through an HTTP API. Most also expose SMTP. None needs to run in the same deployment as the web application or PostgreSQL database. The application-owned outbox remains in PostgreSQL, while the provider only handles delivery and delivery events.
+All of these providers can be called from the application through an HTTP API. Most also expose SMTP. None needs to run in the same deployment as the web application or database. The application-owned outbox belongs in the application database, which currently uses SQLite; move it with the planned production migration to PostgreSQL. The provider only handles delivery and delivery events.
 
 | Provider | Entry price | How cost scales | Suitability for this project |
 | --- | --- | --- | --- |
