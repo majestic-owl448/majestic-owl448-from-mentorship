@@ -143,7 +143,7 @@ Security notifications remain enabled. If the selected address bounces, the sett
 
 Upcoming-value email is useful only for users who own a matching named/code stamp in that country. It must follow these rules:
 
-1. Use the user's country setting and timezone.
+1. Use the active postal-entity setting's country and saved IANA timezone.
 2. Send at most once for a user, schedule value, and effective date.
 3. Do not send before the value enters the product's notice window.
 4. Include pending data only when the recipient is its proposer.
