@@ -292,7 +292,7 @@ The export includes stored decimal amounts and date-only values as strings so JS
 
 The export does not contain session tokens, OAuth access or refresh tokens, provider client secrets, API keys, password hashes, or another user's private profile fields. When a user-linked moderation entry also refers to another account, the entry remains understandable but the other account's private identifier and email are omitted.
 
-Every new table or field that stores a direct user reference must be added to the export or marked as a secret excluded by an automated test. A user must download the file before deleting the account; deletion does not retain a private export for later retrieval.
+Every new table or field that stores a direct user reference must be added to the export or marked as a secret excluded by an automated test. A user can download the file before deleting the account; deletion does not retain a private export for later retrieval.
 
 ## Account deletion
 
