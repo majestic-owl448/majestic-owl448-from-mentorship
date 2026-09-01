@@ -1,10 +1,5 @@
 # Stamp Inventory Implementation Plan
 
-## Document status
-
-- Last reviewed: August 27, 2026.
-- Issues #4 through #30 are the delivery tracker. This document records the implementation sequence and cross-phase constraints.
-
 ## Current repository baseline
 
 The repository currently contains:
@@ -17,6 +12,11 @@ The repository currently contains:
 - An authenticated profile route that creates or updates a `UserProfile` keyed by the SuperTokens primary user ID.
 - An initial postal-entity setting flow that saves a postal entity, display currency, and timezone before inventory access.
 - A settings manager that lets each user add and edit postal-entity settings and select the active setting.
+- Reference schedules, fixed conversions, and named face values that resolve according to the active postal entity's local date.
+- User-owned inventory entries with monetary, named/code, and manual postage values; quantity, annulled, expiration, and removal controls; and active-country totals.
+- Named/code, fixed-conversion, and postal-entity proposal workflows, including moderator approval, rejection, and duplicate merging.
+- JSON account-data export and account deletion workflows that retain approved shared contributions without the deleted user's direct references.
+- Continuous integration for lint, tests, build, and migration checks, plus isolated local normal-user and moderator test clients.
 - Vitest and ESLint configuration, with database tests running against a temporary database.
 
 The baseline repair is complete. `pnpm lint`, `pnpm test --run`, and `pnpm build` pass, and the retained test suites contain assertions. The database test applies every committed migration to a disposable SQLite database instead of writing to the development database.
