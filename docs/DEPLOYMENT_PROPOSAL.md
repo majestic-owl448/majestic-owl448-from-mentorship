@@ -3,7 +3,7 @@
 ## Document status
 
 - Scope: production hosting for the stamp inventory application
-- Research date: August 21, 2026
+- Research date: September 1, 2026
 - Currency: USD before tax unless a provider states otherwise
 - Current stack: Next.js 16 App Router, React 19, Prisma 7, SQLite, and SuperTokens with Google and Apple login
 
@@ -26,7 +26,7 @@ This is the shortest path from the current repository to a persistent deployment
 
 Migrate Prisma from SQLite to PostgreSQL before deployment. Do not treat a persistent SQLite volume as the production destination: it ties writes to one machine and makes replication, failover, and horizontal application scaling harder.
 
-Keep SuperTokens managed Cloud for the first release only if the account-linking budget is accepted. Core features cost $0 below 5,000 monthly active users, but manual account linking is a paid feature with a $100 monthly minimum. Replacing it with direct Google and Apple OAuth would make this project responsible for sessions, cookies, token validation, explicit linking, unlinking, revocation, and the user-auth data model. The auth choice must be confirmed before implementing linked-login settings.
+Keep SuperTokens managed Cloud for the first release. Core features cost $0 below 5,000 monthly active users. Manual account linking is optional and has a $100 monthly minimum. The current PRD requires Google and Apple sign-in, but does not require a person to link both identities. Replacing SuperTokens with direct Google and Apple OAuth would make this project responsible for sessions, cookies, token validation, revocation, and the user-auth data model. Decide whether linked login is a product requirement before implementing it or accepting the add-on budget.
 
 The strongest alternative is Vercel Pro with Neon Postgres. Choose it if native Next.js deployment and preview ergonomics matter more than keeping the app and database under one provider. The expected paid floor is $20 per month for Vercel Pro; Neon can begin on its free tier and become usage-based.
 
@@ -87,7 +87,7 @@ OAuth and SuperTokens are not equivalent layers. Google or Apple OAuth identifie
 
 ### SuperTokens managed Cloud
 
-For core features, the current price is $0.02 per monthly active user, with no charge below 5,000 MAU. Manual account linking costs another $0.005/MAU with a $100 monthly minimum. The feature is required for multiple social logins in this PRD.
+For core features, the current price is $0.02 per monthly active user, with no charge below 5,000 MAU. Manual account linking costs another $0.005/MAU with a $100 monthly minimum. It is needed only if the product must let one account use both social identities; the current PRD does not state that requirement.
 
 | Monthly active users | Core features plus account linking |
 | ---: | ---: |
@@ -103,7 +103,7 @@ Advantages for this project:
 
 - The integration already exists.
 - There is no auth hosting or auth database to operate.
-- Manual linking is already supported by the selected SDK and keeps the primary user ID stable.
+- If added, manual linking can keep one primary user ID stable across both social identities.
 - A later move to self-hosted SuperTokens can preserve the same application-facing SDK model.
 
 ### Self-hosted SuperTokens
@@ -144,11 +144,12 @@ These are planning examples, not quotes. They exclude domain registration, taxes
 
 | Scenario | Application and database | Authentication | Expected floor |
 | --- | --- | --- | --- |
-| Development or preview with account linking | Railway Free if the combined services remain inside its limits; otherwise Hobby | SuperTokens Cloud account linking minimum | $100 to $105/month |
-| First paid release, recommended | Railway Hobby with Next.js and Postgres; usage above $5 is charged at resource rates | SuperTokens Cloud account linking minimum below 5,000 MAU | $105/month, then actual Railway usage |
-| Native Next.js alternative | Vercel Pro plus Neon Free | SuperTokens Cloud account linking minimum below 5,000 MAU | $120/month |
-| Predictable fixed-size alternative | DigitalOcean 512 MB app plus production managed PostgreSQL | SuperTokens Cloud account linking minimum below 5,000 MAU | About $120/month |
-| Managed auth at 5,000 MAU | Any of the above | SuperTokens core plus account linking is about $125/month | Hosting floor plus about $125/month auth |
+| Development or preview without account linking | Railway Free if the combined services remain inside its limits; otherwise Hobby | SuperTokens Cloud core below 5,000 MAU | $0 to $5/month |
+| First paid release, recommended | Railway Hobby with Next.js and Postgres; usage above $5 is charged at resource rates | SuperTokens Cloud core below 5,000 MAU | $5/month, then actual Railway usage |
+| Native Next.js alternative | Vercel Pro plus Neon Free | SuperTokens Cloud core below 5,000 MAU | $20/month |
+| Predictable fixed-size alternative | DigitalOcean 512 MB app plus production managed PostgreSQL | SuperTokens Cloud core below 5,000 MAU | About $20/month |
+| Linked-login add-on below 5,000 MAU | Any of the above | SuperTokens Cloud account linking minimum | Hosting floor plus $100/month auth |
+| Linked login at 5,000 MAU | Any of the above | SuperTokens core plus account linking is about $125/month | Hosting floor plus about $125/month auth |
 
 The inventory workload is likely to be database-light: small records, modest write frequency, and simple aggregates. Early cost is more likely to be set by minimum service sizes and always-on memory than by database storage. The first meaningful scaling work should therefore be measuring memory, database connections, query latency, and monthly active users before increasing plan sizes.
 
@@ -158,7 +159,7 @@ The inventory workload is likely to be database-light: small records, modest wri
 
 1. Complete the persistent-storage implementation issue and migrate Prisma to PostgreSQL.
 2. Add production migration, health-check, and environment documentation.
-3. Approve the SuperTokens account-linking add-on budget or select another authentication design.
+3. Decide whether linked login is a product requirement. Approve the SuperTokens account-linking add-on budget only if it is.
 4. Confirm Google and Apple production credentials and callback URLs.
 
 ### Stage 2: preview environment
