@@ -4,6 +4,22 @@ Stamp Inventory is a web application for recording owned stamps and calculating
 their current postage value for a selected country. The first release is under
 development; its requirements and implementation sequence are in [`docs/`](docs/).
 
+## Current functionality
+
+Signed-in users can select one or more postal entities, set a display currency
+and timezone for each, and choose the active setting used for valuation. The
+dashboard lets them record monetary, named/code, and manually entered postage
+values; set a quantity, annulment state, and optional expiration date; remove an
+entry; and see the active-country total.
+
+Users can propose named/code face values and fixed currency conversions. The
+proposal workflow keeps proposed entries separate from approved shared data.
+Moderators can review proposals, approve or reject them, and merge duplicates.
+
+The dashboard also provides a JSON download of the signed-in user's account data
+and an account-deletion flow. Deletion retains approved shared contributions but
+removes the deleted user's direct references to them.
+
 ## Local setup
 
 Create the local environment file before installing dependencies. Prisma reads
@@ -131,7 +147,7 @@ The authentication code is organized as follows:
 | `app/auth/[[...path]]/page.tsx` | Prebuilt sign-in and sign-up interface |
 | `app/components/supertokensProvider.tsx` | Client initialization and provider |
 | `app/components/sessionAuthForNextJS.tsx` | Server-rendering-safe session guard |
-| `app/dashboard/page.tsx` | Example protected page |
+| `app/dashboard/page.tsx` | Protected settings, inventory, proposals, and account-management dashboard |
 | `lib/userProfile.ts` | Profile creation and email updates for signed-in users |
 
 `GET /api/me` creates or updates one `UserProfile` keyed by the SuperTokens
