@@ -125,7 +125,7 @@ The direct-OAuth cash floor is therefore the Apple membership plus the applicati
 
 - Implement and secure authorization-code callbacks and state/nonce validation.
 - Create application sessions and rotate or revoke them safely.
-- Implement explicit linking, alternate-login confirmation, last-login protection, and unlinking without changing the inventory owner ID.
+- If linked login is a product requirement, implement explicit linking, alternate-login confirmation, last-login protection, and unlinking without changing the inventory owner ID.
 - Handle provider email and profile differences.
 - Build auth-user administration and deletion flows.
 - Maintain security fixes as provider and framework behavior changes.
