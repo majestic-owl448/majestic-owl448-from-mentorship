@@ -408,6 +408,9 @@ export function PostalEntitySettingsManager({
       entity.status === "APPROVED" &&
       !settings.some((setting) => setting.postalEntity.id === entity.id),
   );
+  const [addMethod, setAddMethod] = useState<"EXISTING" | "CREATE">(
+    approvedEntitiesToAdd.length > 0 ? "EXISTING" : "CREATE",
+  );
 
   async function activate(settingId: string) {
     setActivating(true);
@@ -428,6 +431,13 @@ export function PostalEntitySettingsManager({
       setActivationError("The active setting could not be changed.");
     } finally {
       setActivating(false);
+    }
+  }
+
+  function handleAdded(setting: SavedPostalEntitySetting) {
+    onAdded(setting);
+    if (approvedEntitiesToAdd.length === 1) {
+      setAddMethod("CREATE");
     }
   }
 
@@ -468,7 +478,7 @@ export function PostalEntitySettingsManager({
       {settings.length > 0 ? (
         <section className="flex flex-col gap-6" aria-labelledby="saved-settings-heading">
           <h2 id="saved-settings-heading" className="text-xl font-semibold">
-            Saved settings
+            Postal entity details
           </h2>
           {settings.map((setting) => (
             <article key={setting.id} className="flex max-w-lg flex-col gap-4 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
@@ -480,20 +490,10 @@ export function PostalEntitySettingsManager({
                 </p>
               </div>
               {(setting.postalEntity.status === "PENDING" || setting.postalEntity.status === "APPROVED") && (
-                <SettingEditor
-                  currencies={currencies}
-                  setting={setting}
-                  onUpdated={onUpdated}
-                />
+                <SettingEditor currencies={currencies} setting={setting} onUpdated={onUpdated} />
               )}
               {setting.postalEntity.status === "REJECTED" && (
-                <RejectedEntityReplacement
-                  availablePostalEntities={availablePostalEntities}
-                  countries={countries}
-                  setting={setting}
-                  onUpdated={onUpdated}
-                  onActivated={onActivated}
-                />
+                <RejectedEntityReplacement availablePostalEntities={availablePostalEntities} countries={countries} setting={setting} onUpdated={onUpdated} onActivated={onActivated} />
               )}
             </article>
           ))}
@@ -506,23 +506,28 @@ export function PostalEntitySettingsManager({
             {settings.length === 0 ? "Add your first postal entity" : "Add another postal entity"}
           </h2>
           <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
-            Each postal entity keeps its own display currency and timezone.
+            Select an available postal entity, or create one for this stamp workflow.
           </p>
         </div>
-        {approvedEntitiesToAdd.length > 0 && (
-          <ExistingPostalEntitySettingForm
-            currencies={currencies}
-            entities={approvedEntitiesToAdd}
-            onAdded={onAdded}
-          />
-        )}
-        <InitialPostalEntitySettingForm
-          key={settings.length}
-          countries={countries}
-          currencies={currencies}
-          onSaved={onAdded}
-          submitLabel="Add postal entity"
-        />
+        {approvedEntitiesToAdd.length > 0 ? (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="font-medium">Postal entity option</legend>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="postal-entity-method" checked={addMethod === "EXISTING"} onChange={() => setAddMethod("EXISTING")} />
+              Choose an available postal entity
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="postal-entity-method" checked={addMethod === "CREATE"} onChange={() => setAddMethod("CREATE")} />
+              Create a postal entity
+            </label>
+          </fieldset>
+        ) : null}
+        {addMethod === "EXISTING" && approvedEntitiesToAdd.length > 0 ? (
+          <ExistingPostalEntitySettingForm currencies={currencies} entities={approvedEntitiesToAdd} onAdded={handleAdded} />
+        ) : null}
+        {addMethod === "CREATE" ? (
+          <InitialPostalEntitySettingForm key={settings.length} countries={countries} currencies={currencies} onSaved={handleAdded} submitLabel="Add postal entity" />
+        ) : null}
       </section>
     </div>
   );

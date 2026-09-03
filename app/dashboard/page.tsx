@@ -2,18 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  signOutAppSession,
-  useAppSession,
-} from "@/app/hooks/useAppSession";
+import { useAppSession } from "@/app/hooks/useAppSession";
 import type {
   SavedPostalEntitySetting,
   SettingOption,
 } from "@/app/components/initialPostalEntitySettingForm";
 import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
-import { AccountDataDownload } from "@/app/components/accountDataDownload";
-import { AccountDeletion } from "@/app/components/accountDeletion";
+import { AuthenticatedNavigation } from "@/app/components/authenticatedNavigation";
 import { NamedFaceValueProposals } from "@/app/components/namedFaceValueProposals";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
@@ -32,7 +27,6 @@ type SettingsResponse = {
 };
 
 function DashboardContent() {
-  const router = useRouter();
   const session = useAppSession();
   const userId =
     !session.loading && session.doesSessionExist ? session.userId : null;
@@ -83,11 +77,6 @@ function DashboardContent() {
     );
   }
 
-  async function onSignOut() {
-    await signOutAppSession();
-    router.push("/auth");
-  }
-
   function replaceSetting(updated: SavedPostalEntitySetting) {
     setLoaded((current) =>
       current?.userId === userId
@@ -110,17 +99,29 @@ function DashboardContent() {
 
   return (
     <div className="flex w-full flex-col gap-10">
+      <AuthenticatedNavigation />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">
           Stamp Inventory
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">
-          Postal entity settings
+          Your stamp inventory
         </h1>
         <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
-          Choose the postal entity used for valuation and manage each entity&apos;s display currency and timezone.
+          Record and value the stamps in your collection.
         </p>
       </div>
+
+      {!settings.activePostalEntitySetting ? (
+        <section className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800" aria-labelledby="postal-entity-required-heading">
+          <h2 id="postal-entity-required-heading" className="text-xl font-semibold">
+            Choose a postal entity
+          </h2>
+          <p className="max-w-xl text-zinc-600 dark:text-zinc-400">
+            Before you can start adding stamps, choose or create at least one postal entity.
+          </p>
+        </section>
+      ) : null}
 
       <PostalEntitySettingsManager
         activeSettingId={settings.activePostalEntitySetting?.id ?? null}
@@ -198,16 +199,6 @@ function DashboardContent() {
         </Link>
       )}
 
-      <AccountDataDownload />
-
-      <AccountDeletion />
-
-      <button
-        onClick={onSignOut}
-        className="h-10 w-32 rounded-full border border-zinc-300 text-sm font-medium dark:border-zinc-700"
-      >
-        Sign out
-      </button>
     </div>
   );
 }

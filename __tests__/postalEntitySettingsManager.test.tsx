@@ -1,5 +1,12 @@
+// @vitest-environment jsdom
+import { useState } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PostalEntitySettingsManager } from "@/app/components/postalEntitySettingsManager";
+import {
+  PostalEntitySettingsManager,
+} from "@/app/components/postalEntitySettingsManager";
+import type { SavedPostalEntitySetting } from "@/app/components/initialPostalEntitySettingForm";
 
 const settings = [
   {
@@ -104,5 +111,71 @@ describe("postal entity settings manager", () => {
     expect(markup).toContain("Use an available postal entity");
     expect(markup).toContain("Resubmit corrected entity information");
     expect(markup).toContain("Replace references");
+  });
+
+  it("keeps creation closed when an available postal entity can be selected", () => {
+    const markup = renderToStaticMarkup(
+      <PostalEntitySettingsManager
+        activeSettingId={null}
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+        settings={[]}
+        availablePostalEntities={[
+          {
+            id: "approved-entity",
+            name: "Approved Post",
+            countryCode: "IT",
+            status: "APPROVED",
+          },
+        ]}
+        onAdded={() => undefined}
+        onActivated={() => undefined}
+        onUpdated={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Postal entity option");
+    expect(markup).toContain("Choose an available postal entity");
+    expect(markup).toContain("Create a postal entity");
+    expect(markup).toContain("Use an approved postal entity");
+    expect(markup).not.toContain('id="postalEntityName"');
+  });
+
+  it("opens creation when no postal entity is available", () => {
+    const markup = renderToStaticMarkup(
+      <PostalEntitySettingsManager
+        activeSettingId={null}
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+        settings={[]}
+        onAdded={() => undefined}
+        onActivated={() => undefined}
+        onUpdated={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('id="postalEntityName"');
+  });
+
+  it("opens creation after selecting the final available entity", async () => {
+    const user = userEvent.setup();
+    const entity = {
+      id: "approved-entity",
+      name: "Approved Post",
+      countryCode: "IT",
+      status: "APPROVED" as const,
+    };
+    function ManagerHarness() {
+      const [saved, setSaved] = useState<SavedPostalEntitySetting[]>([]);
+      return <PostalEntitySettingsManager activeSettingId={null} countries={[{ value: "IT", label: "Italy" }]} currencies={[{ value: "EUR", label: "EUR - Euro" }]} settings={saved} availablePostalEntities={[entity]} onAdded={(added) => setSaved((current) => [...current, added])} onActivated={() => undefined} onUpdated={() => undefined} />;
+    }
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ postalEntitySetting: { id: "added-setting", userId: "first-user", displayCurrencyCode: "EUR", timeZone: "UTC", timeZoneMode: "SYSTEM", postalEntity: entity } })));
+
+    render(<ManagerHarness />);
+    await user.selectOptions(screen.getByLabelText("Approved postal entity"), "approved-entity");
+    await user.selectOptions(screen.getByLabelText("Display currency"), "EUR");
+    await user.click(screen.getByRole("button", { name: "Add approved entity" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Postal entity")).toBeTruthy());
   });
 });

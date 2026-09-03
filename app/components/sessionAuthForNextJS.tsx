@@ -20,5 +20,5 @@ export function SessionAuthForNextJS(props: Props) {
     return props.children;
   }
 
-  return <SessionAuth {...props}>{props.children}</SessionAuth>;
+  return <SessionAuth {...props} requireAuth>{props.children}</SessionAuth>;
 }
