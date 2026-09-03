@@ -23,24 +23,34 @@ async function savePreference(preference: Preference) {
 export function SystemTimeZoneSync({
   preference,
   onReady,
+  onError,
 }: {
   preference: Preference;
   onReady: (preference: Preference) => void;
+  onError: (message: string) => void;
 }) {
   const mounted = useIsMounted();
+  const { timeZone, timeZoneMode } = preference;
   useEffect(() => {
-    if (!mounted) return;
-    if (preference.timeZoneMode !== "SYSTEM") {
-      onReady(preference);
+    let cancelled = false;
+    if (!mounted) return () => { cancelled = true; };
+    const synchronizedPreference = { timeZone, timeZoneMode };
+    if (timeZoneMode !== "SYSTEM") {
+      onReady(synchronizedPreference);
       return;
     }
-    const timeZone = browserTimeZone();
-    if (timeZone === preference.timeZone) {
-      onReady(preference);
+    const browserZone = browserTimeZone();
+    if (browserZone === timeZone) {
+      onReady(synchronizedPreference);
       return;
     }
-    void savePreference({ timeZone, timeZoneMode: "SYSTEM" }).then(onReady);
-  }, [mounted, onReady, preference.timeZone, preference.timeZoneMode]);
+    void savePreference({ timeZone: browserZone, timeZoneMode: "SYSTEM" })
+      .then((next) => { if (!cancelled) onReady(next); })
+      .catch((error: unknown) => {
+        if (!cancelled) onError(error instanceof Error ? error.message : "Timezone could not be saved.");
+      });
+    return () => { cancelled = true; };
+  }, [mounted, onError, onReady, timeZone, timeZoneMode]);
   return null;
 }
 

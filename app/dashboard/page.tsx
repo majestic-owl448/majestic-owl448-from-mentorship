@@ -79,6 +79,10 @@ function DashboardContent() {
     setTimeZoneReadyUserId(userId);
   }, [userId]);
 
+  const onTimeZoneError = useCallback((message: string) => {
+    setLoadError({ userId: userId ?? "", message });
+  }, [userId]);
+
   const settings = loaded?.userId === userId ? loaded.data : null;
   const currentLoadError =
     loadError?.userId === userId ? loadError.message : null;
@@ -116,7 +120,7 @@ function DashboardContent() {
 
   return (
     <div className="flex w-full flex-col gap-10">
-      <SystemTimeZoneSync preference={{ timeZone: settings.timeZone, timeZoneMode: settings.timeZoneMode }} onReady={onTimeZoneReady} />
+      <SystemTimeZoneSync preference={{ timeZone: settings.timeZone, timeZoneMode: settings.timeZoneMode }} onReady={onTimeZoneReady} onError={onTimeZoneError} />
       <AuthenticatedNavigation />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">
