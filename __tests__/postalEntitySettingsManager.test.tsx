@@ -13,8 +13,6 @@ const settings = [
     id: "italy-setting",
     userId: "first-user",
     displayCurrencyCode: "EUR",
-    timeZone: "Europe/Rome",
-    timeZoneMode: "SYSTEM" as const,
     postalEntity: {
       id: "italy-entity",
       name: "Poste Italiane",
@@ -26,8 +24,6 @@ const settings = [
     id: "vatican-setting",
     userId: "first-user",
     displayCurrencyCode: "USD",
-    timeZone: "Europe/Vatican",
-    timeZoneMode: "CUSTOM" as const,
     postalEntity: {
       id: "vatican-entity",
       name: "Vatican Post",
@@ -66,12 +62,8 @@ describe("postal entity settings manager", () => {
     expect(markup).toContain("Active for valuation.");
     expect(markup).toContain('id="setting-italy-setting-currency"');
     expect(markup).toContain('id="setting-vatican-setting-currency"');
-    expect(markup).toContain('name="setting-italy-setting-timeZoneMode"');
-    expect(markup).toContain('name="setting-vatican-setting-timeZoneMode"');
-    expect(markup).toMatch(
-      /id="setting-italy-setting-time-zone"[^>]+value="Europe\/Rome"/
-    );
-    expect(markup).toContain("Use current browser timezone (UTC)");
+    expect(markup).not.toContain("Timezone mode");
+    expect(markup).not.toContain("Use current browser timezone");
   });
 
   it("labels approved-entity selection and rejected-reference replacement controls", () => {

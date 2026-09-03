@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuthenticatedUser } from "@/lib/auth";
 import {
-  PostalEntitySettingRequiredError,
   localDateInTimeZone,
+  PostalEntitySettingRequiredError,
   requireActivePostalEntitySetting,
 } from "@/lib/postalEntitySettings";
 
 export async function GET(request: NextRequest) {
   return withAuthenticatedUser(request, async ({ userId, getProfile }) => {
-    await getProfile();
     try {
+      const profile = await getProfile();
       const activePostalEntitySetting =
         await requireActivePostalEntitySetting(userId);
       return NextResponse.json({
         activePostalEntitySetting,
-        localDate: localDateInTimeZone(activePostalEntitySetting.timeZone),
+        localDate: localDateInTimeZone(profile.timeZone),
       });
     } catch (caught) {
       if (caught instanceof PostalEntitySettingRequiredError) {

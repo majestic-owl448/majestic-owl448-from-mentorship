@@ -14,9 +14,7 @@ export type PostalEntitySettingField =
   | "scope"
   | "sourceUrl"
   | "sourceNote"
-  | "displayCurrencyCode"
-  | "timeZoneMode"
-  | "timeZone";
+  | "displayCurrencyCode";
 
 export type PostalEntitySettingFieldErrors = Partial<
   Record<PostalEntitySettingField, string>
@@ -50,7 +48,7 @@ function validSourceUrl(value: string) {
   }
 }
 
-function isTimeZone(value: string) {
+export function isTimeZone(value: string) {
   if (/^[+-]\d{2}(?::?\d{2})?$/.test(value)) {
     return false;
   }
@@ -100,12 +98,6 @@ export function validateInitialPostalEntitySetting(
     typeof record.displayCurrencyCode === "string"
       ? record.displayCurrencyCode.trim().toUpperCase()
       : "";
-  const timeZoneMode =
-    typeof record.timeZoneMode === "string"
-      ? record.timeZoneMode.trim().toUpperCase()
-      : "";
-  const timeZone =
-    typeof record.timeZone === "string" ? record.timeZone.trim() : "";
   const errors: PostalEntitySettingFieldErrors = {};
   const issuingAuthority = cleanText(record, "issuingAuthority");
   const scope = cleanText(record, "scope");
@@ -149,12 +141,6 @@ export function validateInitialPostalEntitySetting(
     errors.displayCurrencyCode =
       "Select a currency supported by this application.";
   }
-  if (timeZoneMode !== "SYSTEM" && timeZoneMode !== "CUSTOM") {
-    errors.timeZoneMode = "Select system or custom timezone mode.";
-  }
-  if (!timeZone || !isTimeZone(timeZone)) {
-    errors.timeZone = "Enter a valid IANA timezone.";
-  }
 
   if (Object.keys(errors).length > 0) {
     return { errors };
@@ -170,8 +156,6 @@ export function validateInitialPostalEntitySetting(
       sourceUrl: sourceUrl || null,
       sourceNote: sourceNote || null,
       displayCurrencyCode,
-      timeZone,
-      timeZoneMode: timeZoneMode as "SYSTEM" | "CUSTOM",
     },
   };
 }
@@ -195,8 +179,6 @@ export function validatePostalEntitySettingValues(
   return {
     data: {
       displayCurrencyCode: validation.data.displayCurrencyCode,
-      timeZone: validation.data.timeZone,
-      timeZoneMode: validation.data.timeZoneMode,
     },
   };
 }
@@ -205,8 +187,6 @@ export function validatePostalEntitySubmission(input: unknown) {
   const validation = validateInitialPostalEntitySetting({
     ...(typeof input === "object" && input !== null ? input : {}),
     displayCurrencyCode: "USD",
-    timeZoneMode: "SYSTEM",
-    timeZone: "UTC",
   });
   if (validation.errors) return { errors: validation.errors };
   return {

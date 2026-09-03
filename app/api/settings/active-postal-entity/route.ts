@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthenticatedUser } from "@/lib/auth";
 import {
   activatePostalEntitySetting,
-  localDateInTimeZone,
   PostalEntitySettingNotFoundError,
 } from "@/lib/postalEntitySettings";
 
@@ -37,7 +36,6 @@ export async function PATCH(request: NextRequest) {
       );
       return NextResponse.json({
         activePostalEntitySetting,
-        activeLocalDate: localDateInTimeZone(activePostalEntitySetting.timeZone),
       });
     } catch (caught) {
       if (caught instanceof PostalEntitySettingNotFoundError) {

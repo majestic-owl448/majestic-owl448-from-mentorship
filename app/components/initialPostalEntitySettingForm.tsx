@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useIsMounted } from "@/app/hooks/useIsMounted";
 import type {
   PostalEntitySettingField,
   PostalEntitySettingFieldErrors,
@@ -16,8 +15,6 @@ export type SavedPostalEntitySetting = {
   id: string;
   userId: string;
   displayCurrencyCode: string;
-  timeZone: string;
-  timeZoneMode: "SYSTEM" | "CUSTOM";
   postalEntity: {
     id: string;
     name: string;
@@ -71,10 +68,6 @@ export function InitialPostalEntitySettingForm({
   onSaved,
   submitLabel = "Save postal entity setting",
 }: Props) {
-  const isMounted = useIsMounted();
-  const systemTimeZone = isMounted
-    ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-    : "UTC";
   const [postalEntityName, setPostalEntityName] = useState("");
   const [countryCode, setCountryCode] = useState("");
   const [issuingAuthority, setIssuingAuthority] = useState("");
@@ -82,10 +75,6 @@ export function InitialPostalEntitySettingForm({
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceNote, setSourceNote] = useState("");
   const [displayCurrencyCode, setDisplayCurrencyCode] = useState("");
-  const [timeZoneMode, setTimeZoneMode] = useState<"SYSTEM" | "CUSTOM">(
-    "SYSTEM"
-  );
-  const [customTimeZone, setCustomTimeZone] = useState("");
   const [errors, setErrors] = useState<PostalEntitySettingFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -108,9 +97,6 @@ export function InitialPostalEntitySettingForm({
           sourceUrl,
           sourceNote,
           displayCurrencyCode,
-          timeZoneMode,
-          timeZone:
-            timeZoneMode === "SYSTEM" ? systemTimeZone : customTimeZone,
         }),
       });
       const result = await response.json();
@@ -304,62 +290,6 @@ export function InitialPostalEntitySettingForm({
         <FieldError field="displayCurrencyCode" errors={errors} />
       </div>
 
-      <fieldset
-        aria-invalid={Boolean(errors.timeZoneMode)}
-        aria-describedby={describedBy(
-          "timeZoneMode",
-          Boolean(errors.timeZoneMode)
-        )}
-        className="flex flex-col gap-2"
-      >
-        <legend className="font-medium">Timezone mode</legend>
-        <p id="timeZoneMode-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Use the browser timezone or enter another IANA timezone.
-        </p>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="timeZoneMode"
-            value="SYSTEM"
-            checked={timeZoneMode === "SYSTEM"}
-            onChange={() => setTimeZoneMode("SYSTEM")}
-          />
-          System ({systemTimeZone})
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name="timeZoneMode"
-            value="CUSTOM"
-            checked={timeZoneMode === "CUSTOM"}
-            onChange={() => setTimeZoneMode("CUSTOM")}
-          />
-          Custom
-        </label>
-        <FieldError field="timeZoneMode" errors={errors} />
-      </fieldset>
-
-      <div className="flex flex-col gap-2">
-        <label htmlFor="timeZone" className="font-medium">
-          IANA timezone
-        </label>
-        <p id="timeZone-hint" className="text-sm text-zinc-600 dark:text-zinc-400">
-          Examples: Europe/Rome, America/New_York, or UTC.
-        </p>
-        <input
-          id="timeZone"
-          name="timeZone"
-          type="text"
-          value={timeZoneMode === "SYSTEM" ? systemTimeZone : customTimeZone}
-          onChange={(event) => setCustomTimeZone(event.target.value)}
-          readOnly={timeZoneMode === "SYSTEM"}
-          aria-invalid={Boolean(errors.timeZone)}
-          aria-describedby={describedBy("timeZone", Boolean(errors.timeZone))}
-          className={inputClass}
-          required
-        />
-        <FieldError field="timeZone" errors={errors} />
-      </div>
 
       {submitError ? (
         <p role="alert" className="text-sm text-red-700 dark:text-red-400">

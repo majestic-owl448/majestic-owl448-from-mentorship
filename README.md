@@ -7,7 +7,8 @@ development; its requirements and implementation sequence are in [`docs/`](docs/
 ## Current functionality
 
 Signed-in users can select one or more postal entities, set a display currency
-and timezone for each, and choose the active setting used for valuation. The
+for each, choose the active setting used for valuation, and set one timezone for
+their dashboard. The
 dashboard lets them record monetary, named/code, and manually entered postage
 values; set a quantity, annulment state, and optional expiration date; remove an
 entry; and see the active-country total.

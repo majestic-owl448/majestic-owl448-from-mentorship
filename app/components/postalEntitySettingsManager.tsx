@@ -6,7 +6,6 @@ import {
   type SavedPostalEntitySetting,
   type SettingOption,
 } from "@/app/components/initialPostalEntitySettingForm";
-import { useIsMounted } from "@/app/hooks/useIsMounted";
 import type { PostalEntitySettingFieldErrors } from "@/lib/postalEntitySettingValidation";
 
 type Props = {
@@ -32,10 +31,6 @@ function ExistingPostalEntitySettingForm({
   entities: SavedPostalEntitySetting["postalEntity"][];
   onAdded: (setting: SavedPostalEntitySetting) => void;
 }) {
-  const isMounted = useIsMounted();
-  const systemTimeZone = isMounted
-    ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-    : "UTC";
   const [postalEntityId, setPostalEntityId] = useState("");
   const [displayCurrencyCode, setDisplayCurrencyCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -52,8 +47,6 @@ function ExistingPostalEntitySettingForm({
         body: JSON.stringify({
           postalEntityId,
           displayCurrencyCode,
-          timeZoneMode: "SYSTEM",
-          timeZone: systemTimeZone,
         }),
       });
       const result = await response.json();
@@ -89,7 +82,6 @@ function ExistingPostalEntitySettingForm({
           {currencies.map((currency) => <option key={currency.value} value={currency.value}>{currency.label}</option>)}
         </select>
       </div>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">Timezone: current browser timezone ({systemTimeZone}). You can edit it after adding the setting.</p>
       <button type="submit" disabled={submitting || !postalEntityId || !displayCurrencyCode} className="h-10 w-fit rounded-full border border-zinc-300 px-5 disabled:opacity-60 dark:border-zinc-700">
         {submitting ? "Adding…" : "Add approved entity"}
       </button>
@@ -229,17 +221,9 @@ function SettingEditor({
   setting: SavedPostalEntitySetting;
   onUpdated: (setting: SavedPostalEntitySetting) => void;
 }) {
-  const isMounted = useIsMounted();
-  const systemTimeZone = isMounted
-    ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-    : "UTC";
   const [displayCurrencyCode, setDisplayCurrencyCode] = useState(
     setting.displayCurrencyCode
   );
-  const [timeZoneMode, setTimeZoneMode] = useState<"SYSTEM" | "CUSTOM">(
-    setting.timeZoneMode
-  );
-  const [timeZone, setTimeZone] = useState(setting.timeZone);
   const [errors, setErrors] = useState<PostalEntitySettingFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -259,8 +243,6 @@ function SettingEditor({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             displayCurrencyCode,
-            timeZoneMode,
-            timeZone,
           }),
         }
       );
@@ -309,66 +291,6 @@ function SettingEditor({
           <p id={`${prefix}-currency-error`} className="text-sm text-red-700 dark:text-red-400">
             {errors.displayCurrencyCode}
           </p>
-        ) : null}
-      </div>
-
-      <fieldset className="flex flex-col gap-2">
-        <legend className="font-medium">Timezone mode</legend>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name={`${prefix}-timeZoneMode`}
-            value="SYSTEM"
-            checked={timeZoneMode === "SYSTEM"}
-            onChange={() => {
-              setTimeZoneMode("SYSTEM");
-              setTimeZone(systemTimeZone);
-            }}
-          />
-          System ({systemTimeZone})
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            name={`${prefix}-timeZoneMode`}
-            value="CUSTOM"
-            checked={timeZoneMode === "CUSTOM"}
-            onChange={() => setTimeZoneMode("CUSTOM")}
-          />
-          Custom
-        </label>
-      </fieldset>
-
-      <div className="flex flex-col gap-2">
-        <label htmlFor={`${prefix}-time-zone`} className="font-medium">
-          IANA timezone
-        </label>
-        <input
-          id={`${prefix}-time-zone`}
-          type="text"
-          value={timeZone}
-          onChange={(event) => setTimeZone(event.target.value)}
-          readOnly={timeZoneMode === "SYSTEM"}
-          aria-invalid={Boolean(errors.timeZone)}
-          aria-describedby={
-            errors.timeZone ? `${prefix}-time-zone-error` : undefined
-          }
-          className={inputClass}
-          required
-        />
-        {errors.timeZone ? (
-          <p id={`${prefix}-time-zone-error`} className="text-sm text-red-700 dark:text-red-400">
-            {errors.timeZone}
-          </p>
-        ) : null}
-        {timeZoneMode === "SYSTEM" ? (
-          <button
-            type="button"
-            onClick={() => setTimeZone(systemTimeZone)}
-            className="self-start text-sm font-medium underline underline-offset-4"
-          >
-            Use current browser timezone ({systemTimeZone})
-          </button>
         ) : null}
       </div>
 

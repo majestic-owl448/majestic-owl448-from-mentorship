@@ -35,8 +35,6 @@ async function createUser(userId: string) {
       userId,
       postalEntityId: postalEntity.id,
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
-      timeZoneMode: "SYSTEM",
     },
   });
   await prisma.userProfile.update({
@@ -255,7 +253,6 @@ describe("named/code proposals", () => {
     expect(
       await presentStamp(stamp, {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       }),
     ).toMatchObject({

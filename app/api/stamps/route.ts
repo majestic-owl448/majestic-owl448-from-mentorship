@@ -16,11 +16,14 @@ import { validateNewStamp } from "@/lib/stampValidation";
 import type { AuthenticatedUser } from "@/lib/auth";
 
 async function authenticatedContext(authenticatedUser: AuthenticatedUser) {
-  await authenticatedUser.getProfile();
+  const profile = await authenticatedUser.getProfile();
   const { userId } = authenticatedUser;
   const activePostalEntitySetting =
     await requireActivePostalEntitySetting(userId);
-  return { userId, activePostalEntitySetting };
+  return {
+    userId,
+    activePostalEntitySetting: { ...activePostalEntitySetting, timeZone: profile.timeZone },
+  };
 }
 
 function settingsRequiredResponse(error: PostalEntitySettingRequiredError) {

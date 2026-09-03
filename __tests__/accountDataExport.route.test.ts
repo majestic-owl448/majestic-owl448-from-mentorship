@@ -144,8 +144,6 @@ describe("GET /api/account/export", () => {
         userId: "export-user",
         postalEntityId: postalEntity.id,
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     });
     await prisma.userProfile.update({
@@ -158,8 +156,6 @@ describe("GET /api/account/export", () => {
         userId: "other-user",
         postalEntityId: "other-private-entity",
         displayCurrencyCode: "USD",
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
       },
     });
     const schedule = await prisma.valueSchedule.create({

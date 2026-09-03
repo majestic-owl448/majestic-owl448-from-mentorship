@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAppSession } from "@/app/hooks/useAppSession";
 import type {
@@ -12,12 +12,15 @@ import { AuthenticatedNavigation } from "@/app/components/authenticatedNavigatio
 import { NamedFaceValueProposals } from "@/app/components/namedFaceValueProposals";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
+import { SystemTimeZoneSync } from "@/app/components/timeZoneSettings";
 
 type SettingsResponse = {
   role: "USER" | "MODERATOR";
   complete: boolean;
   activePostalEntitySetting: SavedPostalEntitySetting | null;
   activeLocalDate: string | null;
+  timeZone: string;
+  timeZoneMode: "SYSTEM" | "CUSTOM";
   postalEntitySettings: SavedPostalEntitySetting[];
   availablePostalEntities: SavedPostalEntitySetting["postalEntity"][];
   options: {
@@ -38,6 +41,7 @@ function DashboardContent() {
     userId: string;
     message: string;
   } | null>(null);
+  const [timeZoneReadyUserId, setTimeZoneReadyUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -60,6 +64,23 @@ function DashboardContent() {
       });
 
     return () => controller.abort();
+  }, [userId]);
+
+  const onTimeZoneReady = useCallback((preference: {
+    timeZone: string;
+    timeZoneMode: "SYSTEM" | "CUSTOM";
+  }) => {
+    setLoaded((current) =>
+      current?.userId !== userId ||
+      (current.data.timeZone === preference.timeZone && current.data.timeZoneMode === preference.timeZoneMode)
+        ? current
+        : { ...current, data: { ...current.data, ...preference } },
+    );
+    setTimeZoneReadyUserId(userId);
+  }, [userId]);
+
+  const onTimeZoneError = useCallback((message: string) => {
+    setLoadError({ userId: userId ?? "", message });
   }, [userId]);
 
   const settings = loaded?.userId === userId ? loaded.data : null;
@@ -99,6 +120,7 @@ function DashboardContent() {
 
   return (
     <div className="flex w-full flex-col gap-10">
+      <SystemTimeZoneSync preference={{ timeZone: settings.timeZone, timeZoneMode: settings.timeZoneMode }} onReady={onTimeZoneReady} onError={onTimeZoneError} />
       <AuthenticatedNavigation />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">
@@ -111,6 +133,12 @@ function DashboardContent() {
           Record and value the stamps in your collection.
         </p>
       </div>
+
+      {settings.activePostalEntitySetting && timeZoneReadyUserId !== userId && currentLoadError ? (
+        <p role="alert" className="max-w-xl text-red-700 dark:text-red-400">
+          {currentLoadError} <Link href="/settings" className="underline underline-offset-4">Set your timezone in Settings.</Link>
+        </p>
+      ) : null}
 
       {!settings.activePostalEntitySetting ? (
         <section className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800" aria-labelledby="postal-entity-required-heading">
@@ -164,7 +192,7 @@ function DashboardContent() {
         onUpdated={replaceSetting}
       />
 
-      {settings.activePostalEntitySetting && (
+      {settings.activePostalEntitySetting && timeZoneReadyUserId === userId && (
         <>
           <NamedFaceValueProposals
             activeCountryCode={settings.activePostalEntitySetting.postalEntity.countryCode}

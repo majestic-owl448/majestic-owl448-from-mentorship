@@ -24,8 +24,6 @@ const baseSubmission = {
   sourceUrl: "https://unstamps.org/",
   sourceNote: null,
   displayCurrencyCode: "USD",
-  timeZone: "America/New_York",
-  timeZoneMode: "CUSTOM" as const,
 };
 
 async function createUser(id: string, role: "USER" | "MODERATOR" = "USER") {
@@ -81,8 +79,6 @@ describe("postal entity moderation", () => {
     await expect(
       addExistingPostalEntitySetting("other", setting.postalEntityId, {
         displayCurrencyCode: "USD",
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
       }),
     ).resolves.toMatchObject({
       userId: "other",
@@ -140,8 +136,6 @@ describe("postal entity moderation", () => {
       target.id,
       {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     );
     const stamp = await prisma.stampInventoryEntry.create({
@@ -168,7 +162,6 @@ describe("postal entity moderation", () => {
     await expect(prisma.userPostalEntitySetting.findUniqueOrThrow({ where: { id: sourceSetting.id } })).resolves.toMatchObject({
       postalEntityId: target.id,
       displayCurrencyCode: "USD",
-      timeZone: "America/New_York",
     });
     await expect(prisma.userPostalEntitySetting.findUnique({ where: { id: existingTargetSetting.id } })).resolves.toBeNull();
     await expect(prisma.postalEntity.findUniqueOrThrow({ where: { id: sourceSetting.postalEntityId } })).resolves.toMatchObject({ status: "MERGED", mergedIntoId: target.id });

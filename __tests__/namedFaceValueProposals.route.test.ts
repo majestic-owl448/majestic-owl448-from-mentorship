@@ -88,8 +88,6 @@ describe("named/code proposal API", () => {
         userId: "first-user",
         postalEntityId: postalEntity.id,
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "SYSTEM",
       },
     });
     await prisma.userProfile.update({
