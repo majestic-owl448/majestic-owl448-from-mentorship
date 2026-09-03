@@ -105,4 +105,48 @@ describe("postal entity settings manager", () => {
     expect(markup).toContain("Resubmit corrected entity information");
     expect(markup).toContain("Replace references");
   });
+
+  it("keeps creation closed when an available postal entity can be selected", () => {
+    const markup = renderToStaticMarkup(
+      <PostalEntitySettingsManager
+        activeSettingId={null}
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+        settings={[]}
+        availablePostalEntities={[
+          {
+            id: "approved-entity",
+            name: "Approved Post",
+            countryCode: "IT",
+            status: "APPROVED",
+          },
+        ]}
+        onAdded={() => undefined}
+        onActivated={() => undefined}
+        onUpdated={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Postal entity option");
+    expect(markup).toContain("Choose an available postal entity");
+    expect(markup).toContain("Create a postal entity");
+    expect(markup).toContain("Use an approved postal entity");
+    expect(markup).not.toContain('id="postalEntityName"');
+  });
+
+  it("opens creation when no postal entity is available", () => {
+    const markup = renderToStaticMarkup(
+      <PostalEntitySettingsManager
+        activeSettingId={null}
+        countries={[{ value: "IT", label: "Italy" }]}
+        currencies={[{ value: "EUR", label: "EUR - Euro" }]}
+        settings={[]}
+        onAdded={() => undefined}
+        onActivated={() => undefined}
+        onUpdated={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('id="postalEntityName"');
+  });
 });

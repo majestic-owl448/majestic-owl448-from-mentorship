@@ -76,6 +76,10 @@ A moderator reviews proposals, checks the submitted source, merges duplicates, a
 
 ## Minimum user settings
 
+The authenticated dashboard is the inventory entry point. A new user can view its empty state before completing postal-entity setup. It explains, "Before you can start adding stamps, choose or create at least one postal entity." When approved entities are available, the user chooses one or selects Create; the creation form is open by default only when no entity is available. Selection and creation remain part of the stamp workflow because every stamp belongs to a postal entity.
+
+Authenticated navigation links the dashboard and the personal settings page, with the current page identified. Personal settings contains account-data export, account deletion, and future account-level preferences. It does not contain postal-entity selection or creation. Sign-out remains in authenticated navigation.
+
 Before using the inventory, a newly authenticated user must save one postal-entity setting containing:
 
 - Postal entity name.
