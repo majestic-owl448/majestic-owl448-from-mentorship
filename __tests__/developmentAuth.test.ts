@@ -73,8 +73,6 @@ describe("development authentication", () => {
         userId: "old-user",
         postalEntityId: "old-postal-entity",
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     });
     await prisma.stampInventoryEntry.create({

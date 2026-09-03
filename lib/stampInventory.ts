@@ -14,7 +14,7 @@ import type { StampUpdateInput } from "@/lib/stampUpdateValidation";
 
 type ActiveCountry = {
   displayCurrencyCode: string;
-  timeZone: string;
+  timeZone?: string;
   postalEntity: { countryCode: string };
 };
 
@@ -162,14 +162,14 @@ async function presentStampRecord(
         ? await resolveNamedFaceValueById(
             stamp.namedFaceValueId,
             stamp.countryCode,
-            localDateInTimeZone(activeCountry.timeZone),
+            localDateInTimeZone(activeCountry.timeZone ?? "UTC"),
             stamp.userId,
           )
         : stamp.namedFaceValueProposalId
           ? await resolveNamedFaceValueProposalById(
               stamp.namedFaceValueProposalId,
               stamp.countryCode,
-              localDateInTimeZone(activeCountry.timeZone),
+              localDateInTimeZone(activeCountry.timeZone ?? "UTC"),
               stamp.userId,
             )
           : null;

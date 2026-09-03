@@ -18,8 +18,6 @@ const firstSettingInput = {
   normalizedPostalEntityName: "poste italiane",
   countryCode: "IT",
   displayCurrencyCode: "EUR",
-  timeZone: "Europe/Rome",
-  timeZoneMode: "SYSTEM" as const,
 };
 
 describe("postal entity settings", () => {
@@ -53,8 +51,6 @@ describe("postal entity settings", () => {
       activePostalEntitySetting: {
         id: setting.id,
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "SYSTEM",
         postalEntity: {
           name: "Poste Italiane",
           normalizedName: "poste italiane",
@@ -78,8 +74,6 @@ describe("postal entity settings", () => {
       normalizedPostalEntityName: "vatican post",
       countryCode: "IT",
       displayCurrencyCode: "USD",
-      timeZone: "Europe/Vatican",
-      timeZoneMode: "CUSTOM",
     });
 
     expect(second.id).not.toBe(first.id);
@@ -149,8 +143,6 @@ describe("postal entity settings", () => {
     await expect(
       addExistingPostalEntitySetting("first-user", setting.postalEntityId, {
         displayCurrencyCode: "USD",
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
       })
     ).rejects.toBeInstanceOf(PostalEntitySettingAlreadyExistsError);
   });
@@ -169,8 +161,6 @@ describe("postal entity settings", () => {
 
     await updatePostalEntitySetting("first-user", first.id, {
       displayCurrencyCode: "USD",
-      timeZone: "America/New_York",
-      timeZoneMode: "CUSTOM",
     });
 
     await expect(listPostalEntitySettings("first-user")).resolves.toEqual(
@@ -178,12 +168,10 @@ describe("postal entity settings", () => {
         expect.objectContaining({
           id: first.id,
           displayCurrencyCode: "USD",
-          timeZone: "America/New_York",
         }),
         expect.objectContaining({
           id: second.id,
           displayCurrencyCode: "EUR",
-          timeZone: "Europe/Rome",
         }),
       ])
     );

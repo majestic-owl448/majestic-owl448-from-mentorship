@@ -40,6 +40,7 @@ import { GET as GET_SETTINGS } from "@/app/api/settings/route";
 import { POST } from "@/app/api/settings/postal-entities/route";
 import { PATCH as PATCH_SETTING } from "@/app/api/settings/postal-entities/[settingId]/route";
 import { PATCH as PATCH_ACTIVE } from "@/app/api/settings/active-postal-entity/route";
+import { PATCH as PATCH_TIME_ZONE } from "@/app/api/settings/timezone/route";
 import { GET as GET_INVENTORY } from "@/app/api/inventory/route";
 
 const validSetting = {
@@ -50,8 +51,6 @@ const validSetting = {
   sourceUrl: "https://example.com/poste-italiane",
   sourceNote: "",
   displayCurrencyCode: "EUR",
-  timeZone: "Europe/Rome",
-  timeZoneMode: "SYSTEM",
 };
 
 function postRequest(body: unknown) {
@@ -97,8 +96,6 @@ describe("postal entity settings API", () => {
       postalEntitySetting: {
         userId: "first-user",
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "SYSTEM",
         postalEntity: {
           name: "Poste Italiane",
           countryCode: "IT",
@@ -115,16 +112,17 @@ describe("postal entity settings API", () => {
     });
   });
 
-  it("persists a custom timezone across a new authenticated request", async () => {
+  it("persists a user timezone independently from postal-entity settings", async () => {
     auth.userId = "first-user";
     auth.email = "first@example.com";
-    await POST(
-      postRequest({
-        ...validSetting,
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
-      })
+    await POST(postRequest(validSetting));
+    const timeZoneResponse = await PATCH_TIME_ZONE(
+      new NextRequest("http://localhost/api/settings/timezone", {
+        method: "PATCH",
+        body: JSON.stringify({ timeZone: "America/New_York", timeZoneMode: "CUSTOM" }),
+      }),
     );
+    expect(timeZoneResponse.status).toBe(200);
 
     auth.userId = null;
     expect(
@@ -138,10 +136,10 @@ describe("postal entity settings API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       complete: true,
+      timeZone: "America/New_York",
+      timeZoneMode: "CUSTOM",
       activePostalEntitySetting: {
         userId: "first-user",
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
         postalEntity: {
           name: "Poste Italiane",
           countryCode: "IT",
@@ -210,8 +208,6 @@ describe("postal entity settings API", () => {
         sourceUrl: "ftp://example.com/entity",
         sourceNote: "",
         displayCurrencyCode: "XXX",
-        timeZone: "Mars/Olympus",
-        timeZoneMode: "AUTOMATIC",
       })
     );
 
@@ -226,8 +222,6 @@ describe("postal entity settings API", () => {
         sourceNote: "Enter a source URL or source note.",
         displayCurrencyCode:
           "Select a currency supported by this application.",
-        timeZoneMode: "Select system or custom timezone mode.",
-        timeZone: "Enter a valid IANA timezone.",
       },
     });
     expect(await prisma.userProfile.count()).toBe(0);
@@ -333,8 +327,6 @@ describe("postal entity settings API", () => {
           method: "PATCH",
           body: JSON.stringify({
             displayCurrencyCode: "CHF",
-            timeZone: "Europe/Zurich",
-            timeZoneMode: "CUSTOM",
           }),
         }
       ),
@@ -357,18 +349,15 @@ describe("postal entity settings API", () => {
       activePostalEntitySetting: {
         id: second.id,
         displayCurrencyCode: "CHF",
-        timeZone: "Europe/Zurich",
       },
       postalEntitySettings: expect.arrayContaining([
         expect.objectContaining({
           id: first.id,
           displayCurrencyCode: "EUR",
-          timeZone: "Europe/Rome",
         }),
         expect.objectContaining({
           id: second.id,
           displayCurrencyCode: "CHF",
-          timeZone: "Europe/Zurich",
         }),
       ]),
     });
@@ -382,8 +371,6 @@ describe("postal entity settings API", () => {
       postRequest({
         postalEntityId: first.postalEntityId,
         displayCurrencyCode: "USD",
-        timeZone: "America/New_York",
-        timeZoneMode: "CUSTOM",
       })
     );
     expect(duplicate.status).toBe(409);
@@ -395,8 +382,6 @@ describe("postal entity settings API", () => {
       postRequest({
         postalEntityId: first.postalEntityId,
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "SYSTEM",
       })
     );
     expect(privatePending.status).toBe(404);
@@ -413,15 +398,17 @@ describe("postal entity settings API", () => {
     ).resolves.toMatchObject({ activePostalEntitySettingId: second.id });
   });
 
-  it("uses the active setting timezone for the inventory local date", async () => {
+  it("uses the user's timezone for the inventory local date", async () => {
     auth.userId = "first-user";
     await POST(
       postRequest({
         ...validSetting,
-        timeZone: "America/Los_Angeles",
-        timeZoneMode: "CUSTOM",
       })
     );
+    await prisma.userProfile.update({
+      where: { id: "first-user" },
+      data: { timeZone: "America/Los_Angeles", timeZoneMode: "CUSTOM" },
+    });
 
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:30:00.000Z"));
@@ -432,9 +419,7 @@ describe("postal entity settings API", () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
         localDate: "2025-12-31",
-        activePostalEntitySetting: {
-          timeZone: "America/Los_Angeles",
-        },
+        activePostalEntitySetting: {},
       });
     } finally {
       vi.useRealTimers();

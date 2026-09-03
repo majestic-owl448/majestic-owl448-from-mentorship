@@ -3,8 +3,6 @@ import { prisma } from "@/lib/db";
 
 export type PostalEntitySettingValues = {
   displayCurrencyCode: string;
-  timeZone: string;
-  timeZoneMode: "SYSTEM" | "CUSTOM";
 };
 
 export type NewPostalEntitySettingInput = PostalEntitySettingValues & {
@@ -166,8 +164,6 @@ export async function createPostalEntitySetting(
         userId,
         postalEntityId: postalEntity.id,
         displayCurrencyCode: input.displayCurrencyCode,
-        timeZone: input.timeZone,
-        timeZoneMode: input.timeZoneMode,
       },
       include: settingWithEntity,
     });

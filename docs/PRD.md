@@ -9,7 +9,7 @@
 
 ## Product summary
 
-The application lets an authenticated user record the stamps they own and calculate their current postage value for a selected postal entity. A postal entity identifies the issuing authority, scope, and country used for postage. Each saved postal-entity setting has a display currency and timezone. A stamp belongs to one postal entity and country and can have a monetary face value, a country-specific name or code, or no face value. The user records how many copies they own, how many are annulled, and whether the stamp has expired.
+The application lets an authenticated user record the stamps they own and calculate their current postage value for a selected postal entity. A postal entity identifies the issuing authority, scope, and country used for postage. Each saved postal-entity setting has a display currency. The user has one dashboard timezone for date-based valuation. A stamp belongs to one postal entity and country and can have a monetary face value, a country-specific name or code, or no face value. The user records how many copies they own, how many are annulled, and whether the stamp has expired.
 
 Named and coded face values use shared, moderated data. Currency conversions that represent established fixed conversions can also become shared data. Users can propose additions and changes. A proposer can use a pending fixed conversion immediately and can use a pending named/code value when its effective date has arrived; other users see either only after approval.
 
@@ -18,7 +18,7 @@ Named and coded face values use shared, moderated data. Currency conversions tha
 The first release must let a user:
 
 1. Sign in and access only their own inventory.
-2. Complete the minimum settings required to use the inventory: postal entity, display currency, and timezone.
+2. Select or create a postal entity and display currency before using inventory.
 3. Save more than one postal-entity setting and select which postal entity is active.
 4. Add a stamp identified by a postal entity, country, name, face value, and optional year of issue.
 5. Record the owned and annulled quantities for that stamp.
@@ -52,7 +52,7 @@ An annulled stamp is a stamp that was already cancelled. It remains owned and vi
 | Term | Meaning |
 | --- | --- |
 | Postal entity | A moderated record for an issuing authority and geographic or office scope in one country. |
-| Postal-entity setting | User-owned configuration that pairs a postal entity with its display currency and timezone. |
+| Postal-entity setting | User-owned configuration that pairs a postal entity with its display currency. |
 | Active postal entity | Postal-entity setting used for the current inventory valuation. Stamps from other countries have postage value zero. |
 | Display currency | Currency used to display postage values and the inventory total for one postal-entity setting. |
 | Face value | Monetary amount, country-specific name/code, or absent denomination shown on a stamp. |
@@ -88,12 +88,11 @@ Before using the inventory, a newly authenticated user must save one postal-enti
 - Geographic or office scope.
 - Source URL or source note.
 - ISO 4217 display-currency code.
-- Timezone mode: system or custom.
-- A valid IANA timezone identifier.
+- Display currency.
 
-The settings form offers the browser's system timezone as the initial value. A user can replace it with a custom timezone. The saved IANA identifier is used for server-side date calculations. A user can add an approved postal entity or submit another entity for moderation. Each postal-entity setting has its own display currency and timezone settings.
+A user can add an approved postal entity or submit another entity for moderation. Each postal-entity setting has its own display currency. The personal Settings page uses the browser timezone by default and lets the user save another valid IANA timezone. The saved timezone is used for server-side date calculations.
 
-One postal-entity setting is active at a time. The first setting becomes active automatically. The user can add another postal entity, edit a setting's display currency or timezone, and switch the active postal entity. A user cannot access inventory valuation until at least one usable setting exists.
+One postal-entity setting is active at a time. The first setting becomes active automatically. The user can add another postal entity, edit a setting's display currency, and switch the active postal entity. A user cannot access inventory valuation until at least one usable setting exists.
 
 ## Stamp identity and ownership
 
@@ -189,7 +188,7 @@ The inventory release does not need a postage-rate catalog or postage-rate user 
 
 ## Current and future named/code values
 
-An effective date is stored as a calendar date, not a universal activation timestamp. Applicability is calculated from the active postal-entity setting's IANA timezone.
+An effective date is stored as a calendar date, not a universal activation timestamp. Applicability is calculated from the user's dashboard IANA timezone.
 
 At a single instant, a future value can be current for a user whose local date has advanced and still be upcoming for another user. For that reason, `CURRENT` and `SCHEDULED` are derived states rather than persistent global states.
 
@@ -219,7 +218,7 @@ The product discussion supplied this acceptance example; it is not a request to 
 - Approved future value: `1.40`.
 - Effective date: October 1, 2028.
 
-Through September 30, 2028 in the active Italy setting's timezone, inventory calculations use `1.35 EUR`. From October 1, they use `1.40 EUR`. During the 10-day notice window, the interface shows both values and the effective date. A future postage-rate record for `B Zona 1` can reference the same schedule and change at the same time.
+Through September 30, 2028 in the user's dashboard timezone, inventory calculations use `1.35 EUR`. From October 1, they use `1.40 EUR`. During the 10-day notice window, the interface shows both values and the effective date. A future postage-rate record for `B Zona 1` can reference the same schedule and change at the same time.
 
 ## Currency conversions
 
@@ -319,7 +318,7 @@ The deletion workflow must be idempotent. If deletion of the external SuperToken
 The authenticated inventory page contains:
 
 - Active postal-entity selector.
-- Postal-entity, display-currency, and timezone settings.
+- Postal-entity and display-currency settings.
 - Add-stamp form.
 - Inventory list.
 - Quantity owned and annulled controls.
@@ -368,7 +367,7 @@ If a required conversion is missing, the user can enter one without leaving the 
 The inventory release is complete when:
 
 1. A signed-in user can create, edit, list, and remove only their own inventory entries.
-2. A new user must save a postal entity, display currency, and timezone before using the inventory.
+2. A new user must select or create a postal entity and display currency before using inventory.
 3. A user can save more than one postal-entity setting and switch the active postal entity.
 4. Every stamp is assigned to one postal entity and country.
 5. Monetary, named/code, and absent face values are supported.
@@ -381,7 +380,7 @@ The inventory release is complete when:
 12. A named/code face value uses the current eligible value from its shared schedule.
 13. Updating an approved fixed conversion recalculates every linked monetary stamp.
 14. Updating an approved named/code schedule recalculates every linked named/code stamp.
-15. A future value activates on its effective calendar date in the active postal-entity setting's timezone.
+15. A future value activates on its effective calendar date in the user's dashboard timezone.
 16. Current and upcoming named/code values appear during the 10-day notice window.
 17. A proposer can use their eligible pending data while other users cannot see it.
 18. A moderator can approve, reject, and merge proposals through protected controls.

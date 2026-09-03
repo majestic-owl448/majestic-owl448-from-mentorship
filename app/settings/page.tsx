@@ -4,6 +4,7 @@ import { AccountDataDownload } from "@/app/components/accountDataDownload";
 import { AccountDeletion } from "@/app/components/accountDeletion";
 import { AuthenticatedNavigation } from "@/app/components/authenticatedNavigation";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
+import { TimeZoneSettings } from "@/app/components/timeZoneSettings";
 
 function SettingsContent() {
   return (
@@ -21,6 +22,10 @@ function SettingsContent() {
       <section className="flex flex-col gap-4" aria-labelledby="account-data-heading">
         <h2 id="account-data-heading" className="text-xl font-semibold">Account data</h2>
         <AccountDataDownload />
+      </section>
+      <section className="flex flex-col gap-4" aria-labelledby="timezone-heading">
+        <h2 id="timezone-heading" className="text-xl font-semibold">Timezone</h2>
+        <TimeZoneSettings />
       </section>
       <section className="flex flex-col gap-4" aria-labelledby="delete-account-heading">
         <h2 id="delete-account-heading" className="text-xl font-semibold">Delete account</h2>

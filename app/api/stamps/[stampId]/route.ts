@@ -35,18 +35,22 @@ export async function PATCH(
     }
 
     try {
-      await getProfile();
+      const profile = await getProfile();
       const activePostalEntitySetting =
         await requireActivePostalEntitySetting(userId);
+      const activeSettingWithTimeZone = {
+        ...activePostalEntitySetting,
+        timeZone: profile.timeZone,
+      };
       const { stampId } = await context.params;
       const updated = await updateStamp(
         userId,
         stampId,
         validation.data,
-        activePostalEntitySetting,
+        activeSettingWithTimeZone,
       );
-      const stamp = await presentStamp(updated, activePostalEntitySetting);
-      const stamps = await listStamps(userId, activePostalEntitySetting);
+      const stamp = await presentStamp(updated, activeSettingWithTimeZone);
+      const stamps = await listStamps(userId, activeSettingWithTimeZone);
 
       return NextResponse.json({
         stamp,
@@ -82,12 +86,16 @@ export async function DELETE(
 ) {
   return withAuthenticatedUser(request, async ({ userId, getProfile }) => {
     try {
-      await getProfile();
+      const profile = await getProfile();
       const activePostalEntitySetting =
         await requireActivePostalEntitySetting(userId);
+      const activeSettingWithTimeZone = {
+        ...activePostalEntitySetting,
+        timeZone: profile.timeZone,
+      };
       const { stampId } = await context.params;
       await deleteStamp(userId, stampId);
-      const stamps = await listStamps(userId, activePostalEntitySetting);
+      const stamps = await listStamps(userId, activeSettingWithTimeZone);
 
       return NextResponse.json({
         deletedStampId: stampId,

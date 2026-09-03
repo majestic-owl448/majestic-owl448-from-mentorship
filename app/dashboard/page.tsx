@@ -12,12 +12,15 @@ import { AuthenticatedNavigation } from "@/app/components/authenticatedNavigatio
 import { NamedFaceValueProposals } from "@/app/components/namedFaceValueProposals";
 import { SessionAuthForNextJS } from "@/app/components/sessionAuthForNextJS";
 import { StampInventory } from "@/app/components/stampInventory";
+import { SystemTimeZoneSync } from "@/app/components/timeZoneSettings";
 
 type SettingsResponse = {
   role: "USER" | "MODERATOR";
   complete: boolean;
   activePostalEntitySetting: SavedPostalEntitySetting | null;
   activeLocalDate: string | null;
+  timeZone: string;
+  timeZoneMode: "SYSTEM" | "CUSTOM";
   postalEntitySettings: SavedPostalEntitySetting[];
   availablePostalEntities: SavedPostalEntitySetting["postalEntity"][];
   options: {
@@ -99,6 +102,7 @@ function DashboardContent() {
 
   return (
     <div className="flex w-full flex-col gap-10">
+      <SystemTimeZoneSync preference={{ timeZone: settings.timeZone, timeZoneMode: settings.timeZoneMode }} />
       <AuthenticatedNavigation />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">

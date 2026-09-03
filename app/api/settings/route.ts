@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
       activeLocalDate:
         activePostalEntitySetting === null
           ? null
-          : localDateInTimeZone(activePostalEntitySetting.timeZone),
+          : localDateInTimeZone(profile.timeZone),
+      timeZone: profile.timeZone,
+      timeZoneMode: profile.timeZoneMode,
       postalEntitySettings,
       availablePostalEntities,
       options: {

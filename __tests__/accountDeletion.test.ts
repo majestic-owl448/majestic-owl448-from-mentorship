@@ -94,8 +94,6 @@ async function seedDeletionScenario() {
       userId: "deleting-user",
       postalEntityId: sharedPostalEntity.id,
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
-      timeZoneMode: "CUSTOM",
     },
   });
   const otherSetting = await prisma.userPostalEntitySetting.create({
@@ -104,8 +102,6 @@ async function seedDeletionScenario() {
       userId: "other-user",
       postalEntityId: "other-post",
       displayCurrencyCode: "USD",
-      timeZone: "America/New_York",
-      timeZoneMode: "CUSTOM",
     },
   });
   await Promise.all([

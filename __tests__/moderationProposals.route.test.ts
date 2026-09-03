@@ -430,7 +430,6 @@ describe("moderation proposal API", () => {
     const blocked = (
       await listStamps("proposer", {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       })
     ).find(({ id }) => id === "rejected-definition-stamp");
@@ -461,7 +460,6 @@ describe("moderation proposal API", () => {
       },
       {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       },
     );
@@ -562,7 +560,6 @@ describe("moderation proposal API", () => {
     expect(
       (await listStamps("proposer", {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       })).find(({ id }) => id === "definition-resubmission-stamp"),
     ).toMatchObject({
@@ -618,7 +615,6 @@ describe("moderation proposal API", () => {
 
     const activeCountry = {
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
       postalEntity: { countryCode: "IT" },
     };
     const [replacementResult, rejectionResult] = await Promise.allSettled([
@@ -671,8 +667,6 @@ describe("moderation proposal API", () => {
         userId: "proposer",
         postalEntityId: "private-postal-entity",
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     });
     const definition = await prisma.namedFaceValueDefinitionProposal.create({
@@ -761,8 +755,6 @@ describe("moderation proposal API", () => {
         userId: "proposer",
         postalEntityId: "private-postal-entity",
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     });
     const oldValue = await prisma.namedFaceValueValueProposal.create({
@@ -853,7 +845,6 @@ describe("moderation proposal API", () => {
     ).toEqual([]);
     const inventory = await listStamps("proposer", {
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
       postalEntity: { countryCode: "IT" },
     });
     expect(inventory).toEqual(
@@ -879,8 +870,6 @@ describe("moderation proposal API", () => {
         userId: "proposer",
         postalEntityId: "private-postal-entity",
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     });
     await prisma.valueSchedule.create({
@@ -981,7 +970,6 @@ describe("moderation proposal API", () => {
     expect(
       (await listStamps("proposer", {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       })).find(({ id }) => id === "overlap-stamp"),
     ).toMatchObject({
@@ -1048,7 +1036,6 @@ describe("moderation proposal API", () => {
     expect(
       (await listStamps("proposer", {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       })).find(({ id }) => id === "schedule-slot-stamp"),
     ).toMatchObject({
@@ -1065,8 +1052,6 @@ describe("moderation proposal API", () => {
         userId: "proposer",
         postalEntityId: "private-postal-entity",
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "CUSTOM",
       },
     });
     await prisma.stampInventoryEntry.createMany({
@@ -1122,7 +1107,6 @@ describe("moderation proposal API", () => {
 
     const activeCountry = {
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
       postalEntity: { countryCode: "IT" },
     };
     const blocked = await listStamps("proposer", activeCountry);
@@ -1272,7 +1256,6 @@ describe("moderation proposal API", () => {
     ).toEqual(linkedStampBefore);
     const proposerInventory = await listStamps("proposer", {
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
       postalEntity: { countryCode: "IT" },
     });
     expect(
@@ -1366,7 +1349,6 @@ describe("moderation proposal API", () => {
     expect(
       (await listStamps("proposer", {
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
         postalEntity: { countryCode: "IT" },
       })).find(({ id }) => id === "private-inventory-entry"),
     ).toMatchObject({
@@ -1403,7 +1385,6 @@ describe("moderation proposal API", () => {
     });
     const activeCountry = {
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
       postalEntity: { countryCode: "IT" },
     };
     expect((await listStamps("normal-user", activeCountry))[0]).toMatchObject({
@@ -1587,7 +1568,6 @@ describe("moderation proposal API", () => {
     });
     const activeCountry = {
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
       postalEntity: { countryCode: "IT" },
     };
     const before = (await listStamps("proposer", activeCountry)).find(

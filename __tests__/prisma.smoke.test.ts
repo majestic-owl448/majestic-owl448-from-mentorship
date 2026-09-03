@@ -36,8 +36,6 @@ describe("prisma smoke", () => {
         userId: profile.id,
         postalEntityId: postalEntity.id,
         displayCurrencyCode: "EUR",
-        timeZone: "Europe/Rome",
-        timeZoneMode: "SYSTEM",
       },
     });
 
@@ -53,8 +51,6 @@ describe("prisma smoke", () => {
     expect(updated.activePostalEntitySetting).toMatchObject({
       id: setting.id,
       displayCurrencyCode: "EUR",
-      timeZone: "Europe/Rome",
-      timeZoneMode: "SYSTEM",
       postalEntity: {
         id: postalEntity.id,
         name: "Poste Italiane",

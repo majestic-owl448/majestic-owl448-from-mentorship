@@ -120,8 +120,6 @@ async function createActiveSetting(
       userId,
       postalEntityId: postalEntity.id,
       displayCurrencyCode,
-      timeZone: "Europe/Rome",
-      timeZoneMode: "SYSTEM",
     },
   });
   await prisma.userProfile.update({
@@ -149,8 +147,6 @@ async function createAdditionalSetting(
       userId,
       postalEntityId: postalEntity.id,
       displayCurrencyCode,
-      timeZone: "Europe/Rome",
-      timeZoneMode: "SYSTEM",
     },
   });
 }
@@ -658,6 +654,10 @@ describe("stamp inventory API", () => {
       vi.setSystemTime(new Date("2028-09-20T12:00:00.000Z"));
       auth.userId = "first-user";
       await createActiveSetting("first-user");
+      await prisma.userProfile.update({
+        where: { id: "first-user" },
+        data: { timeZone: "Europe/Rome", timeZoneMode: "CUSTOM" },
+      });
       await prisma.valueSchedule.create({
         data: {
           id: "italy-b-zone-one-schedule",

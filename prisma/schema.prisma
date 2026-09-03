@@ -46,6 +46,8 @@ model UserProfile {
   id                           String                             @id
   email                        String?
   role                         UserRole                           @default(USER)
+  timeZone                     String                             @default("UTC") @map("time_zone")
+  timeZoneMode                 TimeZoneMode                       @default(SYSTEM) @map("time_zone_mode")
   activePostalEntitySettingId  String?                            @unique @map("active_postal_entity_setting_id")
   activePostalEntitySetting    UserPostalEntitySetting?           @relation("ActivePostalEntitySetting", fields: [activePostalEntitySettingId], references: [id], onDelete: SetNull)
   postalEntitySettings         UserPostalEntitySetting[]          @relation("UserPostalEntitySettings")
@@ -156,8 +158,6 @@ model UserPostalEntitySetting {
   userId              String       @map("user_id")
   postalEntityId      String       @map("postal_entity_id")
   displayCurrencyCode String       @map("display_currency_code")
-  timeZone            String       @map("time_zone")
-  timeZoneMode        TimeZoneMode @map("time_zone_mode")
   user                UserProfile  @relation("UserPostalEntitySettings", fields: [userId], references: [id], onDelete: Cascade)
   postalEntity        PostalEntity @relation(fields: [postalEntityId], references: [id], onDelete: Restrict)
   activeFor           UserProfile? @relation("ActivePostalEntitySetting")

@@ -12,8 +12,6 @@ const validInput = {
   sourceUrl: "https://example.com/poste-italiane",
   sourceNote: "",
   displayCurrencyCode: "EUR",
-  timeZone: "Europe/Rome",
-  timeZoneMode: "SYSTEM",
 };
 
 const validData = {
@@ -56,13 +54,6 @@ describe("postal entity setting validation", () => {
       "displayCurrencyCode",
       "XXX",
       "Select a currency supported by this application.",
-    ],
-    ["timeZone", "Mars/Olympus", "Enter a valid IANA timezone."],
-    ["timeZone", "+01:00", "Enter a valid IANA timezone."],
-    [
-      "timeZoneMode",
-      "AUTOMATIC",
-      "Select system or custom timezone mode.",
     ],
   ])("returns a field error for invalid %s", (field, value, message) => {
     expect(

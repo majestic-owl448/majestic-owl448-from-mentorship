@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     if (validation.errors) {
       return NextResponse.json({ errors: validation.errors }, { status: 400 });
     }
-    await getProfile();
+    const profile = await getProfile();
 
     try {
       const proposal =
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
               return createValueProposal(
                 userId,
                 valueInput,
-                localDateInTimeZone(activeSetting.timeZone),
+                localDateInTimeZone(profile.timeZone),
               );
             })(validation.data);
       return NextResponse.json(

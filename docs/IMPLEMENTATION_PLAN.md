@@ -98,8 +98,6 @@ UserPostalEntitySetting
   userId
   postalEntityId
   displayCurrencyCode
-  timeZone
-  timeZoneMode             SYSTEM or CUSTOM
   createdAt
   updatedAt
 
@@ -110,8 +108,8 @@ Work:
 
 1. Replace the unrelated numeric Prisma user with a profile keyed by the SuperTokens primary user ID.
 2. Create or update the profile from authenticated server-side code.
-3. Add the minimum settings flow for postal entity, display currency, and timezone. Block inventory routes until the first postal-entity setting exists.
-4. Offer the browser's IANA timezone as the system-derived default and allow a custom timezone per postal-entity setting.
+3. Add the minimum settings flow for postal entity and display currency. Block inventory routes until the first postal-entity setting exists.
+4. Store one user dashboard timezone. Use the browser timezone while the user selects the system option, and allow a custom timezone on the personal Settings page.
 5. Let the user add postal-entity settings and select one active setting.
 6. Add a server-side moderator-role guard.
 7. Remove the generic `/api/data` route.
@@ -229,7 +227,7 @@ Resolution rules:
 
 Fixed currency conversions do not have effective dates. The conversion resolver selects an approved rate or the current user's pending correction for the currency pair.
 
-The service accepts an explicit active country setting and local date for deterministic tests. The inventory route supplies today's date in that setting's saved timezone. There is no date selector in the user interface.
+The service accepts an explicit active country setting and local date for deterministic tests. The inventory route supplies today's date in the user's saved dashboard timezone. There is no date selector in the user interface.
 
 Use a decimal library or the database client's decimal type for every calculation. Convert to strings at the API boundary and format only at the presentation layer.
 
