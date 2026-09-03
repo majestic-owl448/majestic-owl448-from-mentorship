@@ -35,7 +35,7 @@ A named/code value or fixed conversion can remain pending after the user leaves 
 
 ### Future values have known dates
 
-The application already models named/code changes that become valid on a future calendar date. An optional email can warn affected users before the change. The active postal-entity setting's saved IANA timezone determines the relevant date, while the inventory screen remains authoritative for the current value.
+The application already models named/code changes that become valid on a future calendar date. An optional email can warn affected users before the change. The user's saved dashboard IANA timezone determines the relevant date, while the inventory screen remains authoritative for the current value.
 
 ### Moderator work can arrive irregularly
 
@@ -143,7 +143,7 @@ Security notifications remain enabled. If the selected address bounces, the sett
 
 Upcoming-value email is useful only for users who own a matching named/code stamp in that country. It must follow these rules:
 
-1. Use the active postal-entity setting's country and saved IANA timezone.
+1. Use the active postal-entity setting's country and the user's saved dashboard IANA timezone.
 2. Send at most once for a user, schedule value, and effective date.
 3. Do not send before the value enters the product's notice window.
 4. Include pending data only when the recipient is its proposer.

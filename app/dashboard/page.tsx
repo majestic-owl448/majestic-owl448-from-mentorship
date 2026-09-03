@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAppSession } from "@/app/hooks/useAppSession";
 import type {
@@ -41,6 +41,7 @@ function DashboardContent() {
     userId: string;
     message: string;
   } | null>(null);
+  const [timeZoneReady, setTimeZoneReady] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -100,9 +101,23 @@ function DashboardContent() {
     );
   }
 
+  const onTimeZoneReady = useCallback((preference: {
+    timeZone: string;
+    timeZoneMode: "SYSTEM" | "CUSTOM";
+  }) => {
+    setLoaded((current) =>
+      current?.userId !== userId ||
+      (current.data.timeZone === preference.timeZone &&
+        current.data.timeZoneMode === preference.timeZoneMode)
+        ? current
+        : { ...current, data: { ...current.data, ...preference } },
+    );
+    setTimeZoneReady(true);
+  }, [userId]);
+
   return (
     <div className="flex w-full flex-col gap-10">
-      <SystemTimeZoneSync preference={{ timeZone: settings.timeZone, timeZoneMode: settings.timeZoneMode }} />
+      <SystemTimeZoneSync preference={{ timeZone: settings.timeZone, timeZoneMode: settings.timeZoneMode }} onReady={onTimeZoneReady} />
       <AuthenticatedNavigation />
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-zinc-500">
@@ -168,7 +183,7 @@ function DashboardContent() {
         onUpdated={replaceSetting}
       />
 
-      {settings.activePostalEntitySetting && (
+      {settings.activePostalEntitySetting && timeZoneReady && (
         <>
           <NamedFaceValueProposals
             activeCountryCode={settings.activePostalEntitySetting.postalEntity.countryCode}

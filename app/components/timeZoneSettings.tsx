@@ -20,13 +20,27 @@ async function savePreference(preference: Preference) {
   return body as Preference;
 }
 
-export function SystemTimeZoneSync({ preference }: { preference: Preference }) {
+export function SystemTimeZoneSync({
+  preference,
+  onReady,
+}: {
+  preference: Preference;
+  onReady: (preference: Preference) => void;
+}) {
   const mounted = useIsMounted();
   useEffect(() => {
-    if (!mounted || preference.timeZoneMode !== "SYSTEM") return;
+    if (!mounted) return;
+    if (preference.timeZoneMode !== "SYSTEM") {
+      onReady(preference);
+      return;
+    }
     const timeZone = browserTimeZone();
-    if (timeZone !== preference.timeZone) void savePreference({ timeZone, timeZoneMode: "SYSTEM" });
-  }, [mounted, preference]);
+    if (timeZone === preference.timeZone) {
+      onReady(preference);
+      return;
+    }
+    void savePreference({ timeZone, timeZoneMode: "SYSTEM" }).then(onReady);
+  }, [mounted, onReady, preference.timeZone, preference.timeZoneMode]);
   return null;
 }
 
