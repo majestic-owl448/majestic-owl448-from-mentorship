@@ -134,6 +134,12 @@ function DashboardContent() {
         </p>
       </div>
 
+      {settings.activePostalEntitySetting && timeZoneReadyUserId !== userId && currentLoadError ? (
+        <p role="alert" className="max-w-xl text-red-700 dark:text-red-400">
+          {currentLoadError} <Link href="/settings" className="underline underline-offset-4">Set your timezone in Settings.</Link>
+        </p>
+      ) : null}
+
       {!settings.activePostalEntitySetting ? (
         <section className="flex flex-col gap-2 rounded-xl border border-zinc-200 p-5 dark:border-zinc-800" aria-labelledby="postal-entity-required-heading">
           <h2 id="postal-entity-required-heading" className="text-xl font-semibold">
