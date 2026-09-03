@@ -434,6 +434,13 @@ export function PostalEntitySettingsManager({
     }
   }
 
+  function handleAdded(setting: SavedPostalEntitySetting) {
+    onAdded(setting);
+    if (approvedEntitiesToAdd.length === 1) {
+      setAddMethod("CREATE");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-10">
       {usableSettings.length > 0 ? (
@@ -516,10 +523,10 @@ export function PostalEntitySettingsManager({
           </fieldset>
         ) : null}
         {addMethod === "EXISTING" && approvedEntitiesToAdd.length > 0 ? (
-          <ExistingPostalEntitySettingForm currencies={currencies} entities={approvedEntitiesToAdd} onAdded={onAdded} />
+          <ExistingPostalEntitySettingForm currencies={currencies} entities={approvedEntitiesToAdd} onAdded={handleAdded} />
         ) : null}
         {addMethod === "CREATE" ? (
-          <InitialPostalEntitySettingForm key={settings.length} countries={countries} currencies={currencies} onSaved={onAdded} submitLabel="Add postal entity" />
+          <InitialPostalEntitySettingForm key={settings.length} countries={countries} currencies={currencies} onSaved={handleAdded} submitLabel="Add postal entity" />
         ) : null}
       </section>
     </div>
