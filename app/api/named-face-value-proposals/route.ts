@@ -45,8 +45,7 @@ export async function POST(request: NextRequest) {
         validation.data.proposalType === "DEFINITION"
           ? await createDefinitionProposal(userId, validation.data)
           : await (async (valueInput: ValueProposalInput) => {
-              const activeSetting =
-                await requireActivePostalEntitySetting(userId);
+              await requireActivePostalEntitySetting(userId);
               return createValueProposal(
                 userId,
                 valueInput,

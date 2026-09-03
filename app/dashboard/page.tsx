@@ -41,7 +41,7 @@ function DashboardContent() {
     userId: string;
     message: string;
   } | null>(null);
-  const [timeZoneReady, setTimeZoneReady] = useState(false);
+  const [timeZoneReadyUserId, setTimeZoneReadyUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
@@ -64,6 +64,19 @@ function DashboardContent() {
       });
 
     return () => controller.abort();
+  }, [userId]);
+
+  const onTimeZoneReady = useCallback((preference: {
+    timeZone: string;
+    timeZoneMode: "SYSTEM" | "CUSTOM";
+  }) => {
+    setLoaded((current) =>
+      current?.userId !== userId ||
+      (current.data.timeZone === preference.timeZone && current.data.timeZoneMode === preference.timeZoneMode)
+        ? current
+        : { ...current, data: { ...current.data, ...preference } },
+    );
+    setTimeZoneReadyUserId(userId);
   }, [userId]);
 
   const settings = loaded?.userId === userId ? loaded.data : null;
@@ -100,20 +113,6 @@ function DashboardContent() {
         : current
     );
   }
-
-  const onTimeZoneReady = useCallback((preference: {
-    timeZone: string;
-    timeZoneMode: "SYSTEM" | "CUSTOM";
-  }) => {
-    setLoaded((current) =>
-      current?.userId !== userId ||
-      (current.data.timeZone === preference.timeZone &&
-        current.data.timeZoneMode === preference.timeZoneMode)
-        ? current
-        : { ...current, data: { ...current.data, ...preference } },
-    );
-    setTimeZoneReady(true);
-  }, [userId]);
 
   return (
     <div className="flex w-full flex-col gap-10">
@@ -183,7 +182,7 @@ function DashboardContent() {
         onUpdated={replaceSetting}
       />
 
-      {settings.activePostalEntitySetting && timeZoneReady && (
+      {settings.activePostalEntitySetting && timeZoneReadyUserId === userId && (
         <>
           <NamedFaceValueProposals
             activeCountryCode={settings.activePostalEntitySetting.postalEntity.countryCode}
